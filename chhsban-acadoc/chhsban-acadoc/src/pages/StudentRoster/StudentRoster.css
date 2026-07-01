@@ -1,0 +1,137 @@
+.student-roster {
+  max-width: 800px;
+  margin: 20px auto;
+  padding: 20px;
+}
+
+.search-container {
+  background: #f9f9f9;
+  border-radius: 8px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.search-container h2 {
+  margin: 0 0 16px 0;
+  color: #333;
+  font-size: 20px;
+}
+
+.search-box {
+  display: flex;
+  gap: 8px;
+}
+
+.search-box input {
+  flex: 1;
+  padding: 10px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 0 3px rgba(0, 102, 204, 0.1);
+}
+
+.search-box input:disabled {
+  background-color: #f0f0f0;
+  cursor: not-allowed;
+}
+
+.search-box button {
+  padding: 10px 20px;
+  background-color: #0066cc;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.search-box button:hover:not(:disabled) {
+  background-color: #0052a3;
+}
+
+.search-box button:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.result-container {
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.result-success {
+  background: #f0f8ff;
+  border: 1px solid #0066cc;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.result-success h3 {
+  margin: 0 0 16px 0;
+  color: #0066cc;
+  font-size: 16px;
+}
+
+.student-card {
+  background: white;
+  border-radius: 4px;
+  padding: 12px;
+  border: 1px solid #ddd;
+}
+
+.card-row {
+  display: flex;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 14px;
+}
+
+.card-row:last-child {
+  border-bottom: none;
+}
+
+.card-row .label {
+  font-weight: 600;
+  color: #555;
+  min-width: 100px;
+  margin-right: 12px;
+}
+
+.card-row .value {
+  color: #333;
+  word-break: break-word;
+  flex: 1;
+}
+
+.result-error {
+  background: #fff5f5;
+  border: 1px solid #f5222d;
+  border-radius: 8px;
+  padding: 16px;
+  color: #f5222d;
+  font-size: 14px;
+}
+
+.result-error p {
+  margin: 0;
+}

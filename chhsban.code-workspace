@@ -1,0 +1,17 @@
+{
+	"folders": [
+		{
+			"path": "./chhsban-acadoc"
+		},
+		{
+			"path": "./chhsban-tution"
+		},
+		{
+			"path": "./chhsban-markdown"
+		},
+		{
+			"path": "./packages"
+		}
+	],
+	"settings": {}
+}

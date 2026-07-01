@@ -1,0 +1,31 @@
+{
+  "name": "@chhsban/kv-utils",
+  "version": "0.1.0",
+  "description": "Shared KV utilities for CHHSBAN projects",
+  "type": "module",
+  "exports": {
+    ".": "./dist/index.js",
+    "./auth": "./dist/auth/index.js",
+    "./student": "./dist/student/index.js",
+    "./teacher": "./dist/teacher/index.js",
+    "./types": "./dist/types/index.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "kv",
+    "chhsban"
+  ],
+  "author": "CHHSBAN",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}
