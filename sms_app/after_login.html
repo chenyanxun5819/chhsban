@@ -1,0 +1,1403 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd"><html xmlns="http://www.w3.org/1999/xhtml" xml:lang="en" lang="zh" class=" js no-touch csstransforms3d csstransitions"><head>
+
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+
+  <meta name="language" content="en">
+
+  <link rel="stylesheet" type="text/css" href="/sms/css/modify.css">
+
+  <link rel="icon" href="/sms/images/data/logo/thumbs/thumb-logo-1541758561.png" type="image/x-icon">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" type="text/css" href="/sms/assets/45e0cf9f/bootstrap/css/bootstrap.min.css">
+<link rel="stylesheet" type="text/css" href="/sms/assets/45e0cf9f/css/bootstrap-yii.css">
+<link rel="stylesheet" type="text/css" href="/sms/assets/45e0cf9f/css/jquery-ui-bootstrap.css">
+<link rel="stylesheet" type="text/css" href="/sms/assets/45e0cf9f/css/bootstrap-box.css">
+<script type="text/javascript" src="/sms/assets/9d7d51e5/jquery.min.js"></script>
+<script type="text/javascript" src="/sms/assets/45e0cf9f/bootstrap/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="/sms/assets/45e0cf9f/js/bootstrap-noconflict.js"></script>
+<script type="text/javascript" src="/sms/assets/45e0cf9f/bootbox/bootbox.min.js"></script>
+<script type="text/javascript" src="/sms/assets/45e0cf9f/notify/notify.min.js"></script><style type="text/css" id="notify-bootstrap">.notifyjs-bootstrap-base {
+  font-weight: bold;
+  padding: 8px 15px 8px 14px;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.5);
+  background-color: #fcf8e3;
+  border: 1px solid #fbeed5;
+  -webkit-border-radius: 4px;
+  -moz-border-radius: 4px;
+  border-radius: 4px;
+  white-space: nowrap;
+  padding-left: 25px;
+  background-repeat: no-repeat;
+  background-position: 3px 7px;
+}
+.notifyjs-bootstrap-error {
+  color: #B94A48;
+  background-color: #F2DEDE;
+  border-color: #EED3D7;
+  background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAtRJREFUeNqkVc1u00AQHq+dOD+0poIQfkIjalW0SEGqRMuRnHos3DjwAH0ArlyQeANOOSMeAA5VjyBxKBQhgSpVUKKQNGloFdw4cWw2jtfMOna6JOUArDTazXi/b3dm55socPqQhFka++aHBsI8GsopRJERNFlY88FCEk9Yiwf8RhgRyaHFQpPHCDmZG5oX2ui2yilkcTT1AcDsbYC1NMAyOi7zTX2Agx7A9luAl88BauiiQ/cJaZQfIpAlngDcvZZMrl8vFPK5+XktrWlx3/ehZ5r9+t6e+WVnp1pxnNIjgBe4/6dAysQc8dsmHwPcW9C0h3fW1hans1ltwJhy0GxK7XZbUlMp5Ww2eyan6+ft/f2FAqXGK4CvQk5HueFz7D6GOZtIrK+srupdx1GRBBqNBtzc2AiMr7nPplRdKhb1q6q6zjFhrklEFOUutoQ50xcX86ZlqaZpQrfbBdu2R6/G19zX6XSgh6RX5ubyHCM8nqSID6ICrGiZjGYYxojEsiw4PDwMSL5VKsC8Yf4VRYFzMzMaxwjlJSlCyAQ9l0CW44PBADzXhe7xMdi9HtTrdYjFYkDQL0cn4Xdq2/EAE+InCnvADTf2eah4Sx9vExQjkqXT6aAERICMewd/UAp/IeYANM2joxt+q5VI+ieq2i0Wg3l6DNzHwTERPgo1ko7XBXj3vdlsT2F+UuhIhYkp7u7CarkcrFOCtR3H5JiwbAIeImjT/YQKKBtGjRFCU5IUgFRe7fF4cCNVIPMYo3VKqxwjyNAXNepuopyqnld602qVsfRpEkkz+GFL1wPj6ySXBpJtWVa5xlhpcyhBNwpZHmtX8AGgfIExo0ZpzkWVTBGiXCSEaHh62/PoR0p/vHaczxXGnj4bSo+G78lELU80h1uogBwWLf5YlsPmgDEd4M236xjm+8nm4IuE/9u+/PH2JXZfbwz4zw1WbO+SQPpXfwG/BBgAhCNZiSb/pOQAAAAASUVORK5CYII=);
+}
+.notifyjs-bootstrap-success {
+  color: #468847;
+  background-color: #DFF0D8;
+  border-color: #D6E9C6;
+  background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAutJREFUeNq0lctPE0Ecx38zu/RFS1EryqtgJFA08YCiMZIAQQ4eRG8eDGdPJiYeTIwHTfwPiAcvXIwXLwoXPaDxkWgQ6islKlJLSQWLUraPLTv7Gme32zoF9KSTfLO7v53vZ3d/M7/fIth+IO6INt2jjoA7bjHCJoAlzCRw59YwHYjBnfMPqAKWQYKjGkfCJqAF0xwZjipQtA3MxeSG87VhOOYegVrUCy7UZM9S6TLIdAamySTclZdYhFhRHloGYg7mgZv1Zzztvgud7V1tbQ2twYA34LJmF4p5dXF1KTufnE+SxeJtuCZNsLDCQU0+RyKTF27Unw101l8e6hns3u0PBalORVVVkcaEKBJDgV3+cGM4tKKmI+ohlIGnygKX00rSBfszz/n2uXv81wd6+rt1orsZCHRdr1Imk2F2Kob3hutSxW8thsd8AXNaln9D7CTfA6O+0UgkMuwVvEFFUbbAcrkcTA8+AtOk8E6KiQiDmMFSDqZItAzEVQviRkdDdaFgPp8HSZKAEAL5Qh7Sq2lIJBJwv2scUqkUnKoZgNhcDKhKg5aH+1IkcouCAdFGAQsuWZYhOjwFHQ96oagWgRoUov1T9kRBEODAwxM2QtEUl+Wp+Ln9VRo6BcMw4ErHRYjH4/B26AlQoQQTRdHWwcd9AH57+UAXddvDD37DmrBBV34WfqiXPl61g+vr6xA9zsGeM9gOdsNXkgpEtTwVvwOklXLKm6+/p5ezwk4B+j6droBs2CsGa/gNs6RIxazl4Tc25mpTgw/apPR1LYlNRFAzgsOxkyXYLIM1V8NMwyAkJSctD1eGVKiq5wWjSPdjmeTkiKvVW4f2YPHWl3GAVq6ymcyCTgovM3FzyRiDe2TaKcEKsLpJvNHjZgPNqEtyi6mZIm4SRFyLMUsONSSdkPeFtY1n0mczoY3BHTLhwPRy9/lzcziCw9ACI+yql0VLzcGAZbYSM5CCSZg1/9oc/nn7+i8N9p/8An4JMADxhH+xHfuiKwAAAABJRU5ErkJggg==);
+}
+.notifyjs-bootstrap-info {
+  color: #3A87AD;
+  background-color: #D9EDF7;
+  border-color: #BCE8F1;
+  background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAABmJLR0QA/wD/AP+gvaeTAAAACXBIWXMAAAsTAAALEwEAmpwYAAAAB3RJTUUH3QYFAhkSsdes/QAAA8dJREFUOMvVlGtMW2UYx//POaWHXg6lLaW0ypAtw1UCgbniNOLcVOLmAjHZolOYlxmTGXVZdAnRfXQm+7SoU4mXaOaiZsEpC9FkiQs6Z6bdCnNYruM6KNBw6YWewzl9z+sHImEWv+vz7XmT95f/+3/+7wP814v+efDOV3/SoX3lHAA+6ODeUFfMfjOWMADgdk+eEKz0pF7aQdMAcOKLLjrcVMVX3xdWN29/GhYP7SvnP0cWfS8caSkfHZsPE9Fgnt02JNutQ0QYHB2dDz9/pKX8QjjuO9xUxd/66HdxTeCHZ3rojQObGQBcuNjfplkD3b19Y/6MrimSaKgSMmpGU5WevmE/swa6Oy73tQHA0Rdr2Mmv/6A1n9w9suQ7097Z9lM4FlTgTDrzZTu4StXVfpiI48rVcUDM5cmEksrFnHxfpTtU/3BFQzCQF/2bYVoNbH7zmItbSoMj40JSzmMyX5qDvriA7QdrIIpA+3cdsMpu0nXI8cV0MtKXCPZev+gCEM1S2NHPvWfP/hL+7FSr3+0p5RBEyhEN5JCKYr8XnASMT0xBNyzQGQeI8fjsGD39RMPk7se2bd5ZtTyoFYXftF6y37gx7NeUtJJOTFlAHDZLDuILU3j3+H5oOrD3yWbIztugaAzgnBKJuBLpGfQrS8wO4FZgV+c1IxaLgWVU0tMLEETCos4xMzEIv9cJXQcyagIwigDGwJgOAtHAwAhisQUjy0ORGERiELgG4iakkzo4MYAxcM5hAMi1WWG1yYCJIcMUaBkVRLdGeSU2995TLWzcUAzONJ7J6FBVBYIggMzmFbvdBV44Corg8vjhzC+EJEl8U1kJtgYrhCzgc/vvTwXKSib1paRFVRVORDAJAsw5FuTaJEhWM2SHB3mOAlhkNxwuLzeJsGwqWzf5TFNdKgtY5qHp6ZFf67Y/sAVadCaVY5YACDDb3Oi4NIjLnWMw2QthCBIsVhsUTU9tvXsjeq9+X1d75/KEs4LNOfcdf/+HthMnvwxOD0wmHaXr7ZItn2wuH2SnBzbZAbPJwpPx+VQuzcm7dgRCB57a1uBzUDRL4bfnI0RE0eaXd9W89mpjqHZnUI5Hh2l2dkZZUhOqpi2qSmpOmZ64Tuu9qlz/SEXo6MEHa3wOip46F1n7633eekV8ds8Wxjn37Wl63VVa+ej5oeEZ/82ZBETJjpJ1Rbij2D3Z/1trXUvLsblCK0XfOx0SX2kMsn9dX+d+7Kf6h8o4AIykuffjT8L20LU+w4AZd5VvEPY+XpWqLV327HR7DzXuDnD8r+ovkBehJ8i+y8YAAAAASUVORK5CYII=);
+}
+.notifyjs-bootstrap-warn {
+  color: #C09853;
+  background-color: #FCF8E3;
+  border-color: #FBEED5;
+  background-image: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAMAAAC6V+0/AAABJlBMVEXr6eb/2oD/wi7/xjr/0mP/ykf/tQD/vBj/3o7/uQ//vyL/twebhgD/4pzX1K3z8e349vK6tHCilCWbiQymn0jGworr6dXQza3HxcKkn1vWvV/5uRfk4dXZ1bD18+/52YebiAmyr5S9mhCzrWq5t6ufjRH54aLs0oS+qD751XqPhAybhwXsujG3sm+Zk0PTwG6Shg+PhhObhwOPgQL4zV2nlyrf27uLfgCPhRHu7OmLgAafkyiWkD3l49ibiAfTs0C+lgCniwD4sgDJxqOilzDWowWFfAH08uebig6qpFHBvH/aw26FfQTQzsvy8OyEfz20r3jAvaKbhgG9q0nc2LbZxXanoUu/u5WSggCtp1anpJKdmFz/zlX/1nGJiYmuq5Dx7+sAAADoPUZSAAAAAXRSTlMAQObYZgAAAAFiS0dEAIgFHUgAAAAJcEhZcwAACxMAAAsTAQCanBgAAAAHdElNRQfdBgUBGhh4aah5AAAAlklEQVQY02NgoBIIE8EUcwn1FkIXM1Tj5dDUQhPU502Mi7XXQxGz5uVIjGOJUUUW81HnYEyMi2HVcUOICQZzMMYmxrEyMylJwgUt5BljWRLjmJm4pI1hYp5SQLGYxDgmLnZOVxuooClIDKgXKMbN5ggV1ACLJcaBxNgcoiGCBiZwdWxOETBDrTyEFey0jYJ4eHjMGWgEAIpRFRCUt08qAAAAAElFTkSuQmCC);
+}
+</style>
+<script type="text/javascript" src="js/accounting.js"></script>
+<script type="text/javascript" src="/sms/assets/7e7b6bf8/jquery.maskMoney.js"></script>
+<title>CHUNG HUA HIGH SCHOOL - 校务系统</title>
+
+  
+  <!--<link rel="stylesheet" type="text/css" href="/theme/css/glyphicons.css"/>
+
+  <link rel="stylesheet" type="text/css" href="/theme/scripts/plugins/forms/pixelmatrix-uniform/css/uniform.default.css"/>-->
+
+  <!-- <link rel="stylesheet" type="text/css" href="/theme/css/style-light.css"/> -->
+
+  <!--<link rel="stylesheet" type="text/css" href="/theme/css/style-light-new.css"/> -->
+
+
+
+  <!-- Glyphicons Font Icons -->
+
+  <link href="/sms/themes/ergo/common/theme/css/glyphicons.css" rel="stylesheet">
+
+
+
+  <!-- Uniform Pretty Checkboxes -->
+
+  <!--<link href="<?/*= Yii::app()->theme->baseUrl; */?>/common/theme/scripts/plugins/forms/pixelmatrix-uniform/css/uniform.default.css" rel="stylesheet" />-->
+
+
+
+  <!-- DataTables Plugin -->
+
+  <link href="/sms/themes/ergo/common/theme/scripts/plugins/tables/DataTables/media/css/DT_bootstrap.css" rel="stylesheet">
+
+
+
+  <!-- Main Theme Stylesheet :: CSS -->
+
+  <link href="/sms/themes/ergo/common/theme/css/style-light.css?1369753444" rel="stylesheet">
+
+
+
+  <style>
+
+  .bootstrap-widget-header .btn-group {
+
+    margin-right: 10px;
+
+  }
+
+  .list-view, .grid-view {
+
+    padding-top: 0px;
+
+  }
+
+  .collapse{
+
+    margin-bottom: 5px;
+
+  }
+
+  .collapse .accordion-group{
+
+    border:none;
+
+  }
+
+  .collapse .accordion-heading {
+
+
+
+    position: relative;
+
+
+
+    /*height: 40px;*/
+
+    /*line-height: 40px;*/
+
+
+
+    background: #E9E9E9;
+
+    background: -moz-linear-gradient(top, #FAFAFA 0%, #E9E9E9 100%); /* FF3.6+ */
+
+    background: -webkit-gradient(linear, left top, left bottom, color-stop(0%, #FAFAFA), color-stop(100%, #E9E9E9)); /* Chrome,Safari4+ */
+
+    background: -webkit-linear-gradient(top, #FAFAFA 0%, #E9E9E9 100%); /* Chrome10+,Safari5.1+ */
+
+    background: -o-linear-gradient(top, #FAFAFA 0%, #E9E9E9 100%); /* Opera11.10+ */
+
+    background: -ms-linear-gradient(top, #FAFAFA 0%, #E9E9E9 100%); /* IE10+ */
+
+    background: linear-gradient(top, #FAFAFA 0%, #E9E9E9 100%); /* W3C */
+
+    filter: progid:DXImageTransform.Microsoft.gradient(startColorstr = '#FAFAFA', endColorstr = '#E9E9E9');
+
+    -ms-filter: "progid:DXImageTransform.Microsoft.gradient(startColorstr='#FAFAFA', endColorstr='#E9E9E9')";
+
+
+
+    border: 1px solid #D5D5D5;
+
+
+
+    -webkit-border-top-left-radius: 4px;
+
+    -webkit-border-top-right-radius: 4px;
+
+    -moz-border-radius-topleft: 4px;
+
+    -moz-border-radius-topright: 4px;
+
+    border-top-left-radius: 4px;
+
+    border-top-right-radius: 4px;
+
+
+
+    box-shadow: 0px;
+
+
+
+    -webkit-background-clip: padding-box;
+
+  }
+
+
+
+  .collapse .accordion-body {
+
+    background: #FFF;
+
+    border: 1px solid #D5D5D5;
+
+    -moz-border-radius: 5px;
+
+    -webkit-border-radius: 5px;
+
+    border-radius: 5px;
+
+  }
+
+
+
+  .collapse .accordion-body {
+
+    border-top: none;
+
+    -webkit-border-top-left-radius: 0;
+
+    -webkit-border-top-right-radius: 0;
+
+    -moz-border-radius-topleft: 0;
+
+    -moz-border-radius-topright: 0;
+
+    border-top-left-radius: 0;
+
+    border-top-right-radius: 0;
+
+  }
+
+  .collapse .accordion-heading a, .collapse .accordion-heading a:hover{
+
+    text-decoration: none;
+
+    color: #555;
+
+    font-weight: bold;
+
+  }
+
+  </style>
+
+
+
+  <script>
+
+  (function () {
+
+    var currentTime = new Date("July 2 2026 10:08:25 AM");
+
+    setInterval(function ()
+
+    {
+
+      currentTime.setSeconds(currentTime.getSeconds() + 1)
+
+      var currentHours = currentTime.getHours();
+
+      var currentMinutes = currentTime.getMinutes();
+
+      var currentSeconds = currentTime.getSeconds();
+
+      // Pad the minutes and seconds with leading zeros, if required
+
+      currentMinutes = (currentMinutes < 10 ? "0" : "") + currentMinutes;
+
+      currentSeconds = (currentSeconds < 10 ? "0" : "") + currentSeconds;
+
+      // Choose either "AM" or "PM" as appropriate
+
+      var timeOfDay = (currentHours < 12) ? "AM" : "PM";
+
+      // Convert the hours component to 12-hour format if needed
+
+      currentHours = (currentHours > 12) ? currentHours - 12 : currentHours;
+
+      // Convert an hours component of "0" to "12"
+
+      currentHours = (currentHours == 0) ? 12 : currentHours;
+
+      // Compose the string for display
+
+      var currentTimeString = currentHours + ":" + currentMinutes + ":" + currentSeconds + " " + timeOfDay;
+
+
+
+      $("#timer").html(currentTimeString);
+
+    }, 1000);
+
+  })();
+
+
+
+  var alert = function (message) {
+
+    bootbox.alert(message);
+
+  };
+
+
+
+  var dfd = new $.Deferred();
+
+
+
+  var formatNumber = function (total) {
+
+    return accounting.formatNumber(total, 2, ',', '.');
+
+  };
+
+  var unFormatNumber = function (value) {
+
+    return accounting.unformat(value, '.');
+
+  };
+
+
+
+  </script>
+
+<style type="text/css" id="core-notify">.notifyjs-corner {
+  position: fixed;
+  margin: 5px;
+  z-index: 1050;
+}
+
+.notifyjs-corner .notifyjs-wrapper,
+.notifyjs-corner .notifyjs-container {
+  position: relative;
+  display: block;
+  height: inherit;
+  width: inherit;
+  margin: 3px;
+}
+
+.notifyjs-wrapper {
+  z-index: 1;
+  position: absolute;
+  display: inline-block;
+  height: 0;
+  width: 0;
+}
+
+.notifyjs-container {
+  display: none;
+  z-index: 1;
+  position: absolute;
+  cursor: pointer;
+}
+
+[data-notify-text],[data-notify-html] {
+  position: relative;
+}
+
+.notifyjs-arrow {
+  position: absolute;
+  z-index: 2;
+  width: 0;
+  height: 0;
+}</style><style id="holderjs-style" type="text/css">.holderjs-fluid {font-size:16px;font-weight:bold;text-align:center;font-family:sans-serif;margin:0}</style></head>
+
+<body style="padding-left: 0px !important; padding-right: 0px !important;">
+
+  
+  <!-- <div class="container"> -->
+
+  
+    <!-- breadcrumbs -->
+
+    
+    
+    
+    <!-- </div> -->
+
+    <div id="myModal" class="modal hide fade"><div class="modal-header">
+    <a class="close" data-dismiss="modal">×</a>
+    <h4>Header</h4>
+</div>
+
+<div class="modal-body" id="body-modal">
+
+</div>
+
+<div class="modal-footer">
+    <button onclick="submitForm(this);return false;" class="btn btn-primary" id="yw1" name="yt0" type="button">保存</button><button data-dismiss="modal" class="btn" id="yw2" name="yt1" type="button">关闭</button></div>
+
+</div>
+<script type="text/javascript">
+    var loadHtmlAjax = function(obj) {
+        var url = $(obj).data('url');
+        var title = $(obj).data("title");
+        $("#myModal .modal-header h4").html(title);
+        var idSelect = $(obj).parents(".input-append").find("select").attr("id");
+        $("#myModal").data("select", idSelect);
+        $.ajax({
+            url: url,
+            dataType: 'json',
+            success: function(result) {
+                if (result.contents) {
+                    $("#body-modal").html(result.contents);
+                }
+            }
+        });
+    };
+    var submitForm = function(obj) {
+        var form = $(obj).parents("#myModal").find("form");
+        $.ajax({
+            url: form.attr('action'),
+            type: 'post',
+            dataType: 'json',
+            data: form.serialize(),
+            beforeSend: function() {
+                $(obj).button().attr("disabled", true);
+            },
+            success: function(result) {
+                if (result.success) {
+                    $("#myModal").modal('hide');
+                    if (result.hasOwnProperty('reload') && result.reload === true) {
+                        location.reload();
+                    } else {
+                        reloadParent();
+                    }
+                } else {
+                    $("#body-modal").html(result.contents);
+                }
+
+            }
+        }).always(function() {
+            $(obj).button().attr("disabled", false);
+        });
+    };
+
+    var reloadParent = function() {
+        var idSelect = "#" + $("#myModal").data('select');
+        $.ajax({
+            url: window.location.href,
+            success: function(result) {
+                data = $(result).find(idSelect);
+                value = $("form " + idSelect).val()
+                if ($("form " + idSelect).replaceWith(data)) {
+                    $("form " + idSelect).val(value);
+                }
+            }
+        });
+    };
+
+    var loadAnnouncement = function(obj) {
+        var url = $(obj).data('url');
+        var title = $(obj).data("title");
+
+        var ann_id = $(obj).attr('ann-id');
+        var isread = $(obj).attr('isread');
+        $(".modal-footer .btn-primary").hide();
+        $("#myModal .modal-header h4").html(title);
+        $.ajax({
+            url: url,
+            dataType: 'json',
+            data: {id : ann_id},
+            success: function(result) {
+                if (result.success && result.contents) {
+                    $("#body-modal").html(result.contents);
+
+                    if(isread == 0){
+                        markRead(ann_id);
+                        reloadGrid();
+                    }
+                }
+            }
+        });
+    };
+
+</script>
+    <div class="container-fluid fluid menu-left">
+
+
+
+      <!-- Top navbar (note: add class "navbar-hidden" to close the navbar by default) -->
+
+      <div class="navbar main hidden-print">
+
+
+
+        <!-- Wrapper -->
+
+        <div class="wrapper">
+
+
+
+
+
+          <!-- Menu Toggle Button -->
+
+          <button type="button" class="btn btn-navbar">
+
+            <span class="icon-bar"></span> <span class="icon-bar"></span> <span class="icon-bar"></span>
+
+          </button>
+
+          <!-- // Menu Toggle Button END -->
+
+
+
+          <ul class="topnav pull-left tn1">
+
+
+                          <li class="dropdown dd-1 dd-2">
+
+                <a href="/sms/index.php?r=info/announcement" class="glyphicons message_new"><i></i> 告示 <span class="count">1</span></a>
+
+                <!-- <ul class="dropdown-menu pull-left">
+
+                <li><a href="#" class="glyphicons envelope"><i></i> New Email</a></li>
+
+                <li><a href="#" class="glyphicons chat"><i></i> 5 Messages</a></li>
+
+                <li><a href="#" class="glyphicons conversation"><i></i> 1 New Reply</a></li>
+
+              </ul> -->
+
+            </li>
+
+
+                  </ul>
+
+        <!-- Top Menu Right -->
+
+        <ul class="topnav pull-right">
+
+          <!-- Language menu -->
+
+          <li class="dropdown dd-1 dd-flags" id="lang_nav">
+                                    
+            <!--<a href="#" data-toggle="dropdown"><img src="images/flags/<?/*= Yii::app()->language */?>.png" alt="en" /></a>-->
+
+            <a href="#" data-toggle="dropdown">中文</a>
+
+            <ul class="dropdown-menu pull-right">
+
+              
+                <li><a href="/sms/index.php?r=site/changeLanguage&amp;id=zh">
+
+                  <!--<img src="images/flags/<?/*= $key */?>.png" alt="English">--> 中文</a></li>
+
+                
+                <li><a href="/sms/index.php?r=site/changeLanguage&amp;id=en">
+
+                  <!--<img src="images/flags/<?/*= $key */?>.png" alt="English">--> English</a></li>
+
+                
+              </ul>
+
+            </li>
+
+            <!-- // Language menu END -->
+            <!-- Profile / Logout menu -->
+
+            <li class="account dropdown dd-1">
+
+              <a data-toggle="dropdown" href="#" class="glyphicons logout user"><span class="hidden-phone">Schhs334 </span><i></i></a>
+
+              <ul class="dropdown-menu pull-right">
+                                  <li><a href="#" class="glyphicons calendar" data-url="/sms/index.php?r=configuration/startSemester/history" data-toggle="modal" data-title="转换学期" data-target="#myModal" onclick="loadPeriod(this);">转换学期<i></i></a></li>
+
+                  <li><a href="/sms/index.php?r=site/changePassword" class="glyphicons cogwheel">更改密码<i></i></a></li>
+                                  <li>
+
+                  </li><li><a href="/sms/index.php?r=site/logout" class="glyphicons logout lock">登出<i></i></a></li>
+
+                </ul>
+
+              </li>
+
+              <!-- // Profile / Logout menu END -->
+
+
+
+            </ul>
+
+            <!-- // Top Menu Right END -->
+
+
+
+
+
+            <div class="clearfix"></div>
+
+          </div>
+
+          <!-- // Wrapper END -->
+
+
+
+          <span class="toggle-navbar"></span>
+
+        </div>
+
+        <!-- Top navbar END -->
+
+
+
+        <!-- Sidebar menu & content wrapper -->
+
+        <div id="wrapper">
+
+
+
+          <!-- Sidebar Menu -->
+
+          <div id="menu" class="hidden-print">
+
+
+
+            <!-- Brand -->
+
+            <center>
+
+              <a href="/sms/index.php?r=site/index" class="appbrand"><img src="/sms/images/data/logo/thumbs/thumb-logo-1541758561.png" width="40px"> <span> CHUNG HUA HIGH SCHOOL</span></a>
+
+            </center>
+
+
+
+            <!-- Scrollable menu wrapper with Maximum height -->
+
+            <!--            <div class="slim-scroll" data-scroll-height="800px"> -->
+            <div class="slimScrollDiv" style="position: relative; overflow: hidden; width: auto; height: 741px;"><div class="slim-scroll" data-scroll-height="100vh" style="overflow: hidden; width: auto; height: 741px;">
+
+
+
+              <!-- Sidebar Profile -->
+
+              <!-- <span class="profile">
+
+              <p></p>
+
+              <a class="img" href="my_account.html?lang=en&amp;layout_type=fluid&amp;menu_position=menu-left&amp;style=style-light"><img src="/sms/themes/ergo/common/theme/images/avatar-style-light.jpg" alt="Avatar" /></a>
+
+              <span>
+
+              <ul>
+
+              <li><a href="#" class="glyphicons user"><i></i>Schhs334</a></li>
+
+              <li><a href="/sms/index.php?r=site/changePassword" class="glyphicons keys"><i></i>Password</a></li>
+
+              <li><a href="/sms/index.php?r=site/logout" class="glyphicons eject"><i></i>Logout</a></li>
+
+            </ul>
+
+          </span>
+
+        </span> -->
+
+        <!-- // Sidebar Profile END -->
+
+
+
+        <!-- Regular Size Menu -->
+
+        <ul class="menu-0">
+
+
+
+          <!-- Blank page template menu example -->
+
+          <!-- Menu Regular Item (add class active to LI for an active menu item) -->
+
+
+
+          
+            <li class="glyphicons menu_menu active"><a href="/sms/index.php?r=site/index"><i></i><span>校务系统</span></a></li>
+          
+            <li class="hasSubmenu menu1 glyphicons menu_menu"><a data-toggle="collapse" href="#submenu-1" title="训育处"><i></i><span>训育处</span></a>
+          
+            <span class="karetP"></span>
+                                <ul class="collapse" id="submenu-1">
+          
+            <li class="hasSubmenu menu2">
+                                            <a data-toggle="collapse" href="#submenu-1-1"><span>校外学艺及特殊表现</span></a>
+                                            <span class="karet"></span>
+                                            <ul class="collapse" id="submenu-1-1">
+          
+            <li><a href="/sms/index.php?r=transaction/itemSetting/index"><span>项目设定</span></a></li>
+          
+            <li><a href="/sms/index.php?r=transaction/studentPerformance/index"><span>输入额外分数</span></a></li>
+          
+            </ul>
+                                        </li>
+          
+            </ul>
+          
+            </li>
+          
+            <li class="hasSubmenu menu1 glyphicons menu_menu"><a data-toggle="collapse" href="#submenu-2" title="图书馆"><i></i><span>图书馆</span></a>
+          
+            <span class="karetP"></span>
+                                <ul class="collapse" id="submenu-2">
+          
+            <li><a href="/sms/index.php?r=library/hyRead/index"><span> HyRead eLibrary</span></a></li>
+          
+            <li><a href="/sms/index.php?r=library/bookInfo/index"><span>书籍资料</span></a></li>
+          
+            </ul>
+          
+            </li>
+          
+
+
+        </ul>
+
+        <div class="clearfix"></div>
+
+        <!-- // Regular Size Menu END -->
+
+
+
+        <!-- <ul class="menu-1">
+
+        <li class="hasSubmenu active">
+
+        <a class="glyphicons wifi_alt" href="#menu-recent-stats" data-toggle="collapse"><i></i><span>Recent stats</span></a>
+
+        <ul class="collapse in" id="menu-recent-stats">
+
+        <li><a class="glyphicons envelope" href="#"><i></i><span>5 New Emails</span></a></li>
+
+        <li><a class="glyphicons chat" href="#"><i></i><span>New Message on 19 Jan</span></a></li>
+
+        <li><a class="glyphicons user_add" href="#"><i></i><span>10 Users Subscribed</span></a></li>
+
+        <li><a class="glyphicons cart_in" href="#"><i></i><span>2 Orders worth of &dollar;239</span></a></li>
+
+        <li><a class="glyphicons single circle_plus" href="#"><i></i><span>View all</span></a></li>
+
+      </ul>
+
+    </li>
+
+  </ul>
+
+  <div class="clearfix"></div> -->
+
+  <div class="separator bottom"></div>
+
+
+
+
+
+
+
+
+
+</div><div class="slimScrollBar" style="background: rgb(0, 0, 0); width: 7px; position: absolute; top: 0px; opacity: 0.4; display: none; border-radius: 7px; z-index: 99; right: 1px; height: 741px;"></div><div class="slimScrollRail" style="width: 7px; height: 100%; position: absolute; top: 0px; display: none; border-radius: 7px; background: rgb(51, 51, 51); opacity: 0.2; z-index: 90; right: 1px;"></div></div>
+
+<!-- // Scrollable Menu wrapper with Maximum Height END -->
+
+
+
+</div>
+
+<!-- // Sidebar Menu END -->
+
+
+
+<!-- Content -->
+
+<div id="content">
+
+
+
+  
+    <ul class="breadcrumb"><li><a href="/sms/index.php?r=site/index">主页</a><span class="divider">/</span></li><li class="active">校务系统</li><li class="active pull-right" style="margin-right:20px">第二 学期, 2026  <div id="timer" style="display:inline;">10:08:29 AM</div></li></ul><!-- breadcrumbs -->
+
+    
+
+
+    <div id="yw3"></div>
+
+
+    
+	
+<div class="bootstrap-widget"><div class="bootstrap-widget-header"><i class="icon-bell"></i><h3>通告</h3></div><div class="bootstrap-widget-content" id="yw0"><div class="span6" style="margin-left: 0px;">
+    <div class="widget margin-none">
+        <!--<div class="widget-head">
+            <h4 class="heading"></h4>
+        </div>-->
+        <div class="widget-body" style="max-height:400px;">
+                                                    <div class="media" id="announcement-10" style="border-top:solid 1px #fff; margin-top:0px;">
+                                                    <div class="media-object pull-left thumb"><img width="51px" src="/sms/images/thumb-no-image.jpg" alt="img"></div>
+                            <div class="media-body left">
+                                <blockquote>
+                                    <span><a href="/sms/index.php?r=info/announcement/view&amp;id=10" title="" class="strong">new mobile app</a></span>
+                                    <p>for new mobiel app  ...</p>
+
+                                    <!--<button class="mark-read" onclick="markRead()" title=""/>-->
+                                </blockquote>
+                            </div>
+                    </div>
+                                <div class="separator bottom"></div>
+            <a class="btn btn-primary" href="/sms/index.php?r=info/announcement">查看全部通告</a>
+                  </div>
+    </div>
+</div>
+</div></div>
+<script>
+    markRead = function(id) {
+        if (confirm('Mark this announcement as read?')) {
+            $.post(
+                '/sms/index.php?r=info/announcement/MarkRead',
+                {
+                    id: id
+                },
+                function (response) {
+                    if (response == 1) {
+                        $("#announcement-" + id).fadeOut("slow", function () {
+                            $(this).remove();
+                        });
+                    }else{
+                        alert('An error occured!');
+                    }
+                }
+            );
+        }
+    }
+</script>
+
+
+
+  </div>
+
+  <!-- // Content END -->
+
+
+
+</div>
+
+
+
+</div>
+
+
+
+
+
+<!-- Modal Period -->
+
+<div id="myModal" class="modal hide fade">
+
+  <div class="modal-header">
+
+    <a class="close" data-dismiss="modal">×</a>
+
+    <h4>Header</h4>
+
+  </div>
+
+  <div class="modal-body" id="body-modal"></div>
+
+  <div class="modal-footer">
+
+    <button onclick="submitForm(this);return false;" class="btn btn-primary" id="yw31" name="yt0" type="button">Save</button><button data-dismiss="modal" class="btn" id="yw32" name="yt1" type="button">Close</button>
+
+  </div>
+
+</div>
+
+
+
+
+
+<!-- // Main Container Fluid END -->
+
+<script type="text/javascript">
+/*<![CDATA[*/
+jQuery(function($) {
+jQuery('[data-toggle=popover]').popover();
+jQuery('body').tooltip({"selector":"[data-toggle=tooltip]"});
+jQuery('#myModal').modal({'show':false});
+jQuery('#yw3_0 .alert').alert();
+
+             $(".currencyField").maskMoney({"symbolStay":true,"thousands":",","decimal":".","symbol":null})
+});
+/*]]>*/
+</script>
+
+
+
+
+
+
+
+
+
+<script src="/sms/themes/ergo/common/theme/scripts/plugins/system/modernizr.js"></script>
+
+
+
+<!-- SlimScroll Plugin -->
+
+<script src="/sms/themes/ergo/common/theme/scripts/plugins/other/jquery-slimScroll/jquery.slimscroll.min.js"></script>
+
+
+
+<!-- Common Demo Script -->
+
+<script src="/sms/themes/ergo/common/theme/scripts/demo/common.js?1369753444"></script>
+
+
+
+<!-- Holder Plugin -->
+
+<script src="/sms/themes/ergo/common/theme/scripts/plugins/other/holder/holder.js"></script>
+
+
+
+<!-- Uniform Forms Plugin -->
+
+<script src="/sms/themes/ergo/common/theme/scripts/plugins/forms/pixelmatrix-uniform/jquery.uniform.min.js"></script>
+
+
+
+<!-- DataTables Tables Plugin -->
+
+<script src="/sms/themes/ergo/common/theme/scripts/plugins/tables/DataTables/media/js/jquery.dataTables.min.js"></script>
+
+<script src="/sms/themes/ergo/common/theme/scripts/plugins/tables/DataTables/media/js/DT_bootstrap.js"></script>
+
+
+
+<script>
+
+
+
+// $(function(){
+
+//     /* DataTables */
+
+//     $('#DataTables').dataTable({
+
+//         "bPaginate" : false,
+
+//         'Search' : false,
+
+//         "sPaginationType": "bootstrap",
+
+//         "sDom": "<'row-fluid'<'span6'l><'span6'f>r>t<'row-fluid'<'span6'i><'span6'p>>",
+
+//         "oLanguage": {
+
+//             "sLengthMenu": "_MENU_ records per page"
+
+//         }
+
+//     });
+
+// });
+
+
+
+$(window).load(function () {
+
+  currentURL = $(location).attr('href');
+
+  currentHost = $(location).attr('host');
+
+  currentPath = currentURL.replace('http://' + currentHost, '');
+
+  paths = currentPath.split('/');
+
+  path = paths[paths.length - 1];
+
+  pat = new RegExp('(\\b' + path + '\\b)(?!.*\\b\\1\\b)', 'i');
+
+  currentPath = currentPath.replace(pat, '');
+
+  // console.log(currentPath);
+
+  $('ul.menu-0').children('li').each(function () {
+
+    // level 1
+
+    level1 = $(this).children('a');
+
+    level1URL = level1.attr('href');
+
+    if (level1URL) {
+
+      paths = level1URL.split('/');
+
+      path = paths[paths.length - 1];
+
+      pat = new RegExp('(\\b' + path + '\\b)(?!.*\\b\\1\\b)', 'i');
+
+      level1URL = level1URL.replace(pat, '');
+
+    }
+
+
+
+    if (level1URL == currentPath) {
+
+      $(this).closest('li').addClass('active');
+
+    }
+
+
+
+    // level 2
+
+    level2 = $(this).children('ul');
+
+    level2.children('li').each(function () {
+
+      level2URL = $(this).children('a').attr('href');
+
+      if (level2URL) {
+
+        paths = level2URL.split('/');
+
+        path = paths[paths.length - 1];
+
+        pat = new RegExp('(\\b' + path + '\\b)(?!.*\\b\\1\\b)', 'i');
+
+        level2URL = level2URL.replace(pat, '');
+
+      }
+
+      if (level2URL == currentPath) {
+
+        $(this).closest('li').parents('ul').parents('li').children('span').removeAttr('class');
+
+        $(this).closest('li').parents('ul').parents('li').children('span').addClass('karetP-up');
+
+        $(this).closest('li').addClass('active');
+
+        $(this).closest('li').parents('ul').addClass('in');
+
+        $(this).closest('li').parents('ul').parents('li').addClass('active');
+
+      }
+
+    })
+
+
+
+    // level 3
+
+    level_1 = $(this).children('ul');
+
+    level_2 = level_1.children('li');
+
+    level3 = level_2.children('ul');
+
+    level3.children('li').each(function () {
+
+      level3URL = $(this).children('a').attr('href');
+
+      if (level3URL) {
+
+        paths = level3URL.split('/');
+
+        path = paths[paths.length - 1];
+
+        pat = new RegExp('(\\b' + path + '\\b)(?!.*\\b\\1\\b)', 'i');
+
+        level3URL = level3URL.replace(pat, '');
+
+      }
+
+      if (level3URL == currentPath) {
+
+        console.log(level3URL + " = " + currentPath);
+
+        $(this).closest('li').parents('ul').parents('li').children('span').removeAttr('class');
+
+        $(this).closest('li').parents('ul').parents('li').children('span').addClass('karet-up');
+
+        $(this).closest('li').parents('ul').parents('li').parents('ul').parents('li').children('span').removeAttr('class');
+
+        $(this).closest('li').parents('ul').parents('li').parents('ul').parents('li').children('span').addClass('karetP-up');
+
+
+
+        $(this).closest('li').addClass('active');
+
+        $(this).closest('li').parents('ul').addClass('in');
+
+        $(this).closest('li').parents('ul').parents('li').addClass('active');
+
+        $(this).closest('li').parents('ul').parents('li').parents('ul').addClass('in');
+
+        $(this).closest('li').parents('ul').parents('li').parents('ul').parents('li').addClass('active');
+
+      }
+
+    })
+
+
+
+    // level 4
+
+    level_1 = $(this).children('ul');
+
+    level_2 = level_1.children('li');
+
+    level_3 = level_2.children('ul');
+
+    level_4 = level_3.children('li');
+
+    level4 = level_4.children('ul');
+
+    level4.children('li').each(function () {
+
+      level4URL = $(this).children('a').attr('href');
+
+      if (level3URL) {
+
+        paths = level4URL.split('/');
+
+        path = paths[paths.length - 1];
+
+        pat = new RegExp('(\\b' + path + '\\b)(?!.*\\b\\1\\b)', 'i');
+
+        level4URL = level4URL.replace(pat, '');
+
+      }
+
+      if (level4URL == currentPath) {
+
+        console.log(level4URL + " = " + currentPath);
+
+        $(this).closest('li').parents('ul').parents('li').children('span').removeAttr('class');
+
+        $(this).closest('li').parents('ul').parents('li').children('span').addClass('karet-up');
+
+        $(this).closest('li').parents('ul').parents('li').parents('ul').parents('li').children('span').removeAttr('class');
+
+        $(this).closest('li').parents('ul').parents('li').parents('ul').parents('li').children('span').addClass('karet-up');
+
+        $(this).closest('li').parents('ul').parents('li').parents('ul').parents('li').parents('ul').parents('li').children('span').removeAttr('class');
+
+        $(this).closest('li').parents('ul').parents('li').parents('ul').parents('li').parents('ul').parents('li').children('span').addClass('karetP-up');
+
+
+
+        $(this).closest('li').addClass('active');
+
+        $(this).closest('li').parents('ul').addClass('in');
+
+        $(this).closest('li').parents('ul').parents('li').addClass('active');
+
+        $(this).closest('li').parents('ul').parents('li').parents('ul').addClass('in');
+
+        $(this).closest('li').parents('ul').parents('li').parents('ul').parents('li').addClass('active');
+
+        $(this).closest('li').parents('ul').parents('li').parents('ul').parents('li').parents('ul').addClass('in');
+
+        $(this).closest('li').parents('ul').parents('li').parents('ul').parents('li').parents('ul').parents('li').addClass('active');
+
+      }
+
+    })
+
+
+
+  })
+
+});
+
+
+
+(function (a) {
+  (jQuery.browser = jQuery.browser || {}).mobile = /(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series(4|6)0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino/i.test(a) || /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s\-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|\-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br(e|v)w|bumb|bw\-(n|u)|c55\/|capi|ccwa|cdm\-|cell|chtm|cldc|cmd\-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc\-s|devi|dica|dmob|do(c|p)o|ds(12|\-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly(\-|_)|g1 u|g560|gene|gf\-5|g\-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd\-(m|p|t)|hei\-|hi(pt|ta)|hp( i|ip)|hs\-c|ht(c(\-| |_|a|g|p|s|t)|tp)|hu(aw|tc)|i\-(20|go|ma)|i230|iac( |\-|\/)|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja(t|v)a|jbro|jemu|jigs|kddi|keji|kgt( |\/)|klon|kpt |kwc\-|kyo(c|k)|le(no|xi)|lg( g|\/(k|l|u)|50|54|\-[a-w])|libw|lynx|m1\-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m\-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t(\-| |o|v)|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30(0|2)|n50(0|2|5)|n7(0(0|1)|10)|ne((c|m)\-|on|tf|wf|wg|wt)|nok(6|i)|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan(a|d|t)|pdxg|pg(13|\-([1-8]|c))|phil|pire|pl(ay|uc)|pn\-2|po(ck|rt|se)|prox|psio|pt\-g|qa\-a|qc(07|12|21|32|60|\-[2-7]|i\-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h\-|oo|p\-)|sdk\/|se(c(\-|0|1)|47|mc|nd|ri)|sgh\-|shar|sie(\-|m)|sk\-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h\-|v\-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl\-|tdg\-|tel(i|m)|tim\-|t\-mo|to(pl|sh)|ts(70|m\-|m3|m5)|tx\-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|\-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c(\-| )|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas\-|your|zeto|zte\-/i.test(a.substr(0, 4))
+})(navigator.userAgent || navigator.vendor || window.opera);
+
+if (jQuery.browser.mobile)
+
+{
+
+  jQuery(document).ready(function (cash) {
+
+    $("#menu").addClass('hidden-phone');
+
+    $("li.dropdown a").click(function (e) {
+
+      $(this).next('ul.dropdown-menu').css("display", "block");
+
+      e.stopPropagation();
+
+    });
+
+  });
+
+} else
+
+{
+
+  console.log('You are not using a mobile device!');
+
+  $("li.menu1").click(function () {
+
+    karet1 = $(this).children('span').attr('class');
+
+    console.log(karet1);
+
+    if (karet1 == 'karetP-up') {
+
+      $(this).children('span').removeAttr('class');
+
+      $(this).children('span').addClass('karetP');
+
+    } else {
+
+      $(this).children('span').removeAttr('class');
+
+      $(this).children('span').addClass('karetP-up');
+
+    }
+
+  });
+
+
+
+  $("li.menu2").click(function () {
+
+    karet2 = $(this).children('span').attr('class');
+
+    if (karet2 == 'karet-up') {
+
+      $(this).parents('ul').parents('li').children('span').removeAttr('class');
+
+      $(this).children('span').removeAttr('class');
+
+      $(this).children('span').addClass('karet');
+
+    } else {
+
+      $(this).parents('ul').parents('li').children('span').removeAttr('class');
+
+      $(this).children('span').removeAttr('class');
+
+      $(this).children('span').addClass('karet-up');
+
+    }
+
+  });
+
+
+
+  $("li.menu3").click(function () {
+
+    karet3 = $(this).children('span').attr('class');
+
+    if (karet3 == 'karet-up') {
+
+      $(this).parents('ul').parents('li').children('span').removeAttr('class');
+
+      $(this).parents('ul').parents('li').parents('ul').parents('li').children('span').removeAttr('class');
+
+      $(this).children('span').removeAttr('class');
+
+      $(this).children('span').addClass('karet');
+
+    } else {
+
+      $(this).parents('ul').parents('li').children('span').removeAttr('class');
+
+      $(this).parents('ul').parents('li').parents('ul').parents('li').children('span').removeAttr('class');
+
+      $(this).children('span').removeAttr('class');
+
+      $(this).children('span').addClass('karet-up');
+
+    }
+
+  });
+
+}
+
+
+
+// New Modal Period
+
+function loadPeriod(obj) {
+
+  var url = $(obj).data('url');
+
+  var title = $(obj).data("title");
+
+  // alert(url);
+
+  $("#myModal .modal-header h4").html(title);
+
+  // console.log(url);
+
+  var idSelect = $(obj).parents(".input-append").find("select").attr("id");
+
+  $("#myModal").data("select", idSelect);
+
+  $.ajax({
+
+    url: url,
+
+    dataType: 'json',
+
+    success: function (result) {
+
+      if (result.contents) {
+
+        $("#body-modal").html(result.contents);
+
+      }
+
+    }
+
+  });
+
+}
+;
+
+
+
+function submitForm(obj) {
+
+  var form = $(obj).parents("#myModal").find("form");
+
+  $.ajax({
+
+    url: form.attr('action'),
+
+    type: 'post',
+
+    dataType: 'json',
+
+    data: form.serialize(),
+
+    beforeSend: function () {
+
+      $(obj).button().attr("disabled", true);
+
+    },
+
+    success: function (result) {
+
+      if (result.success) {
+
+        $("#myModal").modal('hide');
+
+        if (result.hasOwnProperty('reload') && result.reload === true) {
+
+          location.reload();
+
+        } else {
+
+          reloadParent();
+
+        }
+
+      } else {
+
+        $("#body-modal").html(result.contents);
+
+      }
+
+
+
+    }
+
+  }).always(function () {
+
+    $(obj).button().attr("disabled", false);
+
+  });
+
+}
+;
+
+
+
+function reloadParent() {
+
+  var idSelect = "#" + $("#myModal").data('select');
+
+  $.ajax({
+
+    url: window.location.href,
+
+    success: function (result) {
+
+      data = $(result).find(idSelect);
+
+      value = $("form " + idSelect).val()
+
+      if ($("form " + idSelect).replaceWith(data)) {
+
+        $("form " + idSelect).val(value);
+
+      }
+
+    }
+
+  });
+
+}
+;
+
+
+
+// jQuery('#myModal').modal({'show':false});
+
+</script>
+</body></html>

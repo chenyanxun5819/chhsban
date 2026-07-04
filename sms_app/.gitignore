@@ -1,0 +1,64 @@
+# 虛擬環境
+.venv/
+venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+pip-log.txt
+pip-delete-this-directory.txt
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# 項目特定
+__pycache__/
+.pytest_cache/
+*.log
+.claude/
+.env
+.env.local
+
+# 編譯和打包
+*.spec
+dist/
+build/
+
+# 快取和臨時文件
+*.cache
+*.tmp
+*.xlsx
+*.json
+!requirements.txt
+!projects.json
+!all_extracted_projects.json
+
+# 浏覽器驅動
+chromedriver
+chromedriver.exe
+geckodriver
+geckodriver.exe
+
+# 截圖和調試文件
+debug_*.py
+debug_*.html
+page_source.html
+*.log
+
+# 虛擬環境配置
+.venv/
+.python-version
