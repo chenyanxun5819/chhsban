@@ -40,14 +40,13 @@ jobs:
           VITE_API_BASE_URL: https://tution-system.workers.dev/api
 
       - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          workingDirectory: tution-portal
-          command: pages deploy dist --project-name=chhsban-tution
-          secrets: |
-            CLOUDFLARE_ACCOUNT_ID
+        working-directory: tution-portal
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          npm install -g wrangler
+          wrangler pages deploy dist --project-name=chhsban-tution --commit-dirty=true
             CLOUDFLARE_API_TOKEN
 
       - name: Comment on commit
