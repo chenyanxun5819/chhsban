@@ -2,6 +2,7 @@ name = "chhsban-tution"
 type = "javascript"
 account_id = "82d225cda80f37208228877b32268b26"
 workers_dev = true
+pages_build_output_dir = "dist"
 
 [env.production]
 name = "chhsban-tution-prod"
