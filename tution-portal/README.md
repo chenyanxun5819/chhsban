@@ -2,6 +2,8 @@
 
 補習班系統 (P4) 的完整前端實現。
 
+**Live Demo**: https://chhsban-tution.pages.dev
+
 ## 📋 項目描述
 
 完整的補習班前端門戶系統，使教師能夠：
