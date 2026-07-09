@@ -1,0 +1,32 @@
+{
+  "name": "teacher-management",
+  "version": "1.0.0",
+  "description": "教師資料管理系統 - Cloudflare Worker",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build": "esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --target=es2020",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "cloudflare",
+    "worker",
+    "teacher",
+    "management",
+    "kv"
+  ],
+  "author": "CHHSBAN",
+  "license": "MIT",
+  "dependencies": {
+    "@chhsban/kv-utils": "file:../packages/kv-utils",
+    "@chhsban/cloudflare-config": "file:../packages/cloudflare-config"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "wrangler": "^3.20.0",
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.19.0"
+  }
+}

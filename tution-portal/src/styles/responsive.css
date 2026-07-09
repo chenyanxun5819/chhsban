@@ -1,0 +1,288 @@
+/* ========== 響應式斷點常數 ========== */
+:root {
+  /* 斷點 */
+  --breakpoint-mobile: 0;
+  --breakpoint-tablet: 768px;
+  --breakpoint-desktop: 1024px;
+
+  /* 媒體查詢變數 (用於 JS) */
+  --is-mobile: 1;
+  --is-tablet: 0;
+  --is-desktop: 0;
+}
+
+/* Mobile First: 0 - 767px (預設) */
+@media (min-width: 768px) {
+  :root {
+    --is-mobile: 0;
+    --is-tablet: 1;
+    --is-desktop: 0;
+  }
+}
+
+/* Tablet: 768px - 1023px */
+@media (min-width: 1024px) {
+  :root {
+    --is-mobile: 0;
+    --is-tablet: 0;
+    --is-desktop: 1;
+  }
+}
+
+/* ========== 響應式容器 ========== */
+
+.container {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 var(--spacing-md);
+}
+
+@media (min-width: 1024px) {
+  .container {
+    padding: 0 var(--spacing-lg);
+  }
+}
+
+/* ========== 動態佈局 ========== */
+
+.responsive-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* 桌機版: 側邊欄 + 主內容 */
+@media (min-width: 1024px) {
+  .responsive-layout {
+    flex-direction: row;
+  }
+
+  .responsive-layout__sidebar {
+    width: 280px;
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    overflow-y: auto;
+    border-right: 1px solid var(--border-color);
+    background: white;
+    z-index: 100;
+  }
+
+  .responsive-layout__main {
+    margin-left: 280px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* 手機版: 隱藏側邊欄 */
+@media (max-width: 1023px) {
+  .responsive-layout__sidebar {
+    display: none;
+  }
+
+  .responsive-layout__main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* ========== 導航適配 ========== */
+
+.main-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md);
+  background: white;
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 90;
+}
+
+/* 手機版導航 */
+.nav-bottom {
+  display: flex;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 60px;
+  background: white;
+  border-top: 1px solid var(--border-color);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+  z-index: 95;
+}
+
+@media (min-width: 1024px) {
+  .nav-bottom {
+    display: none;
+  }
+}
+
+/* 桌機版導航 */
+.nav-sidebar {
+  display: none;
+}
+
+@media (min-width: 1024px) {
+  .nav-sidebar {
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+/* ========== 主內容區調整 ========== */
+
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--spacing-lg) var(--spacing-md);
+}
+
+/* 手機版: 預留底部導航空間 */
+@media (max-width: 1023px) {
+  .main-content {
+    padding-bottom: calc(60px + var(--spacing-lg));
+  }
+}
+
+@media (min-width: 1024px) {
+  .main-content {
+    padding: var(--spacing-lg);
+  }
+}
+
+/* ========== 卡片網格 ========== */
+
+.card-grid {
+  display: grid;
+  gap: var(--spacing-md);
+  grid-template-columns: 1fr;
+}
+
+/* 平板: 2 列 */
+@media (min-width: 768px) {
+  .card-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 桌機: 3-4 列 */
+@media (min-width: 1024px) {
+  .card-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1400px) {
+  .card-grid {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
+
+/* ========== 表格適配 ========== */
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1023px) {
+  .table-responsive table {
+    font-size: 14px;
+  }
+
+  .table-responsive table th,
+  .table-responsive table td {
+    padding: 8px 4px;
+  }
+}
+
+/* ========== 表單適配 ========== */
+
+.form-group {
+  margin-bottom: var(--spacing-md);
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--spacing-md);
+}
+
+/* 平板 + 桌機: 雙列 */
+@media (min-width: 768px) {
+  .form-row--2col {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .form-row--3col {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .form-row--3col {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ========== 按鈕組 ========== */
+
+.button-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+@media (min-width: 768px) {
+  .button-group {
+    flex-direction: row;
+    justify-content: flex-end;
+  }
+
+  .button-group button {
+    min-width: 100px;
+  }
+}
+
+/* ========== 隱藏類 ========== */
+
+.hide-mobile {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .hide-mobile {
+    display: block;
+  }
+}
+
+.hide-desktop {
+  display: block;
+}
+
+@media (min-width: 1024px) {
+  .hide-desktop {
+    display: none;
+  }
+}
+
+/* ========== 觸摸優化 ========== */
+
+@media (max-width: 1023px) {
+  button,
+  a.button,
+  .clickable {
+    min-height: 44px;
+    min-width: 44px;
+    padding: 12px 16px;
+  }
+}

@@ -3,7 +3,7 @@
  * 处理学生数据的查询、存储和管理
  */
 
-import type { StudentRecord } from "../types/index.js";
+import type { StudentRecord, KVNamespace } from "../types/index.js";
 import { KV_CONFIG } from "../types/index.js";
 
 /**

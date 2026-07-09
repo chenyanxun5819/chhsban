@@ -1,0 +1,30 @@
+{
+  "name": "chhsban-tution",
+  "version": "0.1.0",
+  "description": "補習班開課點名系統",
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build": "esbuild src/index.ts --bundle --outfile=dist/index.js --format=esm --target=es2020",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "cloudflare",
+    "worker",
+    "tution",
+    "class management"
+  ],
+  "author": "chhsban",
+  "license": "MIT",
+  "dependencies": {
+    "@chhsban/kv-utils": "file:../packages/kv-utils",
+    "@chhsban/cloudflare-config": "file:../packages/cloudflare-config"
+  },
+  "devDependencies": {
+    "typescript": "^5.0.0",
+    "wrangler": "^3.20.0",
+    "@types/node": "^20.0.0"
+  }
+}

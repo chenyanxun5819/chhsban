@@ -1,0 +1,59 @@
+name: Deploy Tution Portal to Cloudflare Pages
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'tution-portal/**'
+      - 'packages/**'
+      - '.github/workflows/deploy-tution-portal.yml'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'tution-portal/package-lock.json'
+
+      - name: Install dependencies (tution-portal)
+        working-directory: tution-portal
+        run: npm ci
+
+      - name: Install dependencies (packages)
+        working-directory: packages
+        run: npm ci || true
+
+      - name: Build tution-portal
+        working-directory: tution-portal
+        run: npm run build
+        env:
+          VITE_API_BASE_URL: https://tution-system.workers.dev/api
+
+      - name: Deploy to Cloudflare Pages
+        uses: cloudflare/wrangler-action@v3
+        with:
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          workingDirectory: tution-portal
+          command: pages deploy dist --project-name=chhsban-tution
+          secrets: |
+            CLOUDFLARE_ACCOUNT_ID
+            CLOUDFLARE_API_TOKEN
+
+      - name: Comment on commit
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ job.status }}' === 'success' ? '✅ Deploy succeeded' : '❌ Deploy failed';
+            console.log(`${status}: chhsban-tution.pages.dev`);

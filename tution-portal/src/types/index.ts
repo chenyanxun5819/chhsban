@@ -1,0 +1,101 @@
+export type Permission = "teacher" | "viewer" | "admin" | "super_admin";
+
+export interface AuthUser {
+  teacherId: string;
+  teacherName: string;
+  permission: Permission;
+  email: string;
+  department?: string;
+}
+
+export interface AuthState {
+  user: AuthUser | null;
+  token: string | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+  error: string | null;
+}
+
+export interface ApiResponse<T> {
+  success: boolean;
+  data?: T;
+  error?: string;
+}
+
+export interface LoginResponse {
+  token: string;
+  permission: Permission;
+  redirectUrl?: string;
+}
+
+// ========== Tution Portal 特有類型 ==========
+
+export type TutionStatus = "pending" | "approved" | "rejected" | "active" | "ended";
+export type ScheduleStatus = "held" | "cancelled" | "rescheduled";
+export type AttendanceStatus = "present" | "absent" | "late";
+export type RosterStatus = "initial" | "active" | "dropped";
+
+export interface TutionClass {
+  class_id: string;
+  teacher_id: string;
+  teacher_name_cn: string;
+  form: "F1" | "F2" | "F3" | "F4" | "F5" | "F6";
+  subject: string;
+  day_of_week: string;
+  time_start: string;
+  time_end: string;
+  start_date: string;
+  fees: number;
+  venue: string;
+  approval_status: TutionStatus;
+  approved_by?: string;
+  approved_at?: number;
+  rejection_reason?: string;
+  initial_roster?: TutionRosterSnapshot[];
+  created_at: number;
+  updated_at: number;
+}
+
+export interface TutionRosterSnapshot {
+  student_id: string;
+  student_no: string;
+  name_cn: string;
+}
+
+export interface TutionRoster {
+  roster_id: string;
+  class_id: string;
+  student_id: string;
+  student_no: string;
+  name_cn: string;
+  name_en: string;
+  input_class_name: string;
+  status: RosterStatus;
+  added_at: number;
+  dropped_at?: number;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface TutionSchedule {
+  schedule_id: string;
+  class_id: string;
+  scheduled_date: string;
+  status: ScheduleStatus;
+  cancellation_reason?: string;
+  rescheduled_to?: string;
+  reschedule_reason?: string;
+  created_at: number;
+  updated_at: number;
+}
+
+export interface TutionAttendance {
+  attendance_id: string;
+  schedule_id: string;
+  class_id: string;
+  student_id: string;
+  status: AttendanceStatus;
+  recorded_at: number;
+  created_at: number;
+  updated_at: number;
+}

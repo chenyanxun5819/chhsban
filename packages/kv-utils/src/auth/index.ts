@@ -3,7 +3,7 @@
  * 处理会话令牌的创建、验证和删除
  */
 
-import type { SessionToken, AuthSessionData } from "../types/index.js";
+import type { SessionToken, AuthSessionData, KVNamespace } from "../types/index.js";
 import { KV_CONFIG } from "../types/index.js";
 
 /**
@@ -26,13 +26,15 @@ export class AuthKVManager {
    * 创建新的会话令牌
    * @param teacherId 教师 ID
    * @param teacherName 教师名称
-   * @param role 教师角色
+   * @param permission 教师权限等级（teacher | viewer | admin | super_admin）
+   * @param redirectUrl 登入后的重定向 URL
    * @returns SessionToken
    */
   async createSession(
     teacherId: string,
     teacherName: string,
-    role: "teacher" | "admin"
+    permission: "teacher" | "viewer" | "admin" | "super_admin",
+    redirectUrl?: string
   ): Promise<SessionToken> {
     const token = this.generateToken();
     const now = Date.now();
@@ -41,7 +43,8 @@ export class AuthKVManager {
     const sessionData: AuthSessionData = {
       teacher_id: teacherId,
       teacher_name_cn: teacherName,
-      role,
+      permission,
+      redirect_url: redirectUrl,
       expires_at: expiresAt,
     };
 
@@ -54,7 +57,8 @@ export class AuthKVManager {
       token,
       teacherId,
       teacherName,
-      role,
+      permission,
+      redirectUrl,
       expiresAt,
       createdAt: now,
     };
@@ -109,13 +113,44 @@ export class AuthKVManager {
   }
 
   /**
-   * 检查教师是否为管理员
+   * 检查教师是否为管理员（兼容旧代码）
    * @param token 会话令牌
    * @returns 是否为管理员
    */
   async isAdmin(token: string): Promise<boolean> {
     const session = await this.verifySession(token);
-    return session?.role === "admin";
+    return session?.permission === "admin" || session?.permission === "super_admin";
+  }
+
+  /**
+   * 检查教师权限等级
+   * @param token 会话令牌
+   * @returns 权限等级或 null
+   */
+  async getPermission(token: string): Promise<"teacher" | "viewer" | "admin" | "super_admin" | null> {
+    const session = await this.verifySession(token);
+    return session?.permission ?? null;
+  }
+
+  /**
+   * 检查教师是否拥有特定权限
+   * @param token 会话令牌
+   * @param requiredPermission 所需权限
+   * @returns 是否拥有权限
+   */
+  async hasPermission(token: string, requiredPermission: "teacher" | "viewer" | "admin" | "super_admin"): Promise<boolean> {
+    const session = await this.verifySession(token);
+    if (!session) return false;
+
+    // 权限优先级：super_admin > admin > viewer > teacher
+    const permissionLevels: Record<string, number> = {
+      "super_admin": 4,
+      "admin": 3,
+      "viewer": 2,
+      "teacher": 1,
+    };
+
+    return (permissionLevels[session.permission] ?? 0) >= (permissionLevels[requiredPermission] ?? 0);
   }
 }
 

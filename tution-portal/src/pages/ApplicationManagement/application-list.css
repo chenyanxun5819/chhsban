@@ -1,0 +1,375 @@
+/* ========== 列表容器 ========== */
+
+.list-container {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* ========== 列表頭 ========== */
+
+.list-header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+  margin-bottom: var(--spacing-lg);
+}
+
+@media (min-width: 768px) {
+  .list-header {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+/* ========== 搜尋框 ========== */
+
+.search-box {
+  flex: 1;
+}
+
+.search-box input {
+  width: 100%;
+  padding: 10px 16px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 14px;
+  transition: border-color 0.2s;
+}
+
+.search-box input:focus {
+  outline: none;
+  border-color: var(--primary-color);
+}
+
+/* ========== 篩選標籤 ========== */
+
+.filter-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 0;
+}
+
+.filter-tab {
+  padding: 8px 16px;
+  background: var(--bg-light);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s;
+}
+
+.filter-tab:hover {
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.filter-tab.active {
+  background: var(--primary-color);
+  border-color: var(--primary-color);
+  color: white;
+}
+
+@media (min-width: 768px) {
+  .filter-tabs {
+    gap: 12px;
+  }
+
+  .filter-tab {
+    padding: 10px 20px;
+    font-size: 14px;
+  }
+}
+
+/* ========== 提示訊息 ========== */
+
+.alert {
+  padding: var(--spacing-md) var(--spacing-lg);
+  border-radius: 4px;
+  margin-bottom: var(--spacing-lg);
+  font-size: 14px;
+}
+
+.alert-error {
+  background: rgba(255, 77, 79, 0.1);
+  color: #ff4d4f;
+  border-left: 4px solid #ff4d4f;
+}
+
+/* ========== 表格視圖 ========== */
+
+.table-view {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.applications-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.applications-table thead {
+  background: var(--bg-light);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.applications-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.applications-table tbody tr {
+  border-bottom: 1px solid var(--border-color);
+  transition: background 0.2s;
+}
+
+.applications-table tbody tr:hover {
+  background: var(--bg-light);
+}
+
+.applications-table td {
+  padding: 12px 16px;
+  vertical-align: middle;
+}
+
+.applications-table strong {
+  color: var(--primary-color);
+}
+
+/* ========== 卡片視圖 ========== */
+
+.card-view {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.applications-cards {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-md);
+}
+
+.application-card {
+  background: white;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+  transition: all 0.3s;
+  cursor: pointer;
+}
+
+.application-card:active {
+  border-color: var(--primary-color);
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.15);
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md);
+  background: var(--bg-light);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.card-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: var(--text-primary);
+}
+
+.card-header p {
+  margin: 4px 0 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.card-body {
+  padding: var(--spacing-md);
+}
+
+.card-row {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--spacing-md);
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.card-row:last-child {
+  margin-bottom: 0;
+}
+
+.card-row .label {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.card-row .value {
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.card-footer {
+  display: flex;
+  gap: 8px;
+  padding: var(--spacing-md);
+  border-top: 1px solid var(--border-color);
+}
+
+.card-footer .btn {
+  flex: 1;
+}
+
+/* ========== 徽章 ========== */
+
+.badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-align: center;
+}
+
+.badge-success {
+  background: rgba(82, 196, 26, 0.2);
+  color: #52c41a;
+}
+
+.badge-warning {
+  background: rgba(250, 173, 20, 0.2);
+  color: #faad14;
+}
+
+.badge-danger {
+  background: rgba(255, 77, 79, 0.2);
+  color: #ff4d4f;
+}
+
+.badge-info {
+  background: rgba(24, 144, 255, 0.2);
+  color: #1890ff;
+}
+
+.badge-secondary {
+  background: rgba(140, 140, 140, 0.2);
+  color: #8c8c8c;
+}
+
+/* ========== 空狀態 ========== */
+
+.empty-state {
+  text-align: center;
+  padding: var(--spacing-xl);
+  background: var(--bg-light);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
+/* ========== 按鈕 ========== */
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: var(--primary-color);
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #1f8bff;
+}
+
+.btn-secondary {
+  background: var(--bg-light);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.btn-secondary:hover {
+  background: white;
+  border-color: var(--primary-color);
+  color: var(--primary-color);
+}
+
+.btn-link {
+  background: transparent;
+  color: var(--primary-color);
+  border: none;
+  padding: 4px 8px;
+  text-decoration: underline;
+}
+
+.btn-link:hover {
+  color: #1f8bff;
+}
+
+.btn-small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.btn-large {
+  padding: 12px 24px;
+  font-size: 16px;
+  width: 100%;
+}
+
+/* ========== 列表尾 ========== */
+
+.list-footer {
+  margin-top: var(--spacing-xl);
+  display: flex;
+  justify-content: center;
+}
+
+.list-footer .btn {
+  max-width: 300px;
+}
+
+/* ========== 隱藏類 ========== */
+
+.hide-mobile {
+  display: none;
+}
+
+.hide-desktop {
+  display: block;
+}
+
+@media (min-width: 1024px) {
+  .hide-mobile {
+    display: block;
+  }
+
+  .hide-desktop {
+    display: none;
+  }
+}

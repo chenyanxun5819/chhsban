@@ -1,0 +1,26 @@
+# Cloudflare Worker API - Portal 系統
+# 此 Worker 只提供 API 端點
+# 前端靜態資源將由 Cloudflare Pages 提供
+
+name = "portal"
+account_id = "82d225cda80f37208228877b32268b26"
+workers_dev = true
+main = "worker.ts"
+compatibility_date = "2026-06-30"
+
+# KV 綁定配置 - 由 cloudflare-config 管理
+[[kv_namespaces]]
+binding = "TEACHER_KV"
+id = "8892dc8c30984f4591850521a1b57ed8"
+
+[[kv_namespaces]]
+binding = "AUTH_KV"
+id = "8ddeccbeeae9440fafba384d35205a81"
+
+# 環境變數
+[vars]
+PORTAL_URL = "https://portal.astcws.workers.dev"
+ACADOC_URL = "https://acadoc.astcws.workers.dev"
+TUTION_URL = "https://tution.astcws.workers.dev"
+
+# 敏感信息使用 wrangler secret 設置（不寫在此文件中）

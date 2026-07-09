@@ -1,20 +1,74 @@
 {
 	"folders": [
 		{
-			"path": "./chhsban-acadoc"
+			"path": "./chhsban-acadoc",
+			"name": "📋 公文系統 (AcaDoc)"
 		},
 		{
-			"path": "./chhsban-tution"
+			"path": "./chhsban-tution",
+			"name": "👥 補習班系統 (Tution)"
 		},
 		{
-			"path": "./chhsban-markdown"
+			"path": "./packages",
+			"name": "📦 共用模組 (Packages)"
 		},
 		{
-			"path": "./packages"
+			"path": "./chhsban-markdown",
+			"name": "📝 文檔 (Markdown)"
 		},
 		{
-			"path": "sms_app"
+			"path": "./sms_app",
+			"name": "🔧 SMS 爬蟲 (Legacy)"
+		},
+		{
+			"path": "chhsban-portal"
+		},
+		{
+			"path": "teacher-management"
+		},
+		{
+			"path": "teacher-management-portal"
 		}
 	],
-	"settings": {}
+	"settings": {
+		"files.exclude": {
+			"**/node_modules": true,
+			"**/.next": true,
+			"**/.venv": true,
+			"**/dist": true,
+			"**/build": true,
+			"**/__pycache__": true,
+			"**/*.pyc": true
+		},
+		"search.exclude": {
+			"**/node_modules": true,
+			"**/dist": true,
+			"**/.next": true,
+			"**/__pycache__": true
+		},
+		"[typescript]": {
+			"editor.defaultFormatter": "esbenp.prettier-vscode",
+			"editor.formatOnSave": true
+		},
+		"[javascript]": {
+			"editor.defaultFormatter": "esbenp.prettier-vscode",
+			"editor.formatOnSave": true
+		},
+		"[python]": {
+			"editor.defaultFormatter": "ms-python.python",
+			"editor.formatOnSave": true
+		},
+		"python.linting.enabled": true,
+		"python.linting.pylintEnabled": true
+	},
+	"extensions": {
+		"recommendations": [
+			"esbenp.prettier-vscode",
+			"ms-python.python",
+			"ms-python.vscode-pylance",
+			"eamodio.gitlens",
+			"cloudflare.wrangler",
+			"styled-components.vscode-styled-components"
+		]
+	}
 }

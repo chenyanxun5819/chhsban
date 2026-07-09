@@ -1,0 +1,16 @@
+name = "chhsban-tution"
+type = "javascript"
+account_id = "82d225cda80f37208228877b32268b26"
+workers_dev = true
+
+[env.production]
+name = "chhsban-tution-prod"
+route = "chhsban-tution.pages.dev"
+
+[build]
+command = "npm install && npm run build"
+cwd = "./"
+watch_paths = ["src/**/*.ts", "src/**/*.tsx"]
+
+[build.upload]
+format = "service-worker"

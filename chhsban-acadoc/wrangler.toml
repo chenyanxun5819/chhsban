@@ -1,10 +1,14 @@
+# Cloudflare Worker 配置 - 自動生成
+# 由 packages/cloudflare-config 管理
+# 勿直接編輯此文件！修改請見: packages/cloudflare-config/src/
+
 name = "student-sync"
 account_id = "82d225cda80f37208228877b32268b26"
 workers_dev = true
 main = "workers/sms-sync.js"
 compatibility_date = "2026-06-30"
 
-# KV 绑定配置
+# KV 綁定配置
 [[kv_namespaces]]
 binding = "STUDENT_KV"
 id = "9d870e2344c84c74a1ed2f2851c93408"
@@ -17,13 +21,17 @@ id = "8892dc8c30984f4591850521a1b57ed8"
 binding = "AUTH_KV"
 id = "8ddeccbeeae9440fafba384d35205a81"
 
-# 非敏感环境变量（敏感的 SMS_USER / SMS_PASS 改用 `wrangler secret put` 设置，不写在这里）
+# 環境變數
+# 環境變數
 [vars]
 SMS_BASE_URL = "http://sms.chhsban.edu.my"
 
-# Cron 触发器：每星期一、三凌晨 00:00（大马时间，UTC+8）跑一次完整同步
-# 大马时间周一 00:00 = UTC 周日 16:00；大马时间周三 00:00 = UTC 周二 16:00
-# 实测一次同步只需约 5-8 个 fetch 请求，远低于免费版 50 个子请求上限，
-# 不需要分批，详见 workers/sms-sync.js 顶部说明
+# Cron 觸發器
+# Cron 觸發器
 [triggers]
 crons = ["0 16 * * 7", "0 16 * * 2"]
+
+# 敏感信息使用 wrangler secret 設置（不寫在此文件中）
+# SMS_USER, SMS_PASS 等敏感值應執行:
+# wrangler secret put SMS_USER
+# wrangler secret put SMS_PASS

@@ -1,0 +1,21 @@
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100vh;
+  font-size: 18px;
+  color: var(--text-secondary);
+}
+
+.page {
+  padding: var(--spacing-lg);
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page h1 {
+  color: var(--text-primary);
+  margin-bottom: var(--spacing-md);
+  font-size: 24px;
+  font-weight: 600;
+}

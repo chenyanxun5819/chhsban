@@ -9,6 +9,20 @@ import subprocess
 import sys
 from pathlib import Path
 
+# 权限映射表（根据 email 分配权限等级）
+PERMISSION_MAPPING = {
+    "super_admin": ["schhs334@chhsban.edu.my"],
+    "admin": ["ecchhs426@chhsban.edu.my"],
+    "viewer": ["ecchhs110@chhsban.edu.my"],
+}
+
+def get_teacher_permission(email):
+    """根据 email 返回教师权限等级"""
+    for permission, emails in PERMISSION_MAPPING.items():
+        if email in emails:
+            return permission
+    return "teacher"  # 默认权限
+
 def read_teachers_from_excel(file_path):
     """从 Excel 文件读取教师数据"""
     wb = openpyxl.load_workbook(file_path)
@@ -49,7 +63,10 @@ def upload_to_kv(teachers_data, kv_namespace="TEACHER_KV"):
     for teacher in teachers_data:
         name = teacher.get('Name', '').strip()
         if name:
-            teachers_by_name[name] = teacher
+            # 添加权限字段
+            teacher_with_permission = teacher.copy()
+            teacher_with_permission['permission'] = get_teacher_permission(teacher.get('email', ''))
+            teachers_by_name[name] = teacher_with_permission
     
     # 2. 按部门分类
     teachers_by_dept = {}
@@ -57,9 +74,19 @@ def upload_to_kv(teachers_data, kv_namespace="TEACHER_KV"):
         dept = teacher.get('department', 'Unknown').strip()
         if dept not in teachers_by_dept:
             teachers_by_dept[dept] = []
-        teachers_by_dept[dept].append(teacher)
+        # 添加权限字段
+        teacher_with_permission = teacher.copy()
+        teacher_with_permission['permission'] = get_teacher_permission(teacher.get('email', ''))
+        teachers_by_dept[dept].append(teacher_with_permission)
     
     print(f"📂 分为 {len(teachers_by_dept)} 个部门")
+    
+    # 统计权限分布
+    permission_stats = {"teacher": 0, "viewer": 0, "admin": 0, "super_admin": 0}
+    for teacher in teachers_data:
+        perm = get_teacher_permission(teacher.get('email', ''))
+        permission_stats[perm] = permission_stats.get(perm, 0) + 1
+    print(f"\n🔐 权限分布: {permission_stats}")
     
     # 3. 上传到 KV
     print("\n🚀 上传到 Cloudflare KV...")

@@ -1,0 +1,15 @@
+name = "teacher-management-portal"
+account_id = "82d225cda80f37208228877b32268b26"
+pages_build_caching = true
+
+[build]
+command = "npm run build"
+cwd = "./"
+destination = "dist"
+watch_paths = ["src/**/*.ts", "src/**/*.html", "src/**/*.css"]
+
+[env.production]
+vars = { API_BASE_URL = "https://teacher-management.chhsban.workers.dev" }
+
+[env.development]
+vars = { API_BASE_URL = "http://localhost:8787" }

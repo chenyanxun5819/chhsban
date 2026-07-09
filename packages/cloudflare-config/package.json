@@ -1,0 +1,36 @@
+{
+  "name": "@chhsban/cloudflare-config",
+  "version": "1.0.0",
+  "description": "Cloudflare KV 命名空間和 Worker 配置集中管理",
+  "main": "src/index.ts",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "generate-wrangler": "node scripts/generate-wrangler-config.js"
+  },
+  "keywords": [
+    "cloudflare",
+    "kv",
+    "worker",
+    "config"
+  ],
+  "author": "chhsban",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  },
+  "exports": {
+    ".": {
+      "import": "./src/index.ts",
+      "require": "./dist/index.js"
+    },
+    "./kv-namespace": {
+      "import": "./src/kv-namespace.ts",
+      "require": "./dist/kv-namespace.js"
+    },
+    "./workers": {
+      "import": "./src/workers.ts",
+      "require": "./dist/workers.js"
+    }
+  }
+}

@@ -1,0 +1,744 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>P2 Middleware 測試 - 認證系統</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #1e1e1e 0%, #252526 100%);
+      min-height: 100vh;
+      color: #e0e0e0;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      padding: 20px 0;
+      border-bottom: 1px solid #3e3e42;
+    }
+
+    .header h1 {
+      font-size: 28px;
+      margin-bottom: 8px;
+    }
+
+    .header p {
+      color: #858585;
+    }
+
+    .main-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 900px) {
+      .main-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .card {
+      background: #252526;
+      border: 1px solid #3e3e42;
+      border-radius: 6px;
+      padding: 20px;
+    }
+
+    .card h2 {
+      font-size: 18px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid #3e3e42;
+      padding-bottom: 12px;
+    }
+
+    .form-group {
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 12px;
+      color: #858585;
+      margin-bottom: 4px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 10px;
+      background: #3e3e42;
+      border: 1px solid #555555;
+      border-radius: 4px;
+      color: #e0e0e0;
+      font-size: 14px;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: #007acc;
+      box-shadow: 0 0 0 3px rgba(0, 122, 204, 0.1);
+    }
+
+    button {
+      background: #007acc;
+      color: white;
+      padding: 10px 16px;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s;
+      width: 100%;
+    }
+
+    button:hover {
+      background: #0099e5;
+    }
+
+    button:disabled {
+      background: #555555;
+      cursor: not-allowed;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .button-group button {
+      flex: 1;
+    }
+
+    .success {
+      background: #107c10;
+    }
+
+    .success:hover {
+      background: #16a038;
+    }
+
+    .danger {
+      background: #d13438;
+    }
+
+    .danger:hover {
+      background: #e81828;
+    }
+
+    .status {
+      padding: 12px;
+      border-radius: 4px;
+      margin-top: 12px;
+      font-size: 12px;
+      display: none;
+    }
+
+    .status.show {
+      display: block;
+    }
+
+    .status.success {
+      background: rgba(16, 124, 16, 0.2);
+      border: 1px solid #107c10;
+      color: #4ec94e;
+    }
+
+    .status.error {
+      background: rgba(209, 52, 56, 0.2);
+      border: 1px solid #d13438;
+      color: #ff6b6b;
+    }
+
+    .status.info {
+      background: rgba(0, 122, 204, 0.2);
+      border: 1px solid #007acc;
+      color: #6bb6ff;
+    }
+
+    .response {
+      background: #1e1e1e;
+      border: 1px solid #3e3e42;
+      border-radius: 4px;
+      padding: 12px;
+      margin-top: 12px;
+      max-height: 300px;
+      overflow-y: auto;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 11px;
+      color: #d4d4d4;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .test-results {
+      margin-top: 20px;
+    }
+
+    .test-item {
+      background: #1e1e1e;
+      border-left: 3px solid #3e3e42;
+      padding: 12px;
+      margin-bottom: 8px;
+      border-radius: 2px;
+    }
+
+    .test-item.pass {
+      border-left-color: #107c10;
+      background: rgba(16, 124, 16, 0.1);
+    }
+
+    .test-item.fail {
+      border-left-color: #d13438;
+      background: rgba(209, 52, 56, 0.1);
+    }
+
+    .test-item.running {
+      border-left-color: #007acc;
+      background: rgba(0, 122, 204, 0.1);
+    }
+
+    .test-item-title {
+      font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .test-item-detail {
+      font-size: 11px;
+      color: #858585;
+    }
+
+    .user-info {
+      background: #1e1e1e;
+      border: 1px solid #3e3e42;
+      border-radius: 4px;
+      padding: 12px;
+      margin-top: 12px;
+      font-size: 12px;
+    }
+
+    .user-info-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 4px 0;
+      border-bottom: 1px solid #3e3e42;
+    }
+
+    .user-info-row:last-child {
+      border-bottom: none;
+    }
+
+    .user-info-label {
+      color: #858585;
+    }
+
+    .user-info-value {
+      color: #007acc;
+      font-weight: 500;
+    }
+
+    .token-display {
+      background: #1e1e1e;
+      border: 1px solid #3e3e42;
+      border-radius: 4px;
+      padding: 8px;
+      margin-top: 8px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 9px;
+      color: #858585;
+      word-break: break-all;
+      max-height: 100px;
+      overflow-y: auto;
+    }
+
+    .tabs {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+      border-bottom: 1px solid #3e3e42;
+    }
+
+    .tab-btn {
+      background: transparent;
+      color: #858585;
+      padding: 8px 12px;
+      border: none;
+      border-bottom: 2px solid transparent;
+      cursor: pointer;
+      font-size: 12px;
+      width: auto;
+      transition: all 0.2s;
+    }
+
+    .tab-btn:hover {
+      color: #e0e0e0;
+      background: #3e3e42;
+    }
+
+    .tab-btn.active {
+      color: #007acc;
+      border-bottom-color: #007acc;
+      background: transparent;
+    }
+
+    .tab-content {
+      display: none;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <h1>🔐 P2 Middleware 測試 - 認證系統</h1>
+      <p>測試 @chhsban/kv-utils 的認證和權限功能</p>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-grid">
+      <!-- Login Section -->
+      <div class="card">
+        <h2>🔑 登錄</h2>
+        <p style="color: #858585; font-size: 12px; margin-bottom: 12px;">
+          💡 提示：頁面會嘗試自動偵測你在 Chrome 中保存的帳號資訊
+        </p>
+        <div class="form-group">
+          <label for="teacherId">教師 ID</label>
+          <input type="text" id="teacherId" value="T001" placeholder="T001">
+        </div>
+        <div class="form-group">
+          <label for="teacherName">教師名稱</label>
+          <input type="text" id="teacherName" value="John Doe" placeholder="John Doe">
+        </div>
+        <div class="form-group">
+          <label for="permission">權限等級</label>
+          <select id="permission">
+            <option value="teacher">Teacher (1)</option>
+            <option value="viewer">Viewer (2)</option>
+            <option value="admin" selected>Admin (3)</option>
+            <option value="super_admin">Super Admin (4)</option>
+          </select>
+        </div>
+        <button onclick="login()" class="success">登錄</button>
+        <div id="loginStatus" class="status"></div>
+        <div id="loginResponse" class="response"></div>
+      </div>
+
+      <!-- User Info Section -->
+      <div class="card">
+        <h2>👤 當前用戶</h2>
+        <div id="userInfo">
+          <p style="color: #858585; text-align: center;">未登錄</p>
+        </div>
+        <div class="button-group">
+          <button onclick="fetchMe()" class="success">刷新信息</button>
+          <button onclick="logout()" class="danger">登出</button>
+        </div>
+        <div id="meStatus" class="status"></div>
+      </div>
+    </div>
+
+    <!-- Testing Section -->
+    <div class="card">
+      <h2>🧪 功能測試</h2>
+      
+      <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('students')">學生數據</button>
+        <button class="tab-btn" onclick="switchTab('teachers')">教師數據</button>
+        <button class="tab-btn" onclick="switchTab('permissions')">權限測試</button>
+      </div>
+
+      <!-- Students Tab -->
+      <div id="students" class="tab-content active">
+        <div class="form-group">
+          <label for="className">班級名稱</label>
+          <input type="text" id="className" value="J1A" placeholder="J1A">
+        </div>
+        <div class="button-group">
+          <button onclick="getAllStudents()" class="success">所有學生</button>
+          <button onclick="getStudentsByClass()" class="success">按班級</button>
+        </div>
+        <div id="studentsStatus" class="status"></div>
+        <div id="studentsResponse" class="response"></div>
+      </div>
+
+      <!-- Teachers Tab -->
+      <div id="teachers" class="tab-content">
+        <div class="button-group">
+          <button onclick="getAllTeachers()" class="success">所有教師</button>
+          <button onclick="getAdmins()" class="success">管理員</button>
+        </div>
+        <div id="teachersStatus" class="status"></div>
+        <div id="teachersResponse" class="response"></div>
+      </div>
+
+      <!-- Permissions Tab -->
+      <div id="permissions" class="tab-content">
+        <p style="margin-bottom: 16px; color: #858585;">測試不同權限等級的端點訪問</p>
+        <div class="button-group">
+          <button onclick="testPermissionAdmin()" class="success">Admin 端點</button>
+          <button onclick="testPermissionViewer()" class="success">Viewer 端點</button>
+        </div>
+        <div id="permissionsStatus" class="status"></div>
+        <div id="permissionsResponse" class="response"></div>
+      </div>
+    </div>
+
+    <!-- API Configuration -->
+    <div class="card" style="margin-top: 20px;">
+      <h2>⚙️ API 配置</h2>
+      <div class="form-group">
+        <label for="apiUrl">API 基址</label>
+        <input type="text" id="apiUrl" value="http://localhost:8787" placeholder="http://localhost:8787">
+      </div>
+      <p style="color: #858585; font-size: 12px; margin-top: 8px;">
+        確保 Wrangler 開發服務器已啟動：<code>wrangler dev</code>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    let currentToken = null;
+    let currentUser = null;
+
+    function getApiUrl() {
+      return document.getElementById('apiUrl').value;
+    }
+
+    function showStatus(elementId, type, message) {
+      const statusEl = document.getElementById(elementId);
+      statusEl.className = `status show ${type}`;
+      statusEl.textContent = message;
+    }
+
+    function showResponse(elementId, data) {
+      const responseEl = document.getElementById(elementId);
+      responseEl.textContent = JSON.stringify(data, null, 2);
+    }
+
+    async function makeRequest(method, path, body = null) {
+      try {
+        const options = {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        };
+
+        if (currentToken) {
+          options.headers['Authorization'] = `Bearer ${currentToken}`;
+        }
+
+        if (body) {
+          options.body = JSON.stringify(body);
+        }
+
+        const response = await fetch(getApiUrl() + path, options);
+        const data = await response.json();
+
+        return { status: response.status, data };
+      } catch (error) {
+        throw new Error(`請求失敗: ${error.message}`);
+      }
+    }
+
+    async function login() {
+      const teacherId = document.getElementById('teacherId').value;
+      const teacherName = document.getElementById('teacherName').value;
+      const permission = document.getElementById('permission').value;
+
+      if (!teacherId || !teacherName) {
+        showStatus('loginStatus', 'error', '請填寫所有必要字段');
+        return;
+      }
+
+      showStatus('loginStatus', 'info', '登錄中...');
+
+      try {
+        const result = await makeRequest('POST', '/api/auth/login', {
+          teacherId,
+          teacherName,
+          permission,
+        });
+
+        if (result.status === 200) {
+          currentToken = result.data.token;
+          currentUser = result.data.user;
+          localStorage.setItem('auth_token', currentToken);
+          
+          showStatus('loginStatus', 'success', '登錄成功！');
+          showResponse('loginResponse', result.data);
+          updateUserInfo();
+        } else {
+          showStatus('loginStatus', 'error', `登錄失敗 (HTTP ${result.status})`);
+          showResponse('loginResponse', result.data);
+        }
+      } catch (error) {
+        showStatus('loginStatus', 'error', error.message);
+      }
+    }
+
+    function updateUserInfo() {
+      if (!currentUser) {
+        document.getElementById('userInfo').innerHTML = '<p style="color: #858585; text-align: center;">未登錄</p>';
+        return;
+      }
+
+      document.getElementById('userInfo').innerHTML = `
+        <div class="user-info">
+          <div class="user-info-row">
+            <span class="user-info-label">教師 ID:</span>
+            <span class="user-info-value">${currentUser.teacherId}</span>
+          </div>
+          <div class="user-info-row">
+            <span class="user-info-label">名稱:</span>
+            <span class="user-info-value">${currentUser.teacherName}</span>
+          </div>
+          <div class="user-info-row">
+            <span class="user-info-label">權限:</span>
+            <span class="user-info-value">${currentUser.permission}</span>
+          </div>
+          <div class="user-info-row">
+            <span class="user-info-label">Token:</span>
+            <span class="user-info-value" style="font-size: 10px;">
+              ${currentToken.substring(0, 20)}...
+            </span>
+          </div>
+        </div>
+      `;
+    }
+
+    async function fetchMe() {
+      if (!currentToken) {
+        showStatus('meStatus', 'error', '請先登錄');
+        return;
+      }
+
+      showStatus('meStatus', 'info', '獲取信息中...');
+
+      try {
+        const result = await makeRequest('GET', '/api/auth/me');
+
+        if (result.status === 200) {
+          showStatus('meStatus', 'success', '信息獲取成功');
+          updateUserInfo();
+        } else {
+          showStatus('meStatus', 'error', `獲取失敗 (HTTP ${result.status})`);
+          currentToken = null;
+          updateUserInfo();
+        }
+      } catch (error) {
+        showStatus('meStatus', 'error', error.message);
+      }
+    }
+
+    async function logout() {
+      if (!currentToken) {
+        showStatus('meStatus', 'error', '未登錄');
+        return;
+      }
+
+      try {
+        const result = await makeRequest('POST', '/api/auth/logout');
+        currentToken = null;
+        currentUser = null;
+        localStorage.removeItem('auth_token');
+        
+        showStatus('meStatus', 'success', '已登出');
+        updateUserInfo();
+      } catch (error) {
+        showStatus('meStatus', 'error', error.message);
+      }
+    }
+
+    async function getAllStudents() {
+      if (!currentToken) {
+        showStatus('studentsStatus', 'error', '請先登錄');
+        return;
+      }
+
+      showStatus('studentsStatus', 'info', '獲取中...');
+
+      try {
+        const result = await makeRequest('GET', '/api/students');
+        
+        if (result.status === 200) {
+          showStatus('studentsStatus', 'success', `成功獲取 ${result.data.count} 位學生`);
+          showResponse('studentsResponse', result.data);
+        } else {
+          showStatus('studentsStatus', 'error', `失敗 (HTTP ${result.status})`);
+          showResponse('studentsResponse', result.data);
+        }
+      } catch (error) {
+        showStatus('studentsStatus', 'error', error.message);
+      }
+    }
+
+    async function getStudentsByClass() {
+      if (!currentToken) {
+        showStatus('studentsStatus', 'error', '請先登錄');
+        return;
+      }
+
+      const className = document.getElementById('className').value;
+      if (!className) {
+        showStatus('studentsStatus', 'error', '請輸入班級名稱');
+        return;
+      }
+
+      showStatus('studentsStatus', 'info', '獲取中...');
+
+      try {
+        const result = await makeRequest('GET', `/api/students/class/${className}`);
+        
+        if (result.status === 200) {
+          showStatus('studentsStatus', 'success', `成功獲取班級 ${className} 的 ${result.data.count} 位學生`);
+          showResponse('studentsResponse', result.data);
+        } else {
+          showStatus('studentsStatus', 'error', `失敗 (HTTP ${result.status})`);
+          showResponse('studentsResponse', result.data);
+        }
+      } catch (error) {
+        showStatus('studentsStatus', 'error', error.message);
+      }
+    }
+
+    async function getAllTeachers() {
+      if (!currentToken) {
+        showStatus('teachersStatus', 'error', '請先登錄');
+        return;
+      }
+
+      showStatus('teachersStatus', 'info', '獲取中...');
+
+      try {
+        const result = await makeRequest('GET', '/api/admin/teachers');
+        
+        if (result.status === 200) {
+          showStatus('teachersStatus', 'success', `成功獲取 ${result.data.count} 位教師`);
+          showResponse('teachersResponse', result.data);
+        } else {
+          showStatus('teachersStatus', 'error', `失敗 (HTTP ${result.status})`);
+          showResponse('teachersResponse', result.data);
+        }
+      } catch (error) {
+        showStatus('teachersStatus', 'error', error.message);
+      }
+    }
+
+    async function getAdmins() {
+      if (!currentToken) {
+        showStatus('teachersStatus', 'error', '請先登錄');
+        return;
+      }
+
+      showStatus('teachersStatus', 'info', '獲取中...');
+
+      try {
+        // 這個端點在示例中沒有實現，先返回所有教師
+        const result = await makeRequest('GET', '/api/admin/teachers');
+        
+        if (result.status === 200) {
+          const admins = result.data.teachers.filter(t => t.permission === 'admin' || t.permission === 'super_admin');
+          showStatus('teachersStatus', 'success', `成功獲取 ${admins.length} 位管理員`);
+          showResponse('teachersResponse', { admins });
+        } else {
+          showStatus('teachersStatus', 'error', `失敗 (HTTP ${result.status})`);
+          showResponse('teachersResponse', result.data);
+        }
+      } catch (error) {
+        showStatus('teachersStatus', 'error', error.message);
+      }
+    }
+
+    async function testPermissionAdmin() {
+      if (!currentToken) {
+        showStatus('permissionsStatus', 'error', '請先登錄');
+        return;
+      }
+
+      showStatus('permissionsStatus', 'info', '測試 Admin 權限...');
+
+      try {
+        const result = await makeRequest('GET', '/api/admin/teachers');
+        
+        if (result.status === 200) {
+          showStatus('permissionsStatus', 'success', 'Admin 權限測試通過 ✓');
+        } else if (result.status === 403) {
+          showStatus('permissionsStatus', 'error', 'Admin 權限測試失敗 - 權限不足 (HTTP 403)');
+        } else {
+          showStatus('permissionsStatus', 'error', `Admin 權限測試失敗 (HTTP ${result.status})`);
+        }
+        showResponse('permissionsResponse', result.data);
+      } catch (error) {
+        showStatus('permissionsStatus', 'error', error.message);
+      }
+    }
+
+    async function testPermissionViewer() {
+      if (!currentToken) {
+        showStatus('permissionsStatus', 'error', '請先登錄');
+        return;
+      }
+
+      showStatus('permissionsStatus', 'info', '測試 Viewer 權限...');
+
+      try {
+        const result = await makeRequest('GET', '/api/students');
+        
+        if (result.status === 200) {
+          showStatus('permissionsStatus', 'success', 'Viewer 權限測試通過 ✓');
+        } else if (result.status === 403) {
+          showStatus('permissionsStatus', 'error', 'Viewer 權限測試失敗 - 權限不足 (HTTP 403)');
+        } else {
+          showStatus('permissionsStatus', 'error', `Viewer 權限測試失敗 (HTTP ${result.status})`);
+        }
+        showResponse('permissionsResponse', result.data);
+      } catch (error) {
+        showStatus('permissionsStatus', 'error', error.message);
+      }
+    }
+
+    function switchTab(tabName) {
+      // Hide all tabs
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+
+      // Show selected tab
+      document.getElementById(tabName).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    // Initialize
+    window.addEventListener('load', () => {
+      const savedToken = localStorage.getItem('auth_token');
+      if (savedToken) {
+        currentToken = savedToken;
+        fetchMe();
+      }
+    });
+  </script>
+</body>
+</html>

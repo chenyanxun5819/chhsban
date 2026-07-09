@@ -1,0 +1,19 @@
+# Cloudflare Worker 配置 - 自動生成，勿直接編輯
+# 由 packages/cloudflare-config 管理
+# 從 https://github.com/chhsban/chhsban/blob/main/packages/cloudflare-config/src/workers.ts 修改
+
+name = "{{WORKER_NAME}}"
+account_id = "{{ACCOUNT_ID}}"
+workers_dev = true
+main = "{{MAIN_FILE}}"
+compatibility_date = "2026-06-30"
+
+# KV 綁定配置 (由配置系統自動生成)
+{{KV_NAMESPACES}}
+
+# 環境變數
+[vars]
+{{ENVIRONMENT_VARIABLES}}
+
+# Cron 觸發器（如果有的話）
+{{CRON_TRIGGERS}}

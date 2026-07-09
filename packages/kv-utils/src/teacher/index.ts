@@ -3,7 +3,7 @@
  * 处理教师数据的查询、存储和管理
  */
 
-import type { TeacherRecord } from "../types/index.js";
+import type { TeacherRecord, KVNamespace } from "../types/index.js";
 import { KV_CONFIG } from "../types/index.js";
 
 /**
@@ -82,7 +82,7 @@ export class TeacherKVManager {
 
       for (const item of result.keys) {
         const teacher = await this.getTeacher(item.name.replace(KV_CONFIG.TEACHER_PREFIX, ""));
-        if (teacher && teacher.role === "admin") {
+        if (teacher && teacher.permission === "admin") {
           admins.push(teacher);
         }
       }

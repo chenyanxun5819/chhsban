@@ -1,0 +1,11 @@
+{
+  "name": "chhsban-workspace",
+  "version": "1.0.0",
+  "description": "chhsban 統一包管理根目錄",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "chhsban-acadoc",
+    "chhsban-tution"
+  ]
+}

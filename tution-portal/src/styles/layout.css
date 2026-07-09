@@ -1,0 +1,258 @@
+/* ========== Header 樣式 ========== */
+
+.main-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: white;
+  border-bottom: 1px solid var(--border-color);
+  position: sticky;
+  top: 0;
+  z-index: 90;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.header__left {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.header__title {
+  font-size: 20px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.header__right {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-lg);
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+}
+
+.user-info__name {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 767px) {
+  .user-info__name {
+    display: none;
+  }
+}
+
+.header__logout {
+  padding: 8px 16px;
+  background: var(--danger-color);
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s;
+}
+
+.header__logout:hover {
+  background: #ff2f2f;
+}
+
+/* ========== 菜單切換按鈕 ========== */
+
+.header__menu-toggle {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 8px;
+}
+
+.menu-icon {
+  width: 24px;
+  height: 2px;
+  background: var(--text-primary);
+  border-radius: 1px;
+  transition: all 0.3s;
+}
+
+.menu-icon::before,
+.menu-icon::after {
+  content: "";
+  display: block;
+  width: 24px;
+  height: 2px;
+  background: var(--text-primary);
+  border-radius: 1px;
+  transition: all 0.3s;
+}
+
+/* ========== Sidebar 導航 ========== */
+
+.nav-sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  background: white;
+  overflow-y: auto;
+}
+
+.logo {
+  padding: var(--spacing-lg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.logo h2 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--primary-color);
+}
+
+.nav-list {
+  list-style: none;
+  padding: var(--spacing-md) 0;
+}
+
+.nav-list li {
+  margin: 0;
+}
+
+.nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-primary);
+  font-size: 15px;
+  transition: all 0.2s;
+  text-align: left;
+}
+
+.nav-item:hover {
+  background: var(--bg-light);
+  color: var(--primary-color);
+}
+
+.nav-item__icon {
+  font-size: 20px;
+  width: 24px;
+  text-align: center;
+}
+
+.nav-item__label {
+  flex: 1;
+}
+
+/* ========== 底部導航 (手機版) ========== */
+
+.nav-bottom {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  height: 60px;
+  background: white;
+  border-top: 1px solid var(--border-color);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.nav-bottom__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex: 1;
+  height: 100%;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 12px;
+  transition: all 0.2s;
+}
+
+.nav-bottom__item:active,
+.nav-bottom__item:hover {
+  color: var(--primary-color);
+  background: var(--bg-light);
+}
+
+.nav-bottom__icon {
+  font-size: 24px;
+}
+
+.nav-bottom__label {
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ========== 主內容 ========== */
+
+.main-content {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+@media (max-width: 1023px) {
+  .main-content {
+    padding-bottom: calc(60px + var(--spacing-lg));
+  }
+}
+
+/* ========== 響應式佈局容器 ========== */
+
+.responsive-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+@media (min-width: 1024px) {
+  .responsive-layout {
+    flex-direction: row;
+  }
+
+  .responsive-layout__sidebar {
+    width: 280px;
+    position: fixed;
+    left: 0;
+    top: 0;
+    height: 100vh;
+    border-right: 1px solid var(--border-color);
+    background: white;
+    z-index: 100;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .responsive-layout__main {
+    margin-left: 280px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 1023px) {
+  .responsive-layout__sidebar {
+    display: none;
+  }
+
+  .responsive-layout__main {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+}

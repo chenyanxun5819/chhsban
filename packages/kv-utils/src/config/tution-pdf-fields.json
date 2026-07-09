@@ -1,0 +1,117 @@
+{
+  "template_version": "1.0",
+  "template_name": "Template_tution",
+  "template_pages": 1,
+  "page_dimensions": {
+    "width": 612,
+    "height": 792
+  },
+  "created_date": "2026-07-09",
+  "description": "補習班申請表單座標映射（僅主表部分）",
+  "fields": [
+    {
+      "field_id": "teacher_name_cn",
+      "pdf_field_name": "teacher_name",
+      "form_field": "教師姓名 / Teacher's Name",
+      "page_number": 1,
+      "x_coordinate": 50,
+      "y_coordinate": 620,
+      "width": 160,
+      "height": 20,
+      "data_type": "text",
+      "source_table": "main",
+      "source_field": "teacher_name_cn",
+      "is_repeating": false
+    },
+    {
+      "field_id": "form",
+      "pdf_field_name": "form",
+      "form_field": "補習年級 / Form",
+      "page_number": 1,
+      "x_coordinate": 250,
+      "y_coordinate": 620,
+      "width": 100,
+      "height": 20,
+      "data_type": "text",
+      "source_table": "main",
+      "source_field": "form",
+      "is_repeating": false
+    },
+    {
+      "field_id": "subject",
+      "pdf_field_name": "subject",
+      "form_field": "補習科目 / Subject",
+      "page_number": 1,
+      "x_coordinate": 400,
+      "y_coordinate": 620,
+      "width": 150,
+      "height": 20,
+      "data_type": "text",
+      "source_table": "main",
+      "source_field": "subject",
+      "is_repeating": false
+    },
+    {
+      "field_id": "day_of_week",
+      "pdf_field_name": "day",
+      "form_field": "補習日 / Day",
+      "page_number": 1,
+      "x_coordinate": 50,
+      "y_coordinate": 590,
+      "width": 160,
+      "height": 20,
+      "data_type": "text",
+      "source_table": "main",
+      "source_field": "day_of_week",
+      "is_repeating": false
+    },
+    {
+      "field_id": "start_date",
+      "pdf_field_name": "start_from",
+      "form_field": "開課日期 / Start From",
+      "page_number": 1,
+      "x_coordinate": 400,
+      "y_coordinate": 590,
+      "width": 150,
+      "height": 20,
+      "data_type": "date",
+      "source_table": "main",
+      "source_field": "start_date",
+      "is_repeating": false
+    },
+    {
+      "field_id": "fees",
+      "pdf_field_name": "fees",
+      "form_field": "補習收費 / Fees",
+      "page_number": 1,
+      "x_coordinate": 50,
+      "y_coordinate": 560,
+      "width": 160,
+      "height": 20,
+      "data_type": "number",
+      "source_table": "main",
+      "source_field": "fees",
+      "is_repeating": false
+    },
+    {
+      "field_id": "venue",
+      "pdf_field_name": "venue",
+      "form_field": "使用地點 / Venue",
+      "page_number": 1,
+      "x_coordinate": 250,
+      "y_coordinate": 560,
+      "width": 300,
+      "height": 20,
+      "data_type": "text",
+      "source_table": "main",
+      "source_field": "venue",
+      "is_repeating": false
+    }
+  ],
+  "notes": [
+    "座標基於 PDF 物理尺寸 612x792 points（標準 Letter 尺寸）",
+    "學生名單區域暫未映射，留作日後擴展",
+    "所有座標以 PDF 左下角為原點（需在填充時轉換）",
+    "使用 pdf-lib 填充時需進行坐標系統轉換：y_pdf = page_height - y_coordinate"
+  ]
+}

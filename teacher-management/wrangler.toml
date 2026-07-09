@@ -1,0 +1,19 @@
+name = "teacher-management"
+type = "javascript"
+account_id = "82d225cda80f37208228877b32268b26"
+workers_dev = true
+main = "src/index.ts"
+compatibility_date = "2026-07-08"
+
+# KV 命名空間綁定
+[[kv_namespaces]]
+binding = "KV_BINDING"
+id = "8892dc8c30984f4591850521a1b57ed8"
+
+# 環境變數
+[vars]
+ENVIRONMENT = "production"
+
+# 開發環境配置
+[env.development]
+vars = { ENVIRONMENT = "development" }
