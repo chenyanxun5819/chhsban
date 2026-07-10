@@ -5,6 +5,9 @@ import Welcome from "@/pages/Welcome/Welcome";
 import ApplicationForm from "@/pages/ApplicationManagement/ApplicationForm";
 import ApplicationList from "@/pages/ApplicationManagement/ApplicationList";
 import ApplicationDetail from "@/pages/ApplicationManagement/ApplicationDetail";
+import AdminPanel from "@/pages/AdminPanel/AdminPanel";
+import ScheduleManagement from "@/pages/ScheduleManagement/ScheduleManagement";
+import AttendanceSheet from "@/pages/AttendanceSheet/AttendanceSheet";
 import "./styles/App.css";
 
 // Placeholder Pages - 待實施
@@ -13,24 +16,9 @@ const ClassList = () => (
     <div className="page"><h1>已批准課程 (待實施)</h1></div>
   </Layout>
 );
-const ScheduleManagement = () => (
-  <Layout title="開課記錄">
-    <div className="page"><h1>開課記錄 (待實施)</h1></div>
-  </Layout>
-);
 const RosterManagement = () => (
   <Layout title="學生名單">
     <div className="page"><h1>學生名單 (待實施)</h1></div>
-  </Layout>
-);
-const AttendanceTracking = () => (
-  <Layout title="點名系統">
-    <div className="page"><h1>點名系統 (待實施)</h1></div>
-  </Layout>
-);
-const AdminPanel = () => (
-  <Layout title="管理員審批">
-    <div className="page"><h1>管理員審批 (待實施)</h1></div>
   </Layout>
 );
 const Dashboard = () => (
@@ -123,7 +111,7 @@ const AppRoutes = () => {
         path="/classes/:id/attendance"
         element={
           <ProtectedRoute>
-            <AttendanceTracking />
+            <AttendanceSheet />
           </ProtectedRoute>
         }
       />

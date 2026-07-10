@@ -99,3 +99,85 @@ export interface TutionAttendance {
   created_at: number;
   updated_at: number;
 }
+
+// ========== Phase 3: 管理功能類型 ==========
+
+export type AdminStatistic = {
+  totalTeachers: number;
+  totalClasses: number;
+  totalStudents: number;
+  pendingApplications: number;
+};
+
+export type RecentActivity = {
+  activity_id: string;
+  type: "application" | "schedule" | "attendance" | "class_update";
+  title: string;
+  description: string;
+  timestamp: number;
+  actor?: string;
+  relatedId?: string;
+};
+
+// ========== Phase 3: 時間表管理類型 ==========
+
+export type RecurrenceType = "weekly" | "monthly" | "custom";
+
+export interface RecurrenceRule {
+  type: RecurrenceType;
+  interval: number;
+  endDate?: string;
+  exceptions?: string[];
+}
+
+export interface TutionScheduleExtended extends TutionSchedule {
+  date: string;
+  start_time: string;
+  end_time: string;
+  venue: string;
+  status: "scheduled" | "ongoing" | "completed" | "cancelled";
+  recurrence?: RecurrenceRule;
+}
+
+export interface ConflictResult {
+  hasConflict: boolean;
+  conflicts: Array<{
+    type: "venue" | "teacher" | "student";
+    message: string;
+    conflictingScheduleId?: string;
+  }>;
+  warnings: string[];
+}
+
+// ========== Phase 3: 出席表管理類型 ==========
+
+export type AttendanceRecordStatus = "present" | "absent" | "late" | "early" | "not_attended";
+
+export interface AttendanceRecord {
+  record_id: string;
+  class_id: string;
+  schedule_id: string;
+  student_id: string;
+  status: AttendanceRecordStatus;
+  date: string;
+  remarks?: string;
+  updated_at: string;
+}
+
+export interface AttendanceStats {
+  studentId: string;
+  studentName: string;
+  totalSessions: number;
+  presentCount: number;
+  absentCount: number;
+  lateCount: number;
+  earlyCount: number;
+  attendanceRate: number;
+  lastUpdated: string;
+}
+
+export interface AttendanceChange {
+  recordId: string;
+  oldStatus: AttendanceRecordStatus;
+  newStatus: AttendanceRecordStatus;
+}
