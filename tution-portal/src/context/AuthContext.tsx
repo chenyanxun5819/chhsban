@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, ReactNode, useCallback } from "react";
-import { AuthUser, AuthState, Permission, LoginResponse } from "@/types";
-import apiClient from "@/utils/api";
+import { AuthUser, AuthState, Permission } from "@/types";
+import { verifyTeacherEmail, clearSession } from "@/services/authService";
 
 type AuthAction =
   | { type: "SET_LOADING"; payload: boolean }
@@ -40,8 +40,7 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
         error: action.payload,
       };
     case "LOGOUT":
-      localStorage.removeItem("auth_token");
-      localStorage.removeItem("auth_user");
+      clearSession();
       return initialState;
     case "RESTORE_SESSION":
       return {
@@ -77,6 +76,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         dispatch({ type: "RESTORE_SESSION", payload: { user, token } });
       } catch (error) {
         console.error("Failed to restore session:", error);
+        clearSession();
       }
     }
   }, []);
@@ -84,39 +84,23 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = useCallback(async (email: string) => {
     dispatch({ type: "SET_LOADING", payload: true });
     try {
-      const response = await apiClient.post<LoginResponse>("/auth/auto-login", {
-        email,
+      const response = await verifyTeacherEmail(email);
+
+      const user: AuthUser = {
+        teacherId: response.teacher_id,
+        teacherName: response.teacher_name,
+        permission: response.permission,
+        email: response.email,
+      };
+
+      dispatch({
+        type: "LOGIN_SUCCESS",
+        payload: { user, token: response.token },
       });
-
-      if (response.data) {
-        const { token, permission } = response.data;
-
-        // 獲取用戶信息
-        const verifyResponse = await apiClient.get("/auth/verify", {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (verifyResponse.data) {
-          const user: AuthUser = {
-            teacherId: verifyResponse.data.teacher_id,
-            teacherName: verifyResponse.data.teacher_name_cn,
-            permission,
-            email,
-            department: verifyResponse.data.department,
-          };
-
-          // 保存到 localStorage
-          localStorage.setItem("auth_token", token);
-          localStorage.setItem("auth_user", JSON.stringify(user));
-
-          dispatch({
-            type: "LOGIN_SUCCESS",
-            payload: { user, token },
-          });
-        }
-      }
     } catch (error: any) {
-      const errorMessage = error.response?.data?.error || "登入失敗，請重試";
+      const errorMessage =
+        error.message ||
+        "登入失敗，請檢查 Email 是否正確或正在系統中註冊";
       dispatch({ type: "LOGIN_FAILURE", payload: errorMessage });
       throw error;
     }
