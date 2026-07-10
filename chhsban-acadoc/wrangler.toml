@@ -5,7 +5,7 @@
 name = "student-sync"
 account_id = "82d225cda80f37208228877b32268b26"
 workers_dev = true
-main = "workers/sms-sync.js"
+main = "chhsban-acadoc/workers/index.ts"
 compatibility_date = "2026-06-30"
 
 # KV 綁定配置
