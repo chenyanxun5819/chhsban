@@ -15,7 +15,7 @@ export const Login: React.FC = () => {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [useManualInput, setUseManualInput] = useState(false);
+  const [useManualInput, setUseManualInput] = useState(true); // 預設用手動登入
 
   // 如果已認證，重定向到首頁
   useEffect(() => {
@@ -57,6 +57,22 @@ export const Login: React.FC = () => {
       }
     };
   }, []);
+
+  // 當切換到 Google 登入時，重新渲染 Google 按鈕
+  useEffect(() => {
+    if (!useManualInput && window.google?.accounts?.id) {
+      const buttonElement = document.getElementById("google-signin-button");
+      if (buttonElement) {
+        // 清空容器再重新渲染
+        buttonElement.innerHTML = "";
+        window.google.accounts.id.renderButton(buttonElement, {
+          theme: "outline",
+          size: "large",
+          width: "300",
+        });
+      }
+    }
+  }, [useManualInput]);
 
   const handleGoogleResponse = async (response: any) => {
     try {

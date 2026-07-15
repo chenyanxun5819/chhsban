@@ -28,6 +28,9 @@
 		},
 		{
 			"path": "teacher-management-portal"
+		},
+		{
+			"path": "tution-portal"
 		}
 	],
 	"settings": {

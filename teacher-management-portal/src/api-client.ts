@@ -29,7 +29,7 @@ export class ApiClient {
   async getTeacher(id: string): Promise<TeacherRecord> {
     const response = await this.request<TeacherRecord>(
       "GET",
-      `/api/teachers/${id}`,
+      `/api/teachers/${encodeURIComponent(id.trim())}`,
     );
     if (!response.data) {
       throw new Error("教師不存在");
@@ -57,7 +57,7 @@ export class ApiClient {
   ): Promise<TeacherRecord> {
     const response = await this.request<TeacherRecord>(
       "PUT",
-      `/api/teachers/${id}`,
+      `/api/teachers/${encodeURIComponent(id.trim())}`,
       updates,
     );
     if (!response.data) {
@@ -67,7 +67,7 @@ export class ApiClient {
   }
 
   async deleteTeacher(id: string): Promise<void> {
-    await this.request("DELETE", `/api/teachers/${id}`);
+    await this.request("DELETE", `/api/teachers/${encodeURIComponent(id.trim())}`);
   }
 
   async bulkImportTeachers(teachers: any[]): Promise<ApiResponse<any>> {

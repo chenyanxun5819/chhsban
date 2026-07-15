@@ -10,15 +10,15 @@ compatibility_date = "2026-06-30"
 
 # KV 綁定配置
 [[kv_namespaces]]
-binding = "STUDENT_KV"
+binding = "students_KV"
 id = "9d870e2344c84c74a1ed2f2851c93408"
 
 [[kv_namespaces]]
-binding = "TEACHER_KV"
+binding = "teachers_KV"
 id = "8892dc8c30984f4591850521a1b57ed8"
 
 [[kv_namespaces]]
-binding = "AUTH_KV"
+binding = "auth_KV"
 id = "8ddeccbeeae9440fafba384d35205a81"
 
 # 環境變數

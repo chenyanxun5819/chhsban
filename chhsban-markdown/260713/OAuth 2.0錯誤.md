@@ -1,0 +1,3 @@
+Error 400: admin_policy_enforced
+
+Request details: access_type=online origin=https://chhsban-tution.pages.dev display=popup response_type=id_token gislp=1 flowName=GeneralOAuthFlow client_id=491731246647-gf63vkq4vso6uji4dilcd84g5aedocsf.apps.googleusercontent.com gsiwebsdk=gis_attributes response_mode=form_post gis_params=GAcqK2x1MXo3VTlMUWlKWm1GYVNaVlFpRFVVUlZhYi10MzUzVEdqZmU4N1dsT1U4AUJAOWQxYzA3ZDM5NTM1ZjdjOGQ1MTQxNzRjMGEzZDk1ZDg0YjJiMmI5NWRiMDMzYTE0ZDYxY2Y5NDNjZDMxNWNmYw scope=openid https://www.googleapis.com/auth/userinfo.email https://www.googleapis.com/auth/userinfo.profile redirect_uri=gis_transform prompt=select_account upstream_experiment_id=117788636

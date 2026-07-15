@@ -7,7 +7,7 @@ interface Env {
   GOOGLE_SHEETS_ID: string;
   GOOGLE_API_KEY: string;
   CACHE: KVNamespace;
-  TEACHER_KV: KVNamespace;
+  teachers_KV: KVNamespace;
 }
 
 export default {
@@ -89,20 +89,38 @@ async function handleVerifyTeacher(
     // 標準化 email (小寫)
     const normalizedEmail = email.toLowerCase().trim();
 
-    // 在 TEACHER_KV 中查詢
-    // 支持多種 key 格式
-    let teacherData: any = await env.TEACHER_KV.get(`teacher:${normalizedEmail}`, 'json');
+    // 在 teachers_KV 中查詢
+    // 方式 1: 嘗試按 email 直接查詢 (如果有的話)
+    let teacherData: any = await env.teachers_KV.get(`teacher:${normalizedEmail}`, 'json');
     
+    // 方式 2: 嘗試按 teacher_by_email 反向索引查詢
     if (!teacherData) {
-      teacherData = await env.TEACHER_KV.get(`teacher_by_email:${normalizedEmail}`, 'json');
+      const teacherId = await env.teachers_KV.get(`teacher_by_email:${normalizedEmail}`, 'text');
+      if (teacherId) {
+        teacherData = await env.teachers_KV.get(`teacher:${teacherId}`, 'json');
+      }
     }
 
-    // 如果仍未找到，則返回 401
+    // 方式 3: 如果都失敗，嘗試通過 google_email 查詢
+    if (!teacherData) {
+      // 掃描所有 teacher:* 鍵以查找匹配的 google_email
+      const listResult = await env.teachers_KV.list({ prefix: 'teacher:' });
+      for (const key of listResult.keys) {
+        const data: any = await env.teachers_KV.get(key.name, 'json');
+        if (data?.google_email && data.google_email.toLowerCase() === normalizedEmail) {
+          teacherData = data;
+          break;
+        }
+      }
+    }
+
+    // 方式 4: 如果都失敗，返回 401 並提示需要建立反向索引
     if (!teacherData) {
       return new Response(
         JSON.stringify({ 
           error: 'Email 未在系統中註冊',
-          details: `Email: ${normalizedEmail}`
+          details: `需要在 KV 中建立教師記錄或添加 google_email 字段`,
+          suggestion: `請在 teachers_KV 中添加: teacher_by_email:${normalizedEmail} = "teacher_id" 或在 TeacherRecord 中設置 google_email 字段`
         }),
         { status: 401, headers: { ...headers, 'Content-Type': 'application/json' } }
       );
@@ -121,7 +139,7 @@ async function handleVerifyTeacher(
       JSON.stringify({
         token,
         teacher_id: teacherData.teacher_id,
-        teacher_name: teacherData.teacher_name || teacherData.name || '未命名',
+        teacher_name: teacherData.name_cn || teacherData.teacher_name || teacherData.name || '未命名',
         permission: teacherData.permission || 'teacher',
         email: normalizedEmail,
       }),

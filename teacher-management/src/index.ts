@@ -160,7 +160,7 @@ async function handleGetTeacher(
   ctx: RequestContext,
 ): Promise<Response> {
   try {
-    const id = ctx.pathname.split("/").pop();
+    const id = decodeURIComponent(ctx.pathname.split("/").pop() || "").trim();
     if (!id) {
       return errorResponse("缺少教師 ID");
     }
@@ -194,19 +194,21 @@ async function handleCreateTeacher(
       );
     }
 
+    const teacherId = String(body.teacher_id).trim();
+
     // 檢查教師是否已存在
-    const existing = await manager.getTeacher(body.teacher_id);
+    const existing = await manager.getTeacher(teacherId);
     if (existing) {
       return errorResponse("教師已存在", 409);
     }
 
     // 新增教師
     const teacher: TeacherRecord = {
-      teacher_id: body.teacher_id,
-      name_cn: body.name_cn,
-      name_en: body.name_en || "",
-      department: body.department,
-      email: body.email,
+      teacher_id: teacherId,
+      name_cn: String(body.name_cn).trim(),
+      name_en: body.name_en ? String(body.name_en).trim() : "",
+      department: String(body.department).trim(),
+      email: String(body.email).trim(),
       permission: body.permission || "teacher",
     };
 
@@ -236,7 +238,7 @@ async function handleUpdateTeacher(
   ctx: RequestContext,
 ): Promise<Response> {
   try {
-    const id = ctx.pathname.split("/").pop();
+    const id = decodeURIComponent(ctx.pathname.split("/").pop() || "").trim();
     if (!id) {
       return errorResponse("缺少教師 ID");
     }
@@ -252,10 +254,12 @@ async function handleUpdateTeacher(
     // 合併更新
     const updated: TeacherRecord = {
       ...existing,
-      name_cn: body.name_cn || existing.name_cn,
-      name_en: body.name_en || existing.name_en,
-      department: body.department || existing.department,
-      email: body.email || existing.email,
+      name_cn: body.name_cn ? String(body.name_cn).trim() : existing.name_cn,
+      name_en: body.name_en ? String(body.name_en).trim() : existing.name_en,
+      department: body.department
+        ? String(body.department).trim()
+        : existing.department,
+      email: body.email ? String(body.email).trim() : existing.email,
       permission: body.permission || existing.permission,
     };
 
@@ -276,7 +280,7 @@ async function handleDeleteTeacher(
   ctx: RequestContext,
 ): Promise<Response> {
   try {
-    const id = ctx.pathname.split("/").pop();
+    const id = decodeURIComponent(ctx.pathname.split("/").pop() || "").trim();
     if (!id) {
       return errorResponse("缺少教師 ID");
     }
@@ -335,16 +339,19 @@ async function handleBulkImportTeachers(
           continue;
         }
 
+        const teacherId = String(data.teacher_id).trim();
+        const department = String(data.department).trim();
+
         // 檢查教師是否已存在
-        const existing = await manager.getTeacher(data.teacher_id);
+        const existing = await manager.getTeacher(teacherId);
 
         if (existing) {
           // 檢查 department 是否變更
-          if (existing.department !== data.department) {
+          if (existing.department !== department) {
             // 更新 department
             const updated: TeacherRecord = {
               ...existing,
-              department: data.department,
+              department,
             };
             await manager.saveTeacher(updated);
             results.updated++;
@@ -355,11 +362,11 @@ async function handleBulkImportTeachers(
         } else {
           // 新增教師
           const teacher: TeacherRecord = {
-            teacher_id: data.teacher_id,
-            name_cn: data.name_cn,
-            name_en: data.name_en || "",
-            department: data.department,
-            email: data.email,
+            teacher_id: teacherId,
+            name_cn: String(data.name_cn).trim(),
+            name_en: data.name_en ? String(data.name_en).trim() : "",
+            department,
+            email: String(data.email).trim(),
             permission: "teacher",
           };
           await manager.saveTeacher(teacher);

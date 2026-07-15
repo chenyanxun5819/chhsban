@@ -362,8 +362,8 @@ export class UIManager {
   private async editTeacher(id: string) {
     try {
       const teacher = await this.teacherManager.getTeacher(id);
-      this.populateForm(teacher);
       this.navigateTo("add");
+      this.populateForm(teacher);
     } catch (error) {
       this.showToast("載入教師資料失敗", "error");
     }
@@ -384,6 +384,8 @@ export class UIManager {
       teacher.department;
     (form.elements.namedItem("email") as HTMLInputElement).value =
       teacher.email;
+    (form.elements.namedItem("google_email") as HTMLInputElement).value =
+      teacher.google_email || "";
     (form.elements.namedItem("permission") as HTMLSelectElement).value =
       teacher.permission;
 
@@ -410,6 +412,7 @@ export class UIManager {
       name_en: formData.get("name_en"),
       department: formData.get("department"),
       email: formData.get("email"),
+      google_email: formData.get("google_email"),
       permission: formData.get("permission"),
     };
 

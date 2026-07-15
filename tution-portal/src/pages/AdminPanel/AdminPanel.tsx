@@ -1,247 +1,260 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
-import apiClient from "@/utils/api";
-import {
-  AdminStatistic,
-  RecentActivity,
-} from "@/types/index";
+import { adminService } from "@/services/adminService";
+import type { TutionClass } from "@/types/index";
 import "./admin-panel.css";
 
-interface StatCardProps {
-  label: string;
-  value: number;
-  icon: string;
-  color: "blue" | "green" | "orange" | "red";
+interface ApplicationWithModal extends TutionClass {
+  showRejectModal?: boolean;
+  rejectReason?: string;
 }
-
-const StatCard: React.FC<StatCardProps> = ({ label, value, icon, color }) => (
-  <div className={`stat-card stat-card--${color}`}>
-    <div className="stat-icon">{icon}</div>
-    <div className="stat-content">
-      <div className="stat-value">{value.toLocaleString()}</div>
-      <div className="stat-label">{label}</div>
-    </div>
-  </div>
-);
-
-interface ActivityItemProps {
-  activity: RecentActivity;
-}
-
-const ActivityItem: React.FC<ActivityItemProps> = ({ activity }) => {
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case "application":
-        return "📋";
-      case "schedule":
-        return "📅";
-      case "attendance":
-        return "✓";
-      case "class_update":
-        return "🔄";
-      default:
-        return "•";
-    }
-  };
-
-  const getActivityColor = (type: string) => {
-    switch (type) {
-      case "application":
-        return "color-blue";
-      case "schedule":
-        return "color-green";
-      case "attendance":
-        return "color-orange";
-      case "class_update":
-        return "color-purple";
-      default:
-        return "color-gray";
-    }
-  };
-
-  const formatTime = (timestamp: number) => {
-    const now = Date.now();
-    const diff = Math.floor((now - timestamp) / 1000);
-
-    if (diff < 60) return "剛剛";
-    if (diff < 3600) return `${Math.floor(diff / 60)} 分鐘前`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)} 小時前`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)} 天前`;
-    return new Date(timestamp).toLocaleDateString("zh-TW");
-  };
-
-  return (
-    <div className={`activity-item ${getActivityColor(activity.type)}`}>
-      <div className="activity-icon">{getActivityIcon(activity.type)}</div>
-      <div className="activity-content">
-        <div className="activity-title">{activity.title}</div>
-        <div className="activity-description">{activity.description}</div>
-      </div>
-      <div className="activity-time">{formatTime(activity.timestamp)}</div>
-    </div>
-  );
-};
-
-interface QuickActionProps {
-  label: string;
-  icon: string;
-  color: "blue" | "green" | "purple" | "orange";
-  onClick: () => void;
-}
-
-const QuickAction: React.FC<QuickActionProps> = ({ label, icon, color, onClick }) => (
-  <button className={`quick-action quick-action--${color}`} onClick={onClick}>
-    <div className="action-icon">{icon}</div>
-    <div className="action-label">{label}</div>
-  </button>
-);
 
 export const AdminPanel: React.FC = () => {
+  const navigate = useNavigate();
   const { user } = useAuth();
-  const [stats, setStats] = useState<AdminStatistic | null>(null);
-  const [activities, setActivities] = useState<RecentActivity[]>([]);
+
+  const [applications, setApplications] = useState<ApplicationWithModal[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
 
   useEffect(() => {
-    const fetchAdminData = async () => {
-      try {
-        setLoading(true);
-        const [statsRes, activitiesRes] = await Promise.all([
-          apiClient.get<AdminStatistic>("/v1/admin/statistics"),
-          apiClient.get<RecentActivity[]>("/v1/admin/activities"),
-        ]);
+    // 只允許管理員訪問
+    if (user && user.permission !== "admin" && user.permission !== "super_admin") {
+      navigate("/");
+      return;
+    }
+    fetchApplications();
+  }, [user, navigate]);
 
-        if (statsRes.data) setStats(statsRes.data);
-        if (activitiesRes.data) setActivities(activitiesRes.data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "載入數據失敗");
-        console.error("Admin data fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const fetchApplications = async () => {
+    try {
+      setLoading(true);
+      const data = await adminService.getPendingApplications();
+      setApplications(data);
+      setError(null);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "載入應用列表失敗"
+      );
+      console.error("Error fetching applications:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    fetchAdminData();
-  }, []);
+  const handleApprove = async (classId: string) => {
+    try {
+      setProcessingId(classId);
+      await adminService.approveApplication(classId);
+      setSuccessMsg("應用已批准");
+      setTimeout(() => setSuccessMsg(null), 3000);
+      await fetchApplications();
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "批准失敗"
+      );
+    } finally {
+      setProcessingId(null);
+    }
+  };
 
-  const handleQuickAction = (action: string) => {
-    console.log(`Quick action: ${action}`);
-    // 將在 Phase 3+ 實施導航邏輯
+  const handleReject = async (classId: string, reason: string) => {
+    if (!reason.trim()) {
+      setError("請填寫拒絕原因");
+      return;
+    }
+
+    try {
+      setProcessingId(classId);
+      await adminService.rejectApplication(classId, reason);
+      setSuccessMsg("應用已拒絕");
+      setTimeout(() => setSuccessMsg(null), 3000);
+      await fetchApplications();
+      setRejectingId(null);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "拒絕失敗"
+      );
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleDownloadPdf = async (classId: string) => {
+    try {
+      const blob = await adminService.downloadApplicationPdf(classId);
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `application-${classId}.pdf`;
+      link.click();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "下載失敗"
+      );
+    }
+  };
+
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr + "T00:00:00");
+    return date.toLocaleDateString("zh-TW", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
   };
 
   if (loading) {
     return (
-      <Layout title="管理員儀表板">
-        <div className="admin-panel">
-          <div className="loading-spinner">載入中...</div>
+      <Layout title="管理員審批">
+        <div className="admin-loading">
+          <div className="spinner"></div>
+          <p>載入中...</p>
         </div>
       </Layout>
     );
   }
 
   return (
-    <Layout title="管理員儀表板">
-      <div className="admin-panel">
-        {/* 系統統計 */}
-        <section className="admin-section">
-          <h2 className="section-title">系統統計</h2>
-          <div className="stats-grid">
-            <StatCard
-              label="教師總數"
-              value={stats?.totalTeachers || 0}
-              icon="👨‍🏫"
-              color="blue"
-            />
-            <StatCard
-              label="班級總數"
-              value={stats?.totalClasses || 0}
-              icon="📚"
-              color="green"
-            />
-            <StatCard
-              label="學生總數"
-              value={stats?.totalStudents || 0}
-              icon="👥"
-              color="orange"
-            />
-            <StatCard
-              label="待審申請"
-              value={stats?.pendingApplications || 0}
-              icon="⏳"
-              color="red"
-            />
-          </div>
-        </section>
+    <Layout title="管理員審批">
+      <div className="admin-container">
+        {/* 訊息 */}
+        {error && <div className="alert alert-error">{error}</div>}
+        {successMsg && (
+          <div className="alert alert-success">{successMsg}</div>
+        )}
 
-        {/* 快速操作 */}
-        <section className="admin-section">
-          <h2 className="section-title">快速操作</h2>
-          <div className="quick-actions-grid">
-            <QuickAction
-              label="新增教師"
-              icon="➕"
-              color="blue"
-              onClick={() => handleQuickAction("add-teacher")}
-            />
-            <QuickAction
-              label="新增班級"
-              icon="📝"
-              color="green"
-              onClick={() => handleQuickAction("add-class")}
-            />
-            <QuickAction
-              label="匯出報告"
-              icon="📊"
-              color="purple"
-              onClick={() => handleQuickAction("export-report")}
-            />
-            <QuickAction
-              label="系統設置"
-              icon="⚙️"
-              color="orange"
-              onClick={() => handleQuickAction("settings")}
-            />
+        {/* 標題和統計 */}
+        <div className="admin-header">
+          <h2>待審批應用</h2>
+          <div className="pending-count">
+            共 <strong>{applications.length}</strong> 筆待審批
           </div>
-        </section>
+        </div>
 
-        {/* 最近活動 */}
-        <section className="admin-section">
-          <h2 className="section-title">最近活動</h2>
-          <div className="activities-list">
-            {activities.length > 0 ? (
-              activities.slice(0, 8).map((activity) => (
-                <ActivityItem key={activity.activity_id} activity={activity} />
-              ))
-            ) : (
-              <div className="empty-state">暫無活動記錄</div>
-            )}
+        {/* 應用列表 */}
+        {applications.length === 0 ? (
+          <div className="applications-empty">
+            <p>暫無待審批的應用</p>
           </div>
-        </section>
+        ) : (
+          <div className="applications-list">
+            {applications.map((app) => (
+              <div key={app.class_id} className="application-card">
+                <div className="card-header">
+                  <div className="app-info">
+                    <h3>{app.subject}</h3>
+                    <p className="teacher-name">
+                      教師：{app.teacher_name || "未知"}
+                    </p>
+                  </div>
+                  <span className="status-badge pending">待審批</span>
+                </div>
 
-        {/* 快速連結 */}
-        <section className="admin-section admin-section--footer">
-          <h2 className="section-title">快速連結</h2>
-          <div className="quick-links">
-            <a href="/admin/teachers" className="quick-link">
-              👨‍🏫 教師管理
-            </a>
-            <a href="/admin/classes" className="quick-link">
-              📚 班級管理
-            </a>
-            <a href="/admin/students" className="quick-link">
-              👥 學生名冊
-            </a>
-            <a href="/admin/reports" className="quick-link">
-              📊 出席報告
-            </a>
-          </div>
-        </section>
+                <div className="card-body">
+                  <div className="info-grid">
+                    <div className="info-item">
+                      <label>課程形式</label>
+                      <span>{app.form || "-"}</span>
+                    </div>
+                    <div className="info-item">
+                      <label>上課日期</label>
+                      <span>
+                        {app.start_date ? formatDate(app.start_date) : "-"}
+                      </span>
+                    </div>
+                    <div className="info-item">
+                      <label>上課地點</label>
+                      <span>{app.venue || "-"}</span>
+                    </div>
+                    <div className="info-item">
+                      <label>課程費用</label>
+                      <span>
+                        {app.fees ? `$${app.fees.toLocaleString()}` : "-"}
+                      </span>
+                    </div>
+                    <div className="info-item">
+                      <label>星期</label>
+                      <span>{app.day_of_week || "-"}</span>
+                    </div>
+                    <div className="info-item">
+                      <label>學生人數</label>
+                      <span>{app.student_count || "-"}</span>
+                    </div>
+                  </div>
+                </div>
 
-        {error && (
-          <div className="error-banner">
-            <span>⚠️ 出現錯誤：{error}</span>
+                <div className="card-actions">
+                  <button
+                    className="btn btn-primary"
+                    onClick={() => handleApprove(app.class_id)}
+                    disabled={processingId === app.class_id}
+                  >
+                    {processingId === app.class_id ? "處理中..." : "✓ 批准"}
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    onClick={() => setRejectingId(app.class_id)}
+                    disabled={processingId === app.class_id}
+                  >
+                    ✗ 拒絕
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => handleDownloadPdf(app.class_id)}
+                    disabled={processingId === app.class_id}
+                  >
+                    📄 PDF
+                  </button>
+                </div>
+
+                {/* 拒絕模態框 */}
+                {rejectingId === app.class_id && (
+                  <div className="reject-modal">
+                    <div className="modal-content">
+                      <h4>拒絕應用</h4>
+                      <textarea
+                        placeholder="請填寫拒絕原因..."
+                        value={app.rejectReason || ""}
+                        onChange={(e) => {
+                          setApplications((prev) =>
+                            prev.map((a) =>
+                              a.class_id === app.class_id
+                                ? { ...a, rejectReason: e.target.value }
+                                : a
+                            )
+                          );
+                        }}
+                        rows={3}
+                      />
+                      <div className="modal-actions">
+                        <button
+                          className="btn btn-danger"
+                          onClick={() =>
+                            handleReject(app.class_id, app.rejectReason || "")
+                          }
+                          disabled={processingId === app.class_id}
+                        >
+                          確認拒絕
+                        </button>
+                        <button
+                          className="btn btn-secondary"
+                          onClick={() => setRejectingId(null)}
+                        >
+                          取消
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         )}
       </div>

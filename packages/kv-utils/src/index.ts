@@ -11,6 +11,9 @@ export * from "./types/index.js";
 // Auth Manager
 export { AuthKVManager, createAuthKVManager } from "./auth/index.js";
 
+// Teacher Email Verification (OAuth Helper)
+export * from "./teacher-verify.js";
+
 // Student Manager
 export { StudentKVManager, createStudentKVManager } from "./student/index.js";
 

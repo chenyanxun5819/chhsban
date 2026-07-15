@@ -4,6 +4,7 @@ export interface TeacherRecord {
   name_en?: string;
   department: string;
   email: string;
+  google_email?: string; // 可選: 用於 Google OAuth 登入的個人 email
   phone?: string;
   permission: "teacher" | "admin" | "super_admin";
 }

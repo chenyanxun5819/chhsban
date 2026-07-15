@@ -1,0 +1,415 @@
+/* ========== 響應式卡片 ========== */
+
+.responsive-card {
+  background: white;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  padding: var(--spacing-lg);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.responsive-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.responsive-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: var(--spacing-md);
+  padding-bottom: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.responsive-card__header-text {
+  flex: 1;
+}
+
+.responsive-card__title {
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px 0;
+}
+
+.responsive-card__subtitle {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.responsive-card__action {
+  display: flex;
+  gap: var(--spacing-sm);
+  flex-shrink: 0;
+  margin-left: var(--spacing-md);
+}
+
+.responsive-card__body {
+  font-size: 14px;
+  color: var(--text-primary);
+  line-height: 1.6;
+}
+
+/* 卡片變體 */
+
+.responsive-card--highlight {
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  border-color: #a0b0c0;
+}
+
+.responsive-card--status-pending {
+  border-left: 4px solid var(--warning-color);
+  background: #fffbe6;
+}
+
+.responsive-card--status-approved {
+  border-left: 4px solid var(--success-color);
+  background: #f6ffed;
+}
+
+/* 手機版卡片調整 */
+@media (max-width: 767px) {
+  .responsive-card {
+    padding: var(--spacing-md);
+  }
+
+  .responsive-card__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .responsive-card__action {
+    width: 100%;
+    margin: var(--spacing-md) 0 0 0;
+  }
+
+  .responsive-card__title {
+    font-size: 16px;
+  }
+}
+
+/* ========== 響應式網格 ========== */
+
+.responsive-grid {
+  display: grid;
+  gap: var(--spacing-md);
+}
+
+/* 列數變體 */
+.responsive-grid--auto-col {
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+}
+
+.responsive-grid--2-col {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.responsive-grid--3-col {
+  grid-template-columns: repeat(3, 1fr);
+}
+
+.responsive-grid--4-col {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+/* 間距變體 */
+.responsive-grid--gap-sm {
+  gap: var(--spacing-sm);
+}
+
+.responsive-grid--gap-md {
+  gap: var(--spacing-md);
+}
+
+.responsive-grid--gap-lg {
+  gap: var(--spacing-lg);
+}
+
+/* 手機版自動變為單列 */
+@media (max-width: 767px) {
+  .responsive-grid--auto-col,
+  .responsive-grid--2-col,
+  .responsive-grid--3-col,
+  .responsive-grid--4-col {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 平板版變為雙列 */
+@media (min-width: 768px) and (max-width: 1023px) {
+  .responsive-grid--3-col,
+  .responsive-grid--4-col {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* ========== 響應式表單行 ========== */
+
+.responsive-form-row {
+  display: grid;
+  gap: var(--spacing-md);
+}
+
+.responsive-form-row--1col {
+  grid-template-columns: 1fr;
+}
+
+.responsive-form-row--2col {
+  grid-template-columns: 1fr;
+}
+
+.responsive-form-row--3col {
+  grid-template-columns: 1fr;
+}
+
+.responsive-form-row--gap-sm {
+  gap: var(--spacing-sm);
+}
+
+.responsive-form-row--gap-md {
+  gap: var(--spacing-md);
+}
+
+.responsive-form-row--gap-lg {
+  gap: var(--spacing-lg);
+}
+
+/* 平板版: 2 列 */
+@media (min-width: 768px) {
+  .responsive-form-row--2col {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .responsive-form-row--3col {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+/* 桌機版: 完整列 */
+@media (min-width: 1024px) {
+  .responsive-form-row--3col {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+/* ========== 響應式按鈕組 ========== */
+
+.responsive-button-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-sm);
+}
+
+.responsive-button-group--start {
+  justify-content: flex-start;
+}
+
+.responsive-button-group--center {
+  justify-content: center;
+}
+
+.responsive-button-group--end {
+  justify-content: flex-end;
+}
+
+.responsive-button-group--space-between {
+  justify-content: space-between;
+}
+
+.responsive-button-group--stacked {
+  flex-direction: column;
+}
+
+.responsive-button-group button {
+  min-height: 44px;
+  padding: 12px 20px;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+/* 桌機版按鈕組 */
+@media (min-width: 1024px) {
+  .responsive-button-group:not(.responsive-button-group--stacked) {
+    flex-direction: row;
+    gap: var(--spacing-md);
+  }
+
+  .responsive-button-group button {
+    min-width: 100px;
+  }
+}
+
+/* ========== 響應式表格 ========== */
+
+.responsive-table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+}
+
+.responsive-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.responsive-table th {
+  background: var(--bg-light);
+  padding: var(--spacing-md);
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
+}
+
+.responsive-table td {
+  padding: var(--spacing-md);
+  border-bottom: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.responsive-table--striped tbody tr:nth-child(odd) {
+  background: var(--bg-light);
+}
+
+.responsive-table--hover tbody tr:hover {
+  background: #f0f0f0;
+}
+
+/* 手機版表格 */
+@media (max-width: 767px) {
+  .responsive-table {
+    font-size: 13px;
+  }
+
+  .responsive-table th,
+  .responsive-table td {
+    padding: 8px 12px;
+  }
+}
+
+/* ========== 響應式堆疊 ========== */
+
+.responsive-stack {
+  display: flex;
+  gap: var(--spacing-md);
+}
+
+.responsive-stack--row {
+  flex-direction: row;
+}
+
+.responsive-stack--column {
+  flex-direction: column;
+}
+
+/* 對齐選項 */
+.responsive-stack--align-start {
+  align-items: flex-start;
+}
+
+.responsive-stack--align-center {
+  align-items: center;
+}
+
+.responsive-stack--align-end {
+  align-items: flex-end;
+}
+
+/* 伸縮選項 */
+.responsive-stack--justify-start {
+  justify-content: flex-start;
+}
+
+.responsive-stack--justify-center {
+  justify-content: center;
+}
+
+.responsive-stack--justify-end {
+  justify-content: flex-end;
+}
+
+.responsive-stack--justify-space-between {
+  justify-content: space-between;
+}
+
+/* 間距選項 */
+.responsive-stack--gap-xs {
+  gap: var(--spacing-xs);
+}
+
+.responsive-stack--gap-sm {
+  gap: var(--spacing-sm);
+}
+
+.responsive-stack--gap-md {
+  gap: var(--spacing-md);
+}
+
+.responsive-stack--gap-lg {
+  gap: var(--spacing-lg);
+}
+
+.responsive-stack--gap-xl {
+  gap: var(--spacing-xl);
+}
+
+/* 手機版響應調整 */
+@media (max-width: 767px) {
+  .responsive-stack--responsive {
+    flex-direction: column;
+  }
+
+  .responsive-stack--responsive.responsive-stack--row {
+    flex-direction: column;
+  }
+}
+
+/* ========== 通用響應式工具類 ========== */
+
+.hidden-mobile {
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .hidden-mobile {
+    display: block;
+  }
+}
+
+.hidden-desktop {
+  display: block;
+}
+
+@media (min-width: 1024px) {
+  .hidden-desktop {
+    display: none;
+  }
+}
+
+/* 全寬容器 */
+.full-width {
+  width: 100%;
+}
+
+/* 最大寬度容器 */
+.max-width-sm {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.max-width-md {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.max-width-lg {
+  max-width: 1200px;
+  margin: 0 auto;
+}

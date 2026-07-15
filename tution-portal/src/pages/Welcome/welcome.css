@@ -35,22 +35,6 @@
   }
 }
 
-/* ========== 統計卡片網格 ========== */
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--spacing-lg);
-  margin-bottom: var(--spacing-xl);
-}
-
-@media (max-width: 767px) {
-  .stats-grid {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-md);
-  }
-}
-
 /* ========== 統計卡片 ========== */
 
 .stat-card {
@@ -114,138 +98,27 @@
   }
 }
 
-/* ========== 申請列表 ========== */
+/* ========== 卡片內容樣式 ========== */
 
-.applications-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  gap: var(--spacing-lg);
-}
-
-@media (max-width: 767px) {
-  .applications-list {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-md);
-  }
-}
-
-/* ========== 申請卡片 ========== */
-
-.application-card {
-  background: white;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: var(--spacing-lg);
-  cursor: pointer;
-  transition: all 0.3s;
-}
-
-.application-card:hover {
-  border-color: var(--primary-color);
-  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.15);
-  transform: translateY(-2px);
-}
-
-.application-card__header {
-  margin-bottom: var(--spacing-md);
-}
-
-.application-card__title {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-sm);
-}
-
-.application-card__title h3 {
-  margin: 0;
-  font-size: 16px;
-  color: var(--text-primary);
-}
-
-.application-card__info {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
-.application-card__footer {
-  display: flex;
-  gap: var(--spacing-sm);
-}
-
-.application-card__footer .btn {
-  flex: 1;
-}
-
-/* ========== 課程列表 ========== */
-
-.classes-list {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: var(--spacing-lg);
-}
-
-@media (max-width: 767px) {
-  .classes-list {
-    grid-template-columns: 1fr;
-    gap: var(--spacing-md);
-  }
-}
-
-/* ========== 課程卡片 ========== */
-
-.class-card {
-  background: white;
-  border: 1px solid var(--border-color);
-  border-radius: 8px;
-  padding: var(--spacing-lg);
-  transition: all 0.3s;
-}
-
-.class-card:hover {
-  border-color: var(--success-color);
-  box-shadow: 0 4px 12px rgba(82, 196, 26, 0.15);
-}
-
-.class-card__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--spacing-md);
-  margin-bottom: var(--spacing-md);
-  padding-bottom: var(--spacing-md);
-  border-bottom: 1px solid var(--border-color);
-}
-
-.class-card__header h3 {
-  margin: 0;
-  font-size: 16px;
-  color: var(--text-primary);
-}
-
-.class-card__info {
-  margin-bottom: var(--spacing-md);
+.card-info {
   font-size: 14px;
   color: var(--text-secondary);
-}
-
-.class-card__info p {
   margin: 8px 0;
+  line-height: 1.5;
 }
 
-.class-card__actions {
+.card-actions {
   display: flex;
   flex-wrap: wrap;
   gap: var(--spacing-sm);
+  margin-top: var(--spacing-md);
 }
 
-.class-card__actions .btn {
+.card-actions .btn {
   flex: 1;
-  min-width: 100px;
+  min-width: 90px;
+  font-size: 12px;
+  padding: 6px 12px;
 }
 
 /* ========== 徽章 ========== */
@@ -294,6 +167,8 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s;
+  min-height: 44px;
+  min-width: 44px;
 }
 
 .btn-primary {
@@ -311,7 +186,7 @@
   font-size: 12px;
 }
 
-.btn-large {
+.btn-lg {
   padding: 12px 24px;
   font-size: 16px;
   width: 100%;
@@ -319,16 +194,9 @@
 
 /* ========== 空狀態 ========== */
 
-.empty-state {
+.empty-state__content {
   text-align: center;
   padding: var(--spacing-xl);
-  background: var(--bg-light);
-  border-radius: 8px;
-}
-
-.empty-state__content {
-  max-width: 400px;
-  margin: 0 auto;
 }
 
 .empty-state__icon {
@@ -351,13 +219,14 @@
 }
 
 .welcome-footer .btn {
-  max-width: 300px;
+  max-width: 400px;
 }
 
-/* ========== Loading ========== */
+/* ========== Loading 狀態 ========== */
 
 .welcome-loading {
   text-align: center;
   padding: var(--spacing-xl);
   color: var(--text-secondary);
+  font-size: 16px;
 }

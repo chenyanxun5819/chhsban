@@ -69,6 +69,7 @@ export interface TeacherRecord {
   name_en: string;
   department: string; // 如 "中文系", "数学系"
   email: string;
+  google_email?: string; // 可選: 用於 Google OAuth 登入的個人 email (例: teacher@gmail.com)
   permission: Permission;
 }
 

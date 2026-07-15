@@ -2,6 +2,11 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
+import {
+  ResponsiveCard,
+  ResponsiveGrid,
+  ResponsiveStack,
+} from "@/components/common/ResponsiveCard";
 import { TutionClass, TutionStatus } from "@/types";
 import apiClient from "@/utils/api";
 import "./welcome.css";
@@ -79,8 +84,8 @@ const Welcome: React.FC = () => {
           <p>補習班系統 - 教師管理平台</p>
         </div>
 
-        {/* 統計卡片 */}
-        <div className="stats-grid">
+        {/* 統計卡片 (響應式網格) */}
+        <ResponsiveGrid columns="3" gap="lg">
           <div className="stat-card">
             <div className="stat-card__value">{stats.pending}</div>
             <div className="stat-card__label">待審批申請</div>
@@ -93,45 +98,38 @@ const Welcome: React.FC = () => {
             <div className="stat-card__value">{stats.total}</div>
             <div className="stat-card__label">總申請數</div>
           </div>
-        </div>
+        </ResponsiveGrid>
 
         {/* 待審批申請 */}
         {stats.pending > 0 && (
           <section className="welcome-section">
             <h2 className="section-title">📋 待審批申請</h2>
-            <div className="applications-list">
+            <ResponsiveGrid columns="auto" gap="md">
               {applications
                 .filter((app) => app.approval_status === "pending")
                 .map((app) => (
-                  <div
+                  <ResponsiveCard
                     key={app.class_id}
-                    className="application-card"
-                    onClick={() => navigate(`/applications/${app.class_id}`)}
-                  >
-                    <div className="application-card__header">
-                      <div className="application-card__title">
-                        <h3>{app.subject} - {app.form}</h3>
-                        {getStatusBadge(app.approval_status)}
-                      </div>
-                      <div className="application-card__info">
-                        <span>📅 {new Date(app.start_date).toLocaleDateString("zh-TW")}</span>
-                        <span>💰 RM {app.fees}</span>
-                      </div>
-                    </div>
-                    <div className="application-card__footer">
+                    title={`${app.subject} - ${app.form}`}
+                    subtitle={getStatusBadge(app.approval_status)}
+                    variant="status-pending"
+                    action={
                       <button
-                        className="btn btn-primary"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          navigate(`/applications/${app.class_id}`);
-                        }}
+                        className="btn btn-small"
+                        onClick={() => navigate(`/applications/${app.class_id}`)}
                       >
-                        查看詳情
+                        查看
                       </button>
-                    </div>
-                  </div>
+                    }
+                  >
+                    <p className="card-info">
+                      📅 {new Date(app.start_date).toLocaleDateString("zh-TW")}
+                    </p>
+                    <p className="card-info">💰 RM {app.fees}</p>
+                    <p className="card-info">📍 {app.venue}</p>
+                  </ResponsiveCard>
                 ))}
-            </div>
+            </ResponsiveGrid>
           </section>
         )}
 
@@ -139,70 +137,71 @@ const Welcome: React.FC = () => {
         {stats.approved > 0 && (
           <section className="welcome-section">
             <h2 className="section-title">✅ 已批准課程</h2>
-            <div className="classes-list">
+            <ResponsiveGrid columns="auto" gap="md">
               {applications
                 .filter(
                   (app) =>
                     app.approval_status === "approved" || app.approval_status === "active"
                 )
                 .map((app) => (
-                  <div key={app.class_id} className="class-card">
-                    <div className="class-card__header">
-                      <h3>{app.subject} ({app.form})</h3>
-                      {getStatusBadge(app.approval_status)}
-                    </div>
-                    <div className="class-card__info">
-                      <p>📅 {app.day_of_week} {app.time_start}-{app.time_end}</p>
-                      <p>📍 {app.venue}</p>
-                      <p>👥 {app.initial_roster?.length || 0} 名學生</p>
-                    </div>
-                    <div className="class-card__actions">
+                  <ResponsiveCard
+                    key={app.class_id}
+                    title={`${app.subject} (${app.form})`}
+                    subtitle={getStatusBadge(app.approval_status)}
+                    variant="status-approved"
+                  >
+                    <p className="card-info">
+                      📅 {app.day_of_week} {app.time_start}-{app.time_end}
+                    </p>
+                    <p className="card-info">📍 {app.venue}</p>
+                    <p className="card-info">👥 {app.initial_roster?.length || 0} 名學生</p>
+                    <div className="card-actions">
                       <button
                         className="btn btn-small"
                         onClick={() => navigate(`/classes/${app.class_id}/roster`)}
                       >
-                        管理學生
+                        👥 管理學生
                       </button>
                       <button
                         className="btn btn-small"
                         onClick={() => navigate(`/classes/${app.class_id}/schedule`)}
                       >
-                        開課記錄
+                        📅 開課記錄
                       </button>
                       <button
                         className="btn btn-small"
                         onClick={() => navigate(`/classes/${app.class_id}/attendance`)}
                       >
-                        點名
+                        ✓ 點名
                       </button>
                     </div>
-                  </div>
+                  </ResponsiveCard>
                 ))}
-            </div>
+            </ResponsiveGrid>
           </section>
         )}
 
         {/* 空狀態 */}
         {stats.total === 0 && !loading && (
-          <section className="welcome-section empty-state">
+          <ResponsiveCard>
             <div className="empty-state__content">
               <p className="empty-state__icon">📝</p>
               <p className="empty-state__text">尚無申請，請提出新申請</p>
               <button
-                className="btn btn-primary btn-large"
+                className="btn btn-primary"
                 onClick={() => navigate("/applications/new")}
               >
-                提出新申請
+                + 提出新申請
               </button>
             </div>
-          </section>
+          </ResponsiveCard>
         )}
 
         {/* 新增申請按鈕 */}
-        {!loading && (
+        {!loading && stats.total > 0 && (
           <div className="welcome-footer">
             <button
-              className="btn btn-primary btn-large"
+              className="btn btn-primary btn-lg"
               onClick={() => navigate("/applications/new")}
             >
               + 提出新申請
