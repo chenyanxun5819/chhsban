@@ -181,6 +181,27 @@ class SMSHandler:
                         raise Exception("Session 已失效 - 需要重新登入")
 
                     soup_page = BeautifulSoup(resp_page.text, 'html.parser')
+                    
+                    # 解析所有隐藏字段（包括CSRF token）
+                    hidden_fields = {}
+                    for hidden_input in soup_page.select('input[type="hidden"]'):
+                        field_name = hidden_input.get('name')
+                        field_value = hidden_input.get('value', '')
+                        if field_name:
+                            hidden_fields[field_name] = field_value
+                            if 'csrf' in field_name.lower() or 'token' in field_name.lower():
+                                log('debug', f"  🔑 找到安全令牌: {field_name}")
+                    
+                    # 解析提交按钮的值（通常是yt0或yt1）
+                    submit_button = soup_page.select_one('button[type="submit"]') or soup_page.select_one('input[type="submit"]')
+                    if submit_button:
+                        button_name = submit_button.get('name', 'yt1')
+                        button_value = submit_button.get('value') or submit_button.get_text(strip=True) or '储存'
+                        hidden_fields[button_name] = button_value
+                        log('debug', f"  🔘 提交按钮: {button_name} = {button_value}")
+                    
+                    if hidden_fields:
+                        log('info', f"  🔒 解析到 {len(hidden_fields)} 个隐藏字段（包括安全令牌）")
 
                     class_name_to_id = {}
                     class_select = soup_page.select_one('select#class_id')
@@ -336,6 +357,9 @@ class SMSHandler:
                         'StudentPerformanceM[date]': upload_date,
                         'StudentPerformanceM[item_id]': item_id,
                     }
+                    # 添加从表单页面解析的隐藏字段（包括CSRF token）
+                    post_data.update(hidden_fields)
+                    # 添加既有记录的字段
                     post_data.update(existing_post_data)
 
                     uploaded_count = 0
@@ -392,7 +416,10 @@ class SMSHandler:
                     post_data['StudentM[student_name]'] = ''
                     post_data['StudentM[student_cname]'] = ''
                     post_data['StudentM[class_name]'] = ''
-                    post_data['yt1'] = ''
+                    # yt1（提交按钮）的值已从表单解析并包含在hidden_fields中，不再手动设置为空
+                    # 如果表单中没有找到提交按钮，才设置默认值
+                    if 'yt1' not in post_data and 'yt0' not in post_data:
+                        post_data['yt1'] = '储存'
 
                     result['failed'] = len(failed_students)
                     result['errors'].extend(failed_students)
@@ -405,6 +432,9 @@ class SMSHandler:
 
                     # 第6步：一次性提交整批成绩（若既有记录，提交到 update 路由合并写入，避免产生重复的活动记录）
                     log('info', f"\n📮 提交 {uploaded_count} 位学生的成绩...")
+                    log('debug', f"POST数据字段数量: {len(post_data)}")
+                    log('debug', f"模式: {'更新' if is_update_mode else '新增'}")
+                    
                     try:
                         if is_update_mode:
                             submit_params = {
@@ -412,15 +442,31 @@ class SMSHandler:
                                 'date': upload_date,
                                 'item_id': item_id,
                             }
+                            submit_url = f"{BASE_URL}?r=transaction/studentPerformance/update&date={upload_date}&item_id={item_id}"
+                            log('debug', f"提交URL: {submit_url}")
                             upload_response = use_session.post(BASE_URL, params=submit_params, data=post_data, timeout=30)
                         else:
+                            log('debug', f"提交URL: {self.ACTIVITY_PAGE}")
                             upload_response = use_session.post(self.ACTIVITY_PAGE, data=post_data, timeout=30)
 
-                        if upload_response.status_code != 200:
+                        log('info', f"📡 响应状态: HTTP {upload_response.status_code}")
+                        log('debug', f"响应URL: {upload_response.url}")
+                        log('debug', f"响应内容长度: {len(upload_response.text)} 字符")
+                        
+                        # 接受所有2xx和3xx响应（包括302重定向），只拒绝4xx和5xx错误
+                        if upload_response.status_code >= 400:
                             raise Exception(f"HTTP {upload_response.status_code}")
 
                         if 'login' in upload_response.url.lower():
                             raise Exception("连接失败 - Session 可能已失效")
+                        
+                        # 检查响应内容是否包含错误信息
+                        response_text = upload_response.text.lower()
+                        if 'error' in response_text or '错误' in response_text:
+                            # 尝试提取错误信息
+                            error_snippet = upload_response.text[:500] if len(upload_response.text) < 500 else upload_response.text[:500] + '...'
+                            log('warning', f"⚠️ 响应中可能包含错误: {error_snippet}")
+                            # 不抛出异常，但记录警告
 
                         result['uploaded'] = uploaded_count
                         result['success'] = (result['failed'] == 0)
@@ -441,8 +487,13 @@ class SMSHandler:
                     log('error', f"❌ 上传过程异常: {e}")
                     result['errors'].append(f"上传异常: {str(e)}")
 
-                    if ('session' in error_msg or 'connection' in error_msg) and attempt < max_retries - 1 and not session:
+                    if ('session' in error_msg or 'connection' in error_msg) and attempt < max_retries - 1:
                         log('warning', "⚠️  检测到 Session 相关错误，准备重新尝试...")
+                        # 强制重新创建 session 以解决 cookies 失效问题
+                        use_session = requests.Session()
+                        use_session.verify = False
+                        # 清空 session 参数，强制在下一次迭代重新登入
+                        session = None
                         log('info', f"⏳ {retry_delay} 秒后重试...")
                         time.sleep(retry_delay)
                         continue
