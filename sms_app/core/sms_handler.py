@@ -417,11 +417,35 @@ class SMSHandler:
                         else:
                             upload_response = use_session.post(self.ACTIVITY_PAGE, data=post_data, timeout=30)
 
+                        log('info', f"📡 响应状态: HTTP {upload_response.status_code}")
+                        log('info', f"📡 响应URL: {upload_response.url}")
+                        log('info', f"📡 响应大小: {len(upload_response.text)} 字符")
+                        
                         if upload_response.status_code != 200:
                             raise Exception(f"HTTP {upload_response.status_code}")
 
                         if 'login' in upload_response.url.lower():
                             raise Exception("连接失败 - Session 可能已失效")
+                        
+                        # 检查响应是否是成功页面还是返回了表单页面
+                        # 成功时通常会重定向或响应很小，如果响应很大说明返回了表单
+                        response_size = len(upload_response.text)
+                        if response_size > 100000:
+                            # 响应过大，可能返回了表单页面
+                            log('warning', f"⚠️ 响应内容过大 ({response_size} 字符)，可能提交失败")
+                            
+                            # 保存响应HTML用于调试
+                            try:
+                                from pathlib import Path
+                                debug_dir = Path.home() / '.sms_app' / 'debug'
+                                debug_dir.mkdir(parents=True, exist_ok=True)
+                                debug_file = debug_dir / f'response_{upload_date.replace("/", "")}.html'
+                                debug_file.write_text(upload_response.text, encoding='utf-8')
+                                log('warning', f"⚠️ 响应已保存到: {debug_file}")
+                            except Exception as e:
+                                log('warning', f"无法保存调试文件: {e}")
+                            
+                            raise Exception("提交后返回表单页面，数据可能未成功保存。请检查SMS系统")
 
                         result['uploaded'] = uploaded_count
                         result['success'] = (result['failed'] == 0)
