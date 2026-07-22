@@ -232,6 +232,8 @@ class SMSHandler:
                     existing_post_data = {}
                     existing_internal_ids = set()
                     is_update_mode = False
+                    update_hidden_fields = {}
+                    
                     try:
                         check_params = {
                             'r': 'transaction/studentPerformance/update',
@@ -244,6 +246,26 @@ class SMSHandler:
                             perf_inputs = soup_check.select('input[name^="StudentPerformanceM[inputperformance]"]')
                             if perf_inputs:
                                 is_update_mode = True
+                                
+                                # 从更新页面解析隐藏字段（包括CSRF token）
+                                for hidden_input in soup_check.select('input[type="hidden"]'):
+                                    field_name = hidden_input.get('name')
+                                    field_value = hidden_input.get('value', '')
+                                    if field_name:
+                                        update_hidden_fields[field_name] = field_value
+                                        if 'csrf' in field_name.lower() or 'token' in field_name.lower():
+                                            log('debug', f"  🔑 更新模式CSRF令牌: {field_name}")
+                                
+                                # 解析更新页面的提交按钮
+                                update_button = soup_check.select_one('button[type="submit"]') or soup_check.select_one('input[type="submit"]')
+                                if update_button:
+                                    button_name = update_button.get('name', 'yt1')
+                                    button_value = update_button.get('value') or update_button.get_text(strip=True) or '储存'
+                                    update_hidden_fields[button_name] = button_value
+                                    log('debug', f"  🔘 更新模式提交按钮: {button_name} = {button_value}")
+                                
+                                log('info', f"  🔄 更新模式：从更新页面解析到 {len(update_hidden_fields)} 个隐藏字段")
+                                
                                 for inp in perf_inputs:
                                     name = inp.get('name')
                                     existing_post_data[name] = inp.get('value', '')
@@ -358,7 +380,13 @@ class SMSHandler:
                         'StudentPerformanceM[item_id]': item_id,
                     }
                     # 添加从表单页面解析的隐藏字段（包括CSRF token）
-                    post_data.update(hidden_fields)
+                    # 如果是更新模式，使用更新页面的隐藏字段；否则使用新增页面的
+                    if is_update_mode and update_hidden_fields:
+                        post_data.update(update_hidden_fields)
+                        log('debug', f"  使用更新模式的隐藏字段: {len(update_hidden_fields)} 个")
+                    else:
+                        post_data.update(hidden_fields)
+                        log('debug', f"  使用新增模式的隐藏字段: {len(hidden_fields)} 个")
                     # 添加既有记录的字段
                     post_data.update(existing_post_data)
 
@@ -435,6 +463,12 @@ class SMSHandler:
                     log('debug', f"POST数据字段数量: {len(post_data)}")
                     log('debug', f"模式: {'更新' if is_update_mode else '新增'}")
                     
+                    # 输出POST数据的关键字段用于调试
+                    log('debug', "POST数据关键字段:")
+                    for key in sorted(post_data.keys()):
+                        if 'csrf' in key.lower() or 'token' in key.lower() or key.startswith('yt'):
+                            log('debug', f"  {key} = {post_data[key][:50] if len(str(post_data[key])) > 50 else post_data[key]}")
+                    
                     try:
                         if is_update_mode:
                             submit_params = {
@@ -460,13 +494,76 @@ class SMSHandler:
                         if 'login' in upload_response.url.lower():
                             raise Exception("连接失败 - Session 可能已失效")
                         
-                        # 检查响应内容是否包含错误信息
+                        # 解析响应HTML查找错误消息
+                        response_soup = BeautifulSoup(upload_response.text, 'html.parser')
+                        
+                        # 查找常见的错误提示元素
+                        error_divs = response_soup.select('.errorMessage, .error-summary, .alert-danger, div.error')
+                        if error_divs:
+                            error_messages = [div.get_text(strip=True) for div in error_divs]
+                            log('error', f"❌ SMS系统返回错误: {'; '.join(error_messages)}")
+                            raise Exception(f"SMS验证错误: {'; '.join(error_messages)}")
+                        
+                        # 检查是否返回了表单页面（而不是成功页面）
+                        # 如果响应中仍包含表单元素，说明提交失败
+                        form_exists = response_soup.select_one('form#student-performance-m-form')
+                        if not form_exists:
+                            # 尝试其他可能的表单选择器
+                            form_exists = response_soup.select_one('form') and len(upload_response.text) > 100000
+                        
+                        if form_exists:
+                            log('warning', f"⚠️ 响应包含表单，可能提交失败（响应长度: {len(upload_response.text)}）")
+                            
+                            # 查找表单中的字段错误
+                            field_errors = response_soup.select('.field-error, .help-block.error, span.error, .error-message')
+                            if field_errors:
+                                field_error_msgs = [err.get_text(strip=True) for err in field_errors if err.get_text(strip=True)]
+                                if field_error_msgs:
+                                    log('error', f"❌ 表单验证失败: {'; '.join(field_error_msgs)}")
+                                    raise Exception(f"表单验证失败: {'; '.join(field_error_msgs)}")
+                            
+                            # 检查是否有JavaScript错误或消息
+                            scripts = response_soup.select('script')
+                            for script in scripts:
+                                script_text = script.get_text()
+                                if 'error' in script_text.lower() or 'alert' in script_text.lower():
+                                    # 尝试提取错误消息
+                                    import re
+                                    alert_matches = re.findall(r'alert\([\'"](.+?)[\'"]\)', script_text)
+                                    if alert_matches:
+                                        log('error', f"❌ JavaScript错误: {'; '.join(alert_matches)}")
+                                        raise Exception(f"表单提交错误: {'; '.join(alert_matches)}")
+                            
+                            # 如果没有找到具体错误，但确实返回了表单
+                            log('error', "❌ POST请求被拒绝，SMS返回了原表单页面")
+                            log('error', "可能原因：1) CSRF token失效 2) 缺少必需字段 3) 数据验证失败")
+                            
+                            # 输出表单的所有input字段名以便调试
+                            all_inputs = response_soup.select('form input[name]')
+                            required_fields = [inp.get('name') for inp in all_inputs if inp.get('required') or 'required' in (inp.get('class') or [])]
+                            if required_fields:
+                                log('error', f"表单必需字段: {', '.join(required_fields[:10])}")
+                            
+                            # 保存响应HTML用于调试
+                            try:
+                                import os
+                                from pathlib import Path
+                                debug_dir = Path.home() / '.sms_app' / 'debug'
+                                debug_dir.mkdir(parents=True, exist_ok=True)
+                                debug_file = debug_dir / f'failed_response_{upload_date.replace("/", "")}.html'
+                                debug_file.write_text(upload_response.text, encoding='utf-8')
+                                log('debug', f"响应HTML已保存到: {debug_file}")
+                            except Exception as e:
+                                log('warning', f"无法保存调试HTML: {e}")
+                            
+                            raise Exception("POST请求被拒绝，请检查表单数据完整性和CSRF token")
+                        
+                        # 检查响应内容是否包含错误关键字（但不是HTML标签中的）
                         response_text = upload_response.text.lower()
-                        if 'error' in response_text or '错误' in response_text:
-                            # 尝试提取错误信息
-                            error_snippet = upload_response.text[:500] if len(upload_response.text) < 500 else upload_response.text[:500] + '...'
-                            log('warning', f"⚠️ 响应中可能包含错误: {error_snippet}")
-                            # 不抛出异常，但记录警告
+                        if 'error' in response_text or '错误' in response_text or '失败' in response_text:
+                            # 尝试提取可读的错误信息
+                            error_snippet = upload_response.text[:1000] if len(upload_response.text) < 1000 else upload_response.text[:1000] + '...'
+                            log('warning', f"⚠️ 响应中可能包含错误关键字，但未找到明确错误元素")
 
                         result['uploaded'] = uploaded_count
                         result['success'] = (result['failed'] == 0)
