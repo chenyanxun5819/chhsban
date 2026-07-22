@@ -181,27 +181,6 @@ class SMSHandler:
                         raise Exception("Session 已失效 - 需要重新登入")
 
                     soup_page = BeautifulSoup(resp_page.text, 'html.parser')
-                    
-                    # 解析所有隐藏字段（包括CSRF token）
-                    hidden_fields = {}
-                    for hidden_input in soup_page.select('input[type="hidden"]'):
-                        field_name = hidden_input.get('name')
-                        field_value = hidden_input.get('value', '')
-                        if field_name:
-                            hidden_fields[field_name] = field_value
-                            if 'csrf' in field_name.lower() or 'token' in field_name.lower():
-                                log('debug', f"  🔑 找到安全令牌: {field_name}")
-                    
-                    # 解析提交按钮的值（通常是yt0或yt1）
-                    submit_button = soup_page.select_one('button[type="submit"]') or soup_page.select_one('input[type="submit"]')
-                    if submit_button:
-                        button_name = submit_button.get('name', 'yt1')
-                        button_value = submit_button.get('value') or submit_button.get_text(strip=True) or '储存'
-                        hidden_fields[button_name] = button_value
-                        log('debug', f"  🔘 提交按钮: {button_name} = {button_value}")
-                    
-                    if hidden_fields:
-                        log('info', f"  🔒 解析到 {len(hidden_fields)} 个隐藏字段（包括安全令牌）")
 
                     class_name_to_id = {}
                     class_select = soup_page.select_one('select#class_id')
@@ -232,7 +211,6 @@ class SMSHandler:
                     existing_post_data = {}
                     existing_internal_ids = set()
                     is_update_mode = False
-                    update_hidden_fields = {}
                     
                     try:
                         check_params = {
@@ -246,26 +224,6 @@ class SMSHandler:
                             perf_inputs = soup_check.select('input[name^="StudentPerformanceM[inputperformance]"]')
                             if perf_inputs:
                                 is_update_mode = True
-                                
-                                # 从更新页面解析隐藏字段（包括CSRF token）
-                                for hidden_input in soup_check.select('input[type="hidden"]'):
-                                    field_name = hidden_input.get('name')
-                                    field_value = hidden_input.get('value', '')
-                                    if field_name:
-                                        update_hidden_fields[field_name] = field_value
-                                        if 'csrf' in field_name.lower() or 'token' in field_name.lower():
-                                            log('debug', f"  🔑 更新模式CSRF令牌: {field_name}")
-                                
-                                # 解析更新页面的提交按钮
-                                update_button = soup_check.select_one('button[type="submit"]') or soup_check.select_one('input[type="submit"]')
-                                if update_button:
-                                    button_name = update_button.get('name', 'yt1')
-                                    button_value = update_button.get('value') or update_button.get_text(strip=True) or '储存'
-                                    update_hidden_fields[button_name] = button_value
-                                    log('debug', f"  🔘 更新模式提交按钮: {button_name} = {button_value}")
-                                
-                                log('info', f"  🔄 更新模式：从更新页面解析到 {len(update_hidden_fields)} 个隐藏字段")
-                                
                                 for inp in perf_inputs:
                                     name = inp.get('name')
                                     existing_post_data[name] = inp.get('value', '')
@@ -379,15 +337,6 @@ class SMSHandler:
                         'StudentPerformanceM[date]': upload_date,
                         'StudentPerformanceM[item_id]': item_id,
                     }
-                    # 添加从表单页面解析的隐藏字段（包括CSRF token）
-                    # 如果是更新模式，使用更新页面的隐藏字段；否则使用新增页面的
-                    if is_update_mode and update_hidden_fields:
-                        post_data.update(update_hidden_fields)
-                        log('debug', f"  使用更新模式的隐藏字段: {len(update_hidden_fields)} 个")
-                    else:
-                        post_data.update(hidden_fields)
-                        log('debug', f"  使用新增模式的隐藏字段: {len(hidden_fields)} 个")
-                    # 添加既有记录的字段
                     post_data.update(existing_post_data)
 
                     uploaded_count = 0
@@ -444,10 +393,7 @@ class SMSHandler:
                     post_data['StudentM[student_name]'] = ''
                     post_data['StudentM[student_cname]'] = ''
                     post_data['StudentM[class_name]'] = ''
-                    # yt1（提交按钮）的值已从表单解析并包含在hidden_fields中，不再手动设置为空
-                    # 如果表单中没有找到提交按钮，才设置默认值
-                    if 'yt1' not in post_data and 'yt0' not in post_data:
-                        post_data['yt1'] = '储存'
+                    post_data['yt1'] = ''
 
                     result['failed'] = len(failed_students)
                     result['errors'].extend(failed_students)
@@ -460,15 +406,6 @@ class SMSHandler:
 
                     # 第6步：一次性提交整批成绩（若既有记录，提交到 update 路由合并写入，避免产生重复的活动记录）
                     log('info', f"\n📮 提交 {uploaded_count} 位学生的成绩...")
-                    log('debug', f"POST数据字段数量: {len(post_data)}")
-                    log('debug', f"模式: {'更新' if is_update_mode else '新增'}")
-                    
-                    # 输出POST数据的关键字段用于调试
-                    log('debug', "POST数据关键字段:")
-                    for key in sorted(post_data.keys()):
-                        if 'csrf' in key.lower() or 'token' in key.lower() or key.startswith('yt'):
-                            log('debug', f"  {key} = {post_data[key][:50] if len(str(post_data[key])) > 50 else post_data[key]}")
-                    
                     try:
                         if is_update_mode:
                             submit_params = {
@@ -476,94 +413,15 @@ class SMSHandler:
                                 'date': upload_date,
                                 'item_id': item_id,
                             }
-                            submit_url = f"{BASE_URL}?r=transaction/studentPerformance/update&date={upload_date}&item_id={item_id}"
-                            log('debug', f"提交URL: {submit_url}")
                             upload_response = use_session.post(BASE_URL, params=submit_params, data=post_data, timeout=30)
                         else:
-                            log('debug', f"提交URL: {self.ACTIVITY_PAGE}")
                             upload_response = use_session.post(self.ACTIVITY_PAGE, data=post_data, timeout=30)
 
-                        log('info', f"📡 响应状态: HTTP {upload_response.status_code}")
-                        log('debug', f"响应URL: {upload_response.url}")
-                        log('debug', f"响应内容长度: {len(upload_response.text)} 字符")
-                        
-                        # 接受所有2xx和3xx响应（包括302重定向），只拒绝4xx和5xx错误
-                        if upload_response.status_code >= 400:
+                        if upload_response.status_code != 200:
                             raise Exception(f"HTTP {upload_response.status_code}")
 
                         if 'login' in upload_response.url.lower():
                             raise Exception("连接失败 - Session 可能已失效")
-                        
-                        # 解析响应HTML查找错误消息
-                        response_soup = BeautifulSoup(upload_response.text, 'html.parser')
-                        
-                        # 查找常见的错误提示元素
-                        error_divs = response_soup.select('.errorMessage, .error-summary, .alert-danger, div.error')
-                        if error_divs:
-                            error_messages = [div.get_text(strip=True) for div in error_divs]
-                            log('error', f"❌ SMS系统返回错误: {'; '.join(error_messages)}")
-                            raise Exception(f"SMS验证错误: {'; '.join(error_messages)}")
-                        
-                        # 检查是否返回了表单页面（而不是成功页面）
-                        # 如果响应中仍包含表单元素，说明提交失败
-                        form_exists = response_soup.select_one('form#student-performance-m-form')
-                        if not form_exists:
-                            # 尝试其他可能的表单选择器
-                            form_exists = response_soup.select_one('form') and len(upload_response.text) > 100000
-                        
-                        if form_exists:
-                            log('warning', f"⚠️ 响应包含表单，可能提交失败（响应长度: {len(upload_response.text)}）")
-                            
-                            # 查找表单中的字段错误
-                            field_errors = response_soup.select('.field-error, .help-block.error, span.error, .error-message')
-                            if field_errors:
-                                field_error_msgs = [err.get_text(strip=True) for err in field_errors if err.get_text(strip=True)]
-                                if field_error_msgs:
-                                    log('error', f"❌ 表单验证失败: {'; '.join(field_error_msgs)}")
-                                    raise Exception(f"表单验证失败: {'; '.join(field_error_msgs)}")
-                            
-                            # 检查是否有JavaScript错误或消息
-                            scripts = response_soup.select('script')
-                            for script in scripts:
-                                script_text = script.get_text()
-                                if 'error' in script_text.lower() or 'alert' in script_text.lower():
-                                    # 尝试提取错误消息
-                                    import re
-                                    alert_matches = re.findall(r'alert\([\'"](.+?)[\'"]\)', script_text)
-                                    if alert_matches:
-                                        log('error', f"❌ JavaScript错误: {'; '.join(alert_matches)}")
-                                        raise Exception(f"表单提交错误: {'; '.join(alert_matches)}")
-                            
-                            # 如果没有找到具体错误，但确实返回了表单
-                            log('error', "❌ POST请求被拒绝，SMS返回了原表单页面")
-                            log('error', "可能原因：1) CSRF token失效 2) 缺少必需字段 3) 数据验证失败")
-                            
-                            # 输出表单的所有input字段名以便调试
-                            all_inputs = response_soup.select('form input[name]')
-                            required_fields = [inp.get('name') for inp in all_inputs if inp.get('required') or 'required' in (inp.get('class') or [])]
-                            if required_fields:
-                                log('error', f"表单必需字段: {', '.join(required_fields[:10])}")
-                            
-                            # 保存响应HTML用于调试
-                            try:
-                                import os
-                                from pathlib import Path
-                                debug_dir = Path.home() / '.sms_app' / 'debug'
-                                debug_dir.mkdir(parents=True, exist_ok=True)
-                                debug_file = debug_dir / f'failed_response_{upload_date.replace("/", "")}.html'
-                                debug_file.write_text(upload_response.text, encoding='utf-8')
-                                log('debug', f"响应HTML已保存到: {debug_file}")
-                            except Exception as e:
-                                log('warning', f"无法保存调试HTML: {e}")
-                            
-                            raise Exception("POST请求被拒绝，请检查表单数据完整性和CSRF token")
-                        
-                        # 检查响应内容是否包含错误关键字（但不是HTML标签中的）
-                        response_text = upload_response.text.lower()
-                        if 'error' in response_text or '错误' in response_text or '失败' in response_text:
-                            # 尝试提取可读的错误信息
-                            error_snippet = upload_response.text[:1000] if len(upload_response.text) < 1000 else upload_response.text[:1000] + '...'
-                            log('warning', f"⚠️ 响应中可能包含错误关键字，但未找到明确错误元素")
 
                         result['uploaded'] = uploaded_count
                         result['success'] = (result['failed'] == 0)

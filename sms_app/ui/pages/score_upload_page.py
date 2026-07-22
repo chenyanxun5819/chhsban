@@ -249,10 +249,26 @@ class ScoreUploadPage:
     
     def select_file(self):
         """选择文件"""
+        # 尝试读取上次打开的目录
+        from pathlib import Path
+        import json
+        
+        config_dir = Path.home() / '.sms_app'
+        config_file = config_dir / 'last_folder.json'
+        initial_dir = ""
+        
+        try:
+            if config_file.exists():
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+                    initial_dir = config.get('score_upload_folder', '')
+        except Exception:
+            pass
+        
         file_path, _ = QFileDialog.getOpenFileName(
             None,
             "选择 Excel 文件",
-            "",
+            initial_dir,
             "Excel Files (*.xlsx);;All Files (*)"
         )
         
@@ -261,6 +277,24 @@ class ScoreUploadPage:
             self.file_label.setText(f"✓ {file_path}")
             self.console.log_success(f"已选择文件: {file_path}")
             self._load_preview(file_path)
+            
+            # 保存这次打开的目录
+            try:
+                folder_path = str(Path(file_path).parent)
+                config_dir.mkdir(parents=True, exist_ok=True)
+                
+                existing_config = {}
+                if config_file.exists():
+                    with open(config_file, 'r', encoding='utf-8') as f:
+                        existing_config = json.load(f)
+                
+                existing_config['score_upload_folder'] = folder_path
+                
+                with open(config_file, 'w', encoding='utf-8') as f:
+                    json.dump(existing_config, f, ensure_ascii=False, indent=2)
+            except Exception as e:
+                # 保存失败不影响功能
+                print(f"无法保存文件夹路径: {e}")
     
     def _load_preview(self, file_path: str):
         """加载 Excel 预览"""
