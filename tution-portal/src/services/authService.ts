@@ -14,31 +14,34 @@ export interface AuthVerifyResponse {
  * @returns 認證響應 (token, teacher_id, permission)
  */
 export const verifyTeacherEmail = async (
-  email: string
+  email: string,
 ): Promise<AuthVerifyResponse> => {
   try {
-    const response = await apiClient.post<AuthVerifyResponse>(
-      "/auth/verify",
-      { email }
-    );
+    const response = await apiClient.post<{
+      success: boolean;
+      data: AuthVerifyResponse;
+    }>("/auth/verify", { email });
 
-    if (!response.data) {
+    // 後端返回格式: { success: true, data: {...} }
+    if (!response.data || !response.data.data) {
       throw new Error("無效的響應");
     }
 
+    const authData = response.data.data;
+
     // 保存認證信息到 localStorage
-    localStorage.setItem("auth_token", response.data.token);
+    localStorage.setItem("auth_token", authData.token);
     localStorage.setItem(
       "auth_user",
       JSON.stringify({
-        teacher_id: response.data.teacher_id,
-        teacher_name: response.data.teacher_name,
-        email: response.data.email,
-        permission: response.data.permission,
-      })
+        teacherId: authData.teacher_id,
+        teacherName: authData.teacher_name,
+        email: authData.email,
+        permission: authData.permission,
+      }),
     );
 
-    return response.data;
+    return authData;
   } catch (error) {
     if (error instanceof Error) {
       // 檢查是否是 401 (未找到教師)

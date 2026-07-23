@@ -41,6 +41,8 @@ class StartupCheckThread(QThread):
         # （而不是打印堆栈），因此这里必须兜底捕获所有异常。
         try:
             checker = StartupChecker()
+            # 执行智能增量检查：只在数据变化时更新，快速比对差异部分
+            # 用于应用启动时的初始化检查
             result = checker.check_and_update_incremental(log_callback=self.log_message.emit)
             self.check_finished.emit(result)
         except Exception as e:

@@ -181,6 +181,32 @@ class SMSHandler:
                         raise Exception("Session 已失效 - 需要重新登入")
 
                     soup_page = BeautifulSoup(resp_page.text, 'html.parser')
+                    
+                    # 解析year和semester的当前值
+                    current_year = '2026'
+                    current_semester = '1'
+                    
+                    year_input = soup_page.select_one('input[name="StudentPerformanceM[year]"]')
+                    if year_input:
+                        current_year = year_input.get('value', '2026')
+                    
+                    # 从页面breadcrumb读取学期（格式: "第一 学期, 2026" 或 "第二 学期, 2026"）
+                    breadcrumb_items = soup_page.select('ul.breadcrumb li')
+                    if len(breadcrumb_items) >= 4:
+                        semester_text = breadcrumb_items[3].get_text(strip=True)
+                        log('info', f"  ℹ Breadcrumb学期文本: {semester_text}")
+                        if '第一' in semester_text or '第1' in semester_text:
+                            current_semester = '1'
+                            log('info', f"  ℹ 解析为第一学期")
+                        elif '第二' in semester_text or '第2' in semester_text:
+                            current_semester = '2'
+                            log('info', f"  ℹ 解析为第二学期")
+                        else:
+                            log('warning', f"  ⚠ 无法解析学期文本，使用默认值1")
+                    else:
+                        log('warning', f"  ⚠ 未找到breadcrumb学期元素，使用默认值1")
+                    
+                    log('info', f"  ℹ 当前学年: {current_year}, 学期: {current_semester}")
 
                     class_name_to_id = {}
                     class_select = soup_page.select_one('select#class_id')
@@ -331,10 +357,28 @@ class SMSHandler:
                         log('info', f"    班级 {class_id}: {len(all_students_map[class_id])} 位学生")
 
                     # 第5步：组装批量提交的表单数据（若为既有记录，先带入既有栏位以免覆盖遗失）
+                    # 确保日期格式为YYYY-MM-DD
+                    formatted_date = upload_date
+                    if '/' in upload_date:
+                        # 如果是26/5/2026或5/26/2026格式，转换为YYYY-MM-DD
+                        try:
+                            from datetime import datetime
+                            # 尝试多种日期格式
+                            for fmt in ['%d/%m/%Y', '%m/%d/%Y', '%Y/%m/%d']:
+                                try:
+                                    dt = datetime.strptime(upload_date, fmt)
+                                    formatted_date = dt.strftime('%Y-%m-%d')
+                                    log('info', f"  🗓 日期转换: {upload_date} → {formatted_date}")
+                                    break
+                                except:
+                                    continue
+                        except Exception as e:
+                            log('warning', f"日期格式转换失败: {e}，使用原值")
+                    
                     post_data = {
-                        'StudentPerformanceM[year]': '2026',
-                        'StudentPerformanceM[semester]': '1',
-                        'StudentPerformanceM[date]': upload_date,
+                        'StudentPerformanceM[year]': current_year,
+                        'StudentPerformanceM[semester]': current_semester,
+                        'StudentPerformanceM[date]': formatted_date,
                         'StudentPerformanceM[item_id]': item_id,
                     }
                     post_data.update(existing_post_data)
@@ -427,12 +471,14 @@ class SMSHandler:
                         if 'login' in upload_response.url.lower():
                             raise Exception("连接失败 - Session 可能已失效")
                         
-                        # 检查响应是否是成功页面还是返回了表单页面
-                        # 成功时通常会重定向或响应很小，如果响应很大说明返回了表单
-                        response_size = len(upload_response.text)
-                        if response_size > 100000:
-                            # 响应过大，可能返回了表单页面
-                            log('warning', f"⚠️ 响应内容过大 ({response_size} 字符)，可能提交失败")
+                        # 检查URL判断是否成功
+                        # 成功: URL包含 /index (跳转到列表页)
+                        # 失败: URL包含 /create 或 /update (停留在表单页)
+                        response_url = upload_response.url.lower()
+                        if '/index' in response_url:
+                            log('success', f"✅ 提交成功 - 已跳转到列表页")
+                        elif '/create' in response_url or '/update' in response_url:
+                            log('warning', f"⚠️ 提交后停留在表单页，可能未成功保存")
                             
                             # 保存响应HTML用于调试
                             try:
@@ -446,6 +492,8 @@ class SMSHandler:
                                 log('warning', f"无法保存调试文件: {e}")
                             
                             raise Exception("提交后返回表单页面，数据可能未成功保存。请检查SMS系统")
+                        else:
+                            log('info', f"ℹ 响应URL未包含预期路径，大小: {len(upload_response.text)} 字符")
 
                         result['uploaded'] = uploaded_count
                         result['success'] = (result['failed'] == 0)

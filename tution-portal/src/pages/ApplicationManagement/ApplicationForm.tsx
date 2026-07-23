@@ -12,6 +12,7 @@ import {
   FIXED_TIME_END,
   getMinDate,
   parseCSV,
+  parseXLSX,
 } from "@/utils/validators";
 import "./application-form.css";
 
@@ -24,7 +25,7 @@ interface FormData {
   venue: string;
 }
 
-type StudentInputMethod = "csv" | "manual";
+type StudentInputMethod = "csv" | "xlsx" | "manual";
 
 const ApplicationForm: React.FC = () => {
   const navigate = useNavigate();
@@ -47,6 +48,7 @@ const ApplicationForm: React.FC = () => {
   // 學生名單
   const [studentInputMethod, setStudentInputMethod] = useState<StudentInputMethod>("csv");
   const [csvContent, setCsvContent] = useState("");
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [manualStudents, setManualStudents] = useState<TutionRosterSnapshot[]>([]);
   const [newStudentId, setNewStudentId] = useState("");
 
@@ -69,17 +71,27 @@ const ApplicationForm: React.FC = () => {
     setError(null);
   };
 
-  // CSV 上傳
-  const handleCsvUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // 檔案上傳 (CSV 或 XLSX)
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const content = event.target?.result as string;
-        setCsvContent(content);
-        setError(null);
-      };
-      reader.readAsText(file);
+      setUploadedFile(file);
+      setError(null);
+      
+      // CSV 格式直接讀取為文本
+      if (file.type === "text/csv" || file.name.endsWith(".csv")) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const content = event.target?.result as string;
+          setCsvContent(content);
+        };
+        reader.readAsText(file);
+      } else if (
+        file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+        file.name.endsWith(".xlsx")
+      ) {
+        setCsvContent("");
+      }
     }
   };
 
@@ -119,8 +131,8 @@ const ApplicationForm: React.FC = () => {
 
   // 驗證學生名單
   const validateStudentList = async () => {
-    if (studentInputMethod === "csv" && !csvContent.trim()) {
-      setError("請上傳 CSV 文件或輸入學生 ID");
+    if ((studentInputMethod === "csv" || studentInputMethod === "xlsx") && !uploadedFile && !csvContent.trim()) {
+      setError("請上傳檔案或輸入學生 ID");
       return;
     }
 
@@ -136,6 +148,8 @@ const ApplicationForm: React.FC = () => {
       if (studentInputMethod === "csv") {
         const lines = parseCSV(csvContent);
         studentIds = lines;
+      } else if (studentInputMethod === "xlsx" && uploadedFile) {
+        studentIds = await parseXLSX(uploadedFile);
       } else {
         studentIds = manualStudents.map((s) => s.student_id);
       }
@@ -149,7 +163,7 @@ const ApplicationForm: React.FC = () => {
         );
       }
     } catch (err) {
-      setError("驗證失敗，請重試");
+      setError(err instanceof Error ? err.message : "驗證失敗，請重試");
     } finally {
       setValidating(false);
     }
@@ -241,19 +255,14 @@ const ApplicationForm: React.FC = () => {
 
                 <div className="form-group">
                   <label>科目 *</label>
-                  <select
+                  <input
+                    type="text"
                     name="subject"
                     value={formData.subject}
                     onChange={handleFormChange}
+                    placeholder="例: 數學、英文"
                     required
-                  >
-                    <option value="">選擇科目</option>
-                    {SUBJECTS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
               </div>
 
@@ -338,6 +347,15 @@ const ApplicationForm: React.FC = () => {
                 <label>
                   <input
                     type="radio"
+                    value="xlsx"
+                    checked={studentInputMethod === "xlsx"}
+                    onChange={(e) => setStudentInputMethod(e.target.value as StudentInputMethod)}
+                  />
+                  上傳 XLSX 文件
+                </label>
+                <label>
+                  <input
+                    type="radio"
                     value="manual"
                     checked={studentInputMethod === "manual"}
                     onChange={(e) => setStudentInputMethod(e.target.value as StudentInputMethod)}
@@ -346,15 +364,15 @@ const ApplicationForm: React.FC = () => {
                 </label>
               </div>
 
-              {studentInputMethod === "csv" ? (
+              {(studentInputMethod === "csv" || studentInputMethod === "xlsx") ? (
                 <div className="form-group">
-                  <label>上傳 CSV 文件 *</label>
+                  <label>{studentInputMethod === "csv" ? "上傳 CSV 文件" : "上傳 XLSX 文件"} *</label>
                   <input
                     type="file"
-                    accept=".csv,.txt"
-                    onChange={handleCsvUpload}
+                    accept={studentInputMethod === "csv" ? ".csv,.txt" : ".xlsx"}
+                    onChange={handleFileUpload}
                   />
-                  <p className="form-hint">格式: 每行一個學生 ID</p>
+                  <p className="form-hint">格式: 第一列為學生 ID (一行一個)</p>
                   {csvContent && (
                     <div className="csv-preview">
                       <p>預覽:</p>
@@ -362,6 +380,11 @@ const ApplicationForm: React.FC = () => {
                       {csvContent.split("\n").length > 5 && (
                         <p>... 共 {csvContent.split("\n").length} 行</p>
                       )}
+                    </div>
+                  )}
+                  {uploadedFile && !csvContent && (
+                    <div className="csv-preview">
+                      <p>✓ 已選擇文件: {uploadedFile.name}</p>
                     </div>
                   )}
                 </div>
@@ -494,19 +517,14 @@ const ApplicationForm: React.FC = () => {
 
                 <div className="form-group">
                   <label>科目 *</label>
-                  <select
+                  <input
+                    type="text"
                     name="subject"
                     value={formData.subject}
                     onChange={handleFormChange}
+                    placeholder="例: 數學、英文"
                     required
-                  >
-                    <option value="">選擇科目</option>
-                    {SUBJECTS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </div>
 
                 <div className="form-group">

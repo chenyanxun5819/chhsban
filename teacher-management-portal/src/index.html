@@ -7,7 +7,39 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
-  <div id="app" class="app">
+  <!-- 登入頁面 -->
+  <div id="loginPage" class="login-page" style="display: flex;">
+    <div class="login-container">
+      <div class="login-header">
+        <h1 class="login-logo">🎓</h1>
+        <h2>教師資料管理系統</h2>
+        <p>管理後台登入</p>
+      </div>
+      
+      <form id="loginForm" class="login-form">
+        <div class="form-group">
+          <label for="loginEmail">帳號（Email）</label>
+          <input type="email" id="loginEmail" name="email" required placeholder="輸入帳號" autocomplete="email">
+        </div>
+        
+        <div class="form-group">
+          <label for="loginPassword">密碼</label>
+          <input type="password" id="loginPassword" name="password" required placeholder="輸入密碼" autocomplete="current-password">
+        </div>
+        
+        <div id="loginError" class="login-error" style="display: none;"></div>
+        
+        <button type="submit" class="btn-login">登入</button>
+      </form>
+      
+      <div class="login-footer">
+        <p>未授權用戶不得訪問此系統</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- 主應用 -->
+  <div id="app" class="app" style="display: none;">
     <!-- 側邊欄 -->
     <aside class="sidebar">
       <div class="sidebar-header">
@@ -48,6 +80,7 @@
         <div class="top-bar-actions">
           <button class="btn-icon" id="refreshBtn" title="刷新">🔄</button>
           <button class="btn-icon" id="settingsBtn" title="設置">⚙️</button>
+          <button class="btn-icon" id="logoutBtn" title="登出">🚪</button>
         </div>
       </header>
 

@@ -56,7 +56,9 @@ class ProjectUpdateThread(QThread):
             def log_callback(message):
                 self.update_message.emit(message)
             
-            # 执行完整的项目更新检查
+            # 执行完整的全量项目更新（舍弃旧缓存，重新下载所有项目）
+            # 【重要】手动更新时强制重新下载，即使项目总数不变也要更新
+            # 原因：项目名称可能在 SMS 上被手动修改，仅比对总数无法检测此类变化
             result = checker.check_and_update(log_callback=log_callback)
             self.update_finished.emit(True, result)
         except Exception as e:
@@ -172,7 +174,9 @@ class SettingsPage:
             "2. 【验证成功】点击 [保存设置]，系统会自动下载全部项目数据",
             "3. 【数据更新】每次启动应用时，系统会自动检查是否有新增项目",
             "4. 【清除凭证】点击 [清除凭证] 可移除保存的帐号密码",
-            "5. 【V2.0 新功能】系统自动识别网络环境，切换外网(sms.chhsban.edu.my)↔内网(192.168.0.6)"
+            "5. 【V2.0 新功能】系统自动识别网络环境，切换外网(sms.chhsban.edu.my)↔内网(192.168.0.6)",
+            "- 2.1 修改session无法更新；提升初始化项目检查方式",
+            "- 2.2 修复因学期转换，造成无法上传的问题"
         ]
         
         for instruction in instructions:

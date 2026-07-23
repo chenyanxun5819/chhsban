@@ -56,12 +56,11 @@ const navItems: NavItem[] = [
   { id: "home", label: "首頁", path: "/", icon: "🏠" },
   { id: "apps", label: "申請", path: "/applications", icon: "📋" },
   { id: "classes", label: "課程", path: "/classes", icon: "📚" },
-  { id: "admin", label: "審批", path: "/admin", icon: "⚙️" },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   const navigate = useNavigate();
-  const { hasPermission } = useAuth();
+  const { user } = useAuth();
 
   const handleNavClick = (path: string) => {
     navigate(path);
@@ -87,16 +86,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
               </button>
             </li>
           ))}
-          {hasPermission("admin") && (
-            <li>
-              <button
-                className="nav-item"
-                onClick={() => handleNavClick("/admin")}
-              >
-                <span className="nav-item__icon">🔐</span>
-                <span className="nav-item__label">管理</span>
-              </button>
-            </li>
+          {user?.permission === "super_admin" && (
+            <>
+              <li>
+                <button
+                  className="nav-item"
+                  onClick={() => handleNavClick("/admin")}
+                >
+                  <span className="nav-item__icon">⚙️</span>
+                  <span className="nav-item__label">審批</span>
+                </button>
+              </li>
+              <li>
+                <button
+                  className="nav-item"
+                  onClick={() => handleNavClick("/admin")}
+                >
+                  <span className="nav-item__icon">🔐</span>
+                  <span className="nav-item__label">管理</span>
+                </button>
+              </li>
+            </>
           )}
         </ul>
       </nav>

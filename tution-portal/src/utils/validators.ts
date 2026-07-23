@@ -1,3 +1,5 @@
+import * as XLSX from "xlsx";
+
 /**
  * CSV 解析器
  */
@@ -7,6 +9,36 @@ export function parseCSV(content: string): string[] {
     .split("\n")
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
+}
+
+/**
+ * XLSX 解析器
+ */
+export async function parseXLSX(file: File): Promise<string[]> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = new Uint8Array(event.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: "array" });
+        const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, {
+          header: 1,
+        }) as any[];
+
+        // 提取第一列作为学生学号
+        const studentIds = jsonData
+          .map((row) => String(row[0] || "").trim())
+          .filter((id) => id.length > 0);
+
+        resolve(studentIds);
+      } catch (error) {
+        reject(new Error("XLSX 解析失敗"));
+      }
+    };
+    reader.onerror = () => reject(new Error("讀取檔案失敗"));
+    reader.readAsArrayBuffer(file);
+  });
 }
 
 /**
@@ -36,7 +68,7 @@ export function getMinDate(): string {
 /**
  * 常用常數
  */
-export const FORMS = ["F1", "F2", "F3", "F4", "F5", "F6"];
+export const FORMS = ["初一", "初二", "初三", "高一", "高二", "高三"];
 export const SUBJECTS = [
   "數學",
   "英文",

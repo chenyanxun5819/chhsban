@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
 import Login from "@/pages/Login/Login";
@@ -9,14 +9,72 @@ import ApplicationDetail from "@/pages/ApplicationManagement/ApplicationDetail";
 import AdminPanel from "@/pages/AdminPanel/AdminPanel";
 import ScheduleManagement from "@/pages/ScheduleManagement/ScheduleManagement";
 import AttendanceSheet from "@/pages/AttendanceSheet/AttendanceSheet";
+import { useEffect, useState } from "react";
+import { TutionClass } from "@/types";
+import apiClient from "@/utils/api";
 import "./styles/App.css";
 
-// Placeholder Pages - 待實施
-const ClassList = () => (
-  <Layout title="已批准課程">
-    <div className="page"><h1>已批准課程 (待實施)</h1></div>
-  </Layout>
-);
+// 課程列表頁面
+const ClassList = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const [classes, setClasses] = useState<TutionClass[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const fetchClasses = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        // 根據權限決定查詢範圍
+        // super_admin 和 admin 可以看所有人的課程，其他人只能看自己的
+        let url = "/v1/classes";
+        if (user?.permission !== "super_admin" && user?.permission !== "admin") {
+          url = `/v1/classes?teacher=${user?.teacherId}`;
+        }
+
+        const response = await apiClient.get(url);
+        if (response.data && response.data.data) {
+          // 只顯示已批准、進行中的課程
+          const approvedClasses = (response.data.data as TutionClass[]).filter(
+            (c) => c.approval_status === "approved" || c.approval_status === "active"
+          );
+          setClasses(approvedClasses);
+        }
+      } catch (err: any) {
+        const errorMessage = err.response?.data?.error || "載入課程列表失敗";
+        setError(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchClasses();
+  }, [user?.teacherId, user?.permission]);
+
+  return (
+    <Layout title="已批准課程">
+      <div className="page">
+        <h1>已批准課程</h1>
+        {loading && <p>載入中...</p>}
+        {error && <p style={{ color: "red" }}>錯誤: {error}</p>}
+        {classes.length === 0 && !loading && <p>尚無批准的課程</p>}
+        {classes.map((c) => (
+          <div key={c.class_id} className="class-item" style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ddd", borderRadius: "5px" }}>
+            <h3>{c.subject} ({c.form})</h3>
+            <p>教師: {c.teacher_name_cn}</p>
+            <p>時間: {c.day_of_week} {c.time_start}-{c.time_end}</p>
+            <p>地點: {c.venue}</p>
+            <p>學費: RM {c.fees}</p>
+            <button onClick={() => navigate(`/classes/${c.class_id}/schedule`)}>查看詳情</button>
+          </div>
+        ))}
+      </div>
+    </Layout>
+  );
+};
+
 const RosterManagement = () => (
   <Layout title="學生名單">
     <div className="page"><h1>學生名單 (待實施)</h1></div>

@@ -2,11 +2,23 @@
 // Tution Worker 後端實現模板
 // ============================================
 
-import { TutionKVManager, TutionClass, TutionRoster, TutionAttendance, TutionPDFFieldMap, TutionClassStatus, AttendanceStatus } from "@chhsban/kv-utils";
+import {
+  TutionKVManager,
+  TutionClass,
+  TutionRoster,
+  TutionAttendance,
+  TutionPDFFieldMap,
+  TutionClassStatus,
+  AttendanceStatus,
+} from "@chhsban/kv-utils";
 
 /**
  * Tution KV Manager 實現
  * 負責所有補習班系統的 KV 操作
+ * 
+ * ⚠️ 警告：此檔案中所有 .put() 操作都消耗帳號級 KV PUT 額度
+ * 限制: 1,000 PUT/天（所有系統共享）
+ * 詳見: /memories/repo/PUT操作成本清單.md
  */
 export class TutionKVService implements TutionKVManager {
   private classKV: KVNamespace;
@@ -47,7 +59,10 @@ export class TutionKVService implements TutionKVManager {
     return data ? JSON.parse(data) : null;
   }
 
-  async updateClass(classId: string, updates: Partial<TutionClass>): Promise<TutionClass> {
+  async updateClass(
+    classId: string,
+    updates: Partial<TutionClass>,
+  ): Promise<TutionClass> {
     const existing = await this.getClass(classId);
     if (!existing) throw new Error(`Class ${classId} not found`);
 
@@ -86,6 +101,20 @@ export class TutionKVService implements TutionKVManager {
     for (const item of result.keys) {
       const tutionClass = await this.getClass(item.name);
       if (tutionClass && tutionClass.approval_status === status) {
+        classes.push(tutionClass);
+      }
+    }
+
+    return classes;
+  }
+
+  async listAllClasses(): Promise<TutionClass[]> {
+    const result = await this.classKV.list({ prefix: "class_" });
+    const classes: TutionClass[] = [];
+
+    for (const item of result.keys) {
+      const tutionClass = await this.getClass(item.name);
+      if (tutionClass) {
         classes.push(tutionClass);
       }
     }
@@ -132,7 +161,10 @@ export class TutionKVService implements TutionKVManager {
     return roster;
   }
 
-  async updateRosterEntry(rosterId: string, updates: Partial<TutionRoster>): Promise<TutionRoster> {
+  async updateRosterEntry(
+    rosterId: string,
+    updates: Partial<TutionRoster>,
+  ): Promise<TutionRoster> {
     const existing = await this.getRosterEntry(rosterId);
     if (!existing) throw new Error(`Roster entry ${rosterId} not found`);
 
@@ -147,7 +179,10 @@ export class TutionKVService implements TutionKVManager {
     return updated;
   }
 
-  async removeStudentFromRoster(rosterId: string, withdrawalReason: string): Promise<void> {
+  async removeStudentFromRoster(
+    rosterId: string,
+    withdrawalReason: string,
+  ): Promise<void> {
     await this.updateRosterEntry(rosterId, {
       withdrawal_date: new Date().toISOString().split("T")[0],
       withdrawal_reason: withdrawalReason,
@@ -170,23 +205,35 @@ export class TutionKVService implements TutionKVManager {
     return attendance;
   }
 
-  async getAttendanceRecord(attendanceId: string): Promise<TutionAttendance | null> {
+  async getAttendanceRecord(
+    attendanceId: string,
+  ): Promise<TutionAttendance | null> {
     const data = await this.attendanceKV.get(attendanceId);
     return data ? JSON.parse(data) : null;
   }
 
-  async listAttendanceByStudent(studentId: string, classId: string): Promise<TutionAttendance[]> {
+  async listAttendanceByStudent(
+    studentId: string,
+    classId: string,
+  ): Promise<TutionAttendance[]> {
     const result = await this.attendanceKV.list({ prefix: "attendance_" });
     const records: TutionAttendance[] = [];
 
     for (const item of result.keys) {
       const attendance = await this.getAttendanceRecord(item.name);
-      if (attendance && attendance.student_id === studentId && attendance.class_id === classId) {
+      if (
+        attendance &&
+        attendance.student_id === studentId &&
+        attendance.class_id === classId
+      ) {
         records.push(attendance);
       }
     }
 
-    return records.sort((a, b) => new Date(a.class_date).getTime() - new Date(b.class_date).getTime());
+    return records.sort(
+      (a, b) =>
+        new Date(a.class_date).getTime() - new Date(b.class_date).getTime(),
+    );
   }
 
   async updateAttendanceRecord(
@@ -194,7 +241,8 @@ export class TutionKVService implements TutionKVManager {
     updates: Partial<TutionAttendance>,
   ): Promise<TutionAttendance> {
     const existing = await this.getAttendanceRecord(attendanceId);
-    if (!existing) throw new Error(`Attendance record ${attendanceId} not found`);
+    if (!existing)
+      throw new Error(`Attendance record ${attendanceId} not found`);
 
     const updated = { ...existing, ...updates };
     await this.attendanceKV.put(attendanceId, JSON.stringify(updated));
@@ -230,9 +278,13 @@ export class TutionKVService implements TutionKVManager {
       }
     }
 
-    stats.attendance_rate = stats.total_classes > 0 
-      ? Math.round(((stats.present_count + stats.late_count) / stats.total_classes) * 100)
-      : 0;
+    stats.attendance_rate =
+      stats.total_classes > 0
+        ? Math.round(
+            ((stats.present_count + stats.late_count) / stats.total_classes) *
+              100,
+          )
+        : 0;
 
     return stats;
   }
@@ -252,7 +304,10 @@ export class TutionKVService implements TutionKVManager {
 
   // ===== 通用操作 =====
 
-  async search(query: string, type: "class" | "student" | "attendance"): Promise<any[]> {
+  async search(
+    query: string,
+    type: "class" | "student" | "attendance",
+  ): Promise<any[]> {
     // 注：搜索邏輯應該實現全文搜索或模糊匹配
     // 這是一個佔位符實現
     return [];
@@ -342,6 +397,8 @@ export async function handleTutionRequest(
 
     return new Response("Not found", { status: 404 });
   } catch (error) {
-    return new Response(JSON.stringify({ error: String(error) }), { status: 500 });
+    return new Response(JSON.stringify({ error: String(error) }), {
+      status: 500,
+    });
   }
 }

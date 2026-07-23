@@ -72,11 +72,19 @@ coverage/
 .env.local
 .env.*.local
 
-# CloudFlare
+# CloudFlare / Wrangler
 wrangler.dev.toml
+.wrangler/
 
 # Temporary data files (downloads, generated files)
 download_student/*.xlsx
 download_student/*.csv
 download_student/*.json
 download_student/*.log
+
+# Development tool files
+*.mjs
+*.html
+.env.production
+students-bulk-import.json
+test-index.json

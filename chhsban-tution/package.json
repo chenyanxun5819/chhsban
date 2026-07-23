@@ -19,12 +19,13 @@
   "author": "chhsban",
   "license": "MIT",
   "dependencies": {
+    "@chhsban/cloudflare-config": "file:../packages/cloudflare-config",
     "@chhsban/kv-utils": "file:../packages/kv-utils",
-    "@chhsban/cloudflare-config": "file:../packages/cloudflare-config"
+    "pdf-lib": "^1.17.1"
   },
   "devDependencies": {
+    "@types/node": "^20.0.0",
     "typescript": "^5.0.0",
-    "wrangler": "^3.20.0",
-    "@types/node": "^20.0.0"
+    "wrangler": "^3.20.0"
   }
 }

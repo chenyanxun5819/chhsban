@@ -620,134 +620,7 @@ d:\chhsban\tution-portal/
 
 ---
 
-## � **登入系統設計** ⭐ (v1.2 新增)
-
-### 認證架構
-
-```
-用戶訪問 tution-portal
-  ↓
-未認證 → 重定向到 /login
-  ↓
-┌─────────────────────────────────────────┐
-│      登入頁面 (Login.tsx)               │
-│  ┌─────────────────────────────────┐   │
-│  │  [Google OAuth 登入按鈕]        │   │
-│  │                                 │   │
-│  │  或                              │   │
-│  │                                 │   │
-│  │  手動輸入：                      │   │
-│  │  Email: [____________]          │   │
-│  │  [驗證]                          │   │
-│  └─────────────────────────────────┘   │
-└─────────────────────────────────────────┘
-  ↓
-**路由 A: Google OAuth**
-  ├─ Google 登入 → 取得 email
-  └─ 轉向後端驗證
-
-**路由 B: 手動 Email**
-  ├─ 輸入 email
-  └─ 轉向後端驗證
-  ↓
-後端驗證流程 (`POST /auth/verify`)
-  ├─ 在 TEACHER_KV 搜尋 email
-  ├─ 查詢教師信息 + permission
-  ├─ 生成 auth_token
-  └─ 返回 { token, teacher_id, permission }
-  ↓
-前端保存會話
-  ├─ localStorage.setItem('auth_token', token)
-  └─ localStorage.setItem('auth_user', JSON.stringify(user))
-  ↓
-重定向到 Welcome 頁面 (/)
-  ↓
-根據 permission 顯示內容
-  ├─ teacher → 教師儀表板
-  ├─ viewer → 檢視儀表板
-  ├─ admin → 管理員面板
-  └─ super_admin → 超級管理面板
-```
-
-### Google OAuth 配置
-
-**多域名支持**:
-```
-支持的重定向 URI:
-1. https://mybazaar.my:5173/auth/callback    (開發)
-2. https://chhsban-tution.pages.dev/auth/callback    (生產 - chhsban.edu.my 教師)
-3. http://localhost:5173/auth/callback    (本地開發)
-```
-
-**Google Cloud Console 設置**:
-1. 建立 OAuth 2.0 認證 ID (Web application)
-2. 授權重定向 URI 列表中新增上述 3 個 URI
-3. 取得 Client ID 和 Client Secret
-4. 配置至環境變數: `VITE_GOOGLE_CLIENT_ID`
-
-### Email 驗證邏輯
-
-```typescript
-// 後端驗證 API: POST /auth/verify
-{
-  "email": "ecchhs014@chhsban.edu.my"
-}
-
-// 查詢邏輯:
-1. 搜尋 TEACHER_KV (鍵: 按 email 索引)
-2. 如果找到 → 取得 teacher_id, name, permission
-3. 如果未找到 → 返回 401 Unauthorized
-
-// 成功響應:
-{
-  "token": "sess_xxxxx",
-  "teacher_id": "T119",
-  "teacher_name": "谭长咏",
-  "permission": "teacher",
-  "email": "ecchhs014@chhsban.edu.my"
-}
-
-// 失敗響應:
-{
-  "error": "teacher_not_found",
-  "message": "Email not registered in system"
-}
-```
-
-### 頁面設計 - Login.tsx
-
-```
-┌────────────────────────────────────────┐
-│ 補習班管理系統登入                    │
-│                                        │
-│ 🎓 CHHSBAN 補習班系統                 │
-│                                        │
-│ ┌────────────────────────────────────┐│
-│ │  [Google 帳戶登入]                 ││
-│ └────────────────────────────────────┘│
-│                                        │
-│  ─── 或 ───                           │
-│                                        │
-│ 使用學校 Email 登入:                  │
-│                                        │
-│ Email 地址:                            │
-│ ┌────────────────────────────────────┐│
-│ │ ecchhs014@chhsban.edu.my           ││
-│ └────────────────────────────────────┘│
-│                                        │
-│ ┌────────────────────────────────────┐│
-│ │ [驗證並登入]                       ││
-│ └────────────────────────────────────┘│
-│                                        │
-│ ⓘ 提示: 使用任何已註冊的教師 email  │
-│        進行登入。支持跨域名訪問。    │
-│                                        │
-└────────────────────────────────────────┘
-```
-
----
-
-## �🔄 **完整實現流程圖**
+## 🔄 **完整實現流程圖**
 
 ### 教師工作流程
 
@@ -815,58 +688,58 @@ d:\chhsban\tution-portal/
 
 ## 📊 **實現進度表**
 
-| Phase | 工作項目 | 頁面 | API 端點 | 複雜度 | 預計時間 |
-|-------|---------|------|---------|--------|---------|
-| **Phase 0** | � **Google OAuth 登入** | Login | GET /auth/verify | ⭐⭐⭐ | 1.5 hr |
-| | • Google OAuth 設置 | | | | |
-| | • Email 驗證 + TEACHER_KV 核對 | | | | |
-| | • 手動 Email 備選 | | | | |
-| | • 會話管理 | | | | |
-| **Phase 0** | �📱 **響應式框架** | — | — | ⭐⭐⭐ | 1 hr |
-| | • CSS Media Queries 設置 | | | | |
-| | • 導航適配 (桌機/手機) | | | | |
-| | • 斷點測試 (768px / 1024px) | | | | |
-| **Phase 1** | 項目初始化 | — | — | ⭐ | 30 min |
-| | • Vite 建立 | | | | |
-| | • 認證系統共享 | | | | |
-| | • API 客戶端配置 | | | | |
-| | • 路由框架 | | | | |
-| **Phase 2** | 歡迎介面 (響應式) | Welcome | GET /classes | ⭐⭐ | 1 hr |
-| | • 桌機卡片佈局 | | | | |
-| | • 手機堆疊佈局 | | | | |
-| **Phase 2** | ⭐️ **申請表單** (響應式) | ApplicationForm | POST /classes | ⭐⭐⭐⭐⭐ | 2.5 hr |
-| | • 基本信息表單 | | | | |
-| | • CSV 上傳器 | | | | |
-| | • 學生驗證 | | | | |
-| | • 初始名單綁定 | | | | |
-| | • 手機分步表單 | | | | |
-| **Phase 2** | 申請列表 (響應式) | ApplicationList | GET /classes | ⭐⭐⭐ | 1.25 hr |
-| | • 桌機表格視圖 | | | | |
-| | • 手機卡片視圖 | | | | |
-| **Phase 2** | 申請詳情 (響應式) | ApplicationDetail | GET /classes/:id | ⭐⭐ | 1 hr |
-| **Phase 3** | 管理員審批 (響應式) | AdminPanel | PUT /classes/:id/approve | ⭐⭐⭐ | 1.5 hr |
-| **Phase 3** | ⭐️ **開課記錄** (響應式) | ScheduleManagement | POST/PUT /schedules | ⭐⭐⭐⭐ | 2 hr |
-| | • 列表展示 | | | | |
-| | • 建立上課記錄 | | | | |
-| | • 停課 + 原因 | | | | |
-| | • 調課 + 原因 | | | | |
-| | • 手機滑動式操作 | | | | |
-| **Phase 3** | ⭐️ **點名表** (響應式) | AttendanceSheet | POST /attendances | ⭐⭐⭐⭐⭐ | 2 hr |
-| | • 日期選擇 | | | | |
-| | • 出勤勾選 | | | | |
-| | • 遲到/缺席 | | | | |
-| | • 提交與修改 | | | | |
-| | • 手機橫向滾動表格 | | | | |
-| **Phase 4** | 學生名單 (響應式) | RosterManagement | POST/DELETE /rosters | ⭐⭐⭐ | 1.75 hr |
-| | • 列表展示 | | | | |
-| | • 新增學生 | | | | |
-| | • 批量上傳 | | | | |
-| | • 移除學生 | | | | |
-| **Phase 4** | 出勤統計 (響應式) | AttendanceStats | GET /attendances | ⭐⭐⭐ | 1.25 hr |
-| **Phase 5** | PDF 下載 (響應式) | PDFDownload | GET /classes/:id/pdf | ⭐⭐⭐ | 1 hr |
-| **Phase 6** | Google Sheets | — | GET /api/sync | ⭐ | 30 min |
-| — | **總計** (含響應式 + 登入) | — | — | — | **~20.5 hr** |
-| — | **舊總計** (不含) | — | — | — | **~14 hr** |
+| Phase | 工作項目 | 頁面 | API 端點 | 複雜度 | 預計時間 | 狀態 |
+|-------|---------|------|---------|--------|---------|------|
+| **Phase 0** | 📱 **響應式框架** | — | — | ⭐⭐⭐ | 1 hr | ✅ |
+| | • CSS Media Queries 設置 | | | | | ✅ |
+| | • 導航適配 (桌機/手機) | | | | | ✅ |
+| | • 斷點測試 (768px / 1024px) | | | | | ✅ |
+| **Phase 1** | 項目初始化 | — | — | ⭐ | 30 min | ✅ |
+| | • Vite 建立 | | | | | ✅ |
+| | • 認證系統共享 | | | | | ✅ |
+| | • API 客戶端配置 | | | | | ✅ |
+| | • 路由框架 | | | | | ✅ |
+| **Phase 2** | 歡迎介面 (響應式) | Welcome | GET /classes | ⭐⭐ | 1 hr | ✅ |
+| | • 桌機卡片佈局 | | | | | ✅ |
+| | • 手機堆疊佈局 | | | | | ✅ |
+| **Phase 2** | ⭐️ **申請表單** (響應式) | ApplicationForm | POST /classes | ⭐⭐⭐⭐⭐ | 2.5 hr | ✅ |
+| | • 基本信息表單 | | | | | ✅ |
+| | • CSV 上傳器 | | | | | ✅ |
+| | • 學生驗證 | | | | | ✅ |
+| | • 初始名單綁定 | | | | | ✅ |
+| | • 手機分步表單 | | | | | ✅ |
+| **Phase 2** | 申請列表 (響應式) | ApplicationList | GET /classes | ⭐⭐⭐ | 1.25 hr | ✅ |
+| | • 桌機表格視圖 | | | | | ✅ |
+| | • 手機卡片視圖 | | | | | ✅ |
+| **Phase 2** | 申請詳情 (響應式) | ApplicationDetail | GET /classes/:id | ⭐⭐ | 1 hr | ✅ |
+| **Phase 2** | Google OAuth 郵件驗證 | — | POST /auth/verify | ⭐⭐ | 1.5 hr | ✅ |
+| | • 添加 google_email 字段 | | | | | ✅ |
+| | • 後端掃描 google_email | | | | | ✅ |
+| | • 前端 UI 表單新增 | | | | | ✅ |
+| **Phase 3** | 管理員審批 (響應式) | AdminPanel | PUT /classes/:id/approve | ⭐⭐⭐ | 1.5 hr | ⏳ |
+| **Phase 3** | ⭐️ **開課記錄** (響應式) | ScheduleManagement | POST/PUT /schedules | ⭐⭐⭐⭐ | 2 hr | ⏳ |
+| | • 列表展示 | | | | | ⏳ |
+| | • 建立上課記錄 | | | | | ⏳ |
+| | • 停課 + 原因 | | | | | ⏳ |
+| | • 調課 + 原因 | | | | | ⏳ |
+| | • 手機滑動式操作 | | | | | ⏳ |
+| **Phase 3** | ⭐️ **點名表** (響應式) | AttendanceSheet | POST /attendances | ⭐⭐⭐⭐⭐ | 2 hr | ⏳ |
+| | • 日期選擇 | | | | | ⏳ |
+| | • 出勤勾選 | | | | | ⏳ |
+| | • 遲到/缺席 | | | | | ⏳ |
+| | • 提交與修改 | | | | | ⏳ |
+| | • 手機橫向滾動表格 | | | | | ⏳ |
+| **Phase 4** | 學生名單 (響應式) | RosterManagement | POST/DELETE /rosters | ⭐⭐⭐ | 1.75 hr | ⏳ |
+| | • 列表展示 | | | | | ⏳ |
+| | • 新增學生 | | | | | ⏳ |
+| | • 批量上傳 | | | | | ⏳ |
+| | • 移除學生 | | | | | ⏳ |
+| **Phase 4** | 出勤統計 (響應式) | AttendanceStats | GET /attendances | ⭐⭐⭐ | 1.25 hr | ⏳ |
+| **Phase 5** | PDF 下載 (響應式) | PDFDownload | GET /classes/:id/pdf | ⭐⭐⭐ | 1 hr | ⏳ |
+| **Phase 6** | Google Sheets | — | GET /api/sync | ⭐ | 30 min | ⏳ |
+| — | **已完成** (Phase 0-2) | — | — | — | **~9 hr** | **✅** |
+| — | **總計** (含響應式) | — | — | — | **~18.5 hr** | — |
+| — | **待實施** (Phase 3-6) | — | — | — | **~9.5 hr** | **⏳** |
 
 ---
 
@@ -981,26 +854,9 @@ CSV 上傳 → 解析 student_id
 
 ### 下一個對話的工作內容
 
-**Phase 0-Login + Phase 0-Responsive + Phase 1-2: 登入系統 + 響應式框架 + 申請模組** (~7.5 hr)
+**Phase 0 + Phase 2: 響應式框架 + 申請模組** (~6.5 hr)
 
-#### Phase 0-Login: Google OAuth 登入系統 (1.5 hr)
-1. **Google OAuth 頁面** (`src/pages/Login/Login.tsx`)
-   - Google OAuth 登入按鈕
-   - 手動 Email 輸入備選
-   - 驗證中狀態 UI
-   
-2. **Email 驗證邏輯** (`src/services/authService.ts`)
-   - 調用後端 `/auth/verify` API
-   - 在 TEACHER_KV 中核對 email
-   - 確定教師身份和權限等級
-   - 建立會話 token
-   
-3. **Google OAuth 配置**
-   - Google Cloud Console 設置
-   - 支持多域名：`mybazaar.my` + `chhsban.edu.my`
-   - 重定向 URI 配置
-
-#### Phase 0-Responsive: 響應式設計框架 (1 hr)
+#### Phase 0: 響應式設計框架 (1 hr)
 1. 建立 CSS Media Queries 基礎
 2. 建立導航組件 (桌機/手機適配)
 3. 建立通用響應式容器
@@ -1032,17 +888,11 @@ CSV 上傳 → 解析 student_id
 3. 響應式卡片佈局
 
 **交接物件**:
-- 本計劃書 (已更新 v1.2)
-- Phase 0-Login + Phase 0-Responsive + Phase 2 完成報告
+- 本計劃書 (已更新 v1.1)
+- Phase 0 + Phase 2 完成報告
 - 響應式設計指南
 
 ### 關鍵決策
-
-**登入策略**:
-- ✅ 使用 Google OAuth 2.0 (主要方式)
-- ✅ 支持多域名 (mybazaar.my + chhsban.edu.my)
-- ✅ 手動 Email 輸入作為備選
-- ✅ 在 TEACHER_KV 進行 email 驗證
 
 **響應式策略**:
 - ✅ 使用 CSS Media Queries (無外部 UI 框架)
@@ -1050,15 +900,13 @@ CSV 上傳 → 解析 student_id
 - ✅ 所有頁面同時支持兩種視圖
 
 **優先順序**:
-1. 完成登入系統 (所有頁面的前置)
-2. 建立響應式框架
-3. 先完成桌機版 (完整功能)
-4. 再適配手機版 (同一組件)
-5. 均衡複雜度和時間
+1. 先完成桌機版 (完整功能)
+2. 再適配手機版 (同一組件)
+3. 均衡複雜度和時間
 
 ---
 
-**計劃書版本**: v1.2  
-**最後更新**: 2026-07-10  
-**狀態**: 📋 Phase 0-Login 待實施  
-**下一步**: 啟動 Phase 0 登入系統 + 響應式框架 + Phase 2 應用模組開發
+**計劃書版本**: v1.1  
+**最後更新**: 2026-07-09  
+**狀態**: 📋 Phase 0 + Phase 2 待實施  
+**下一步**: 啟動 Phase 0 響應式框架 + Phase 2 應用模組開發

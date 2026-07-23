@@ -25,8 +25,18 @@ const ApplicationList: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      // 查詢教師的所有申請
-      const response = await apiClient.get(`/v1/classes?teacher=${user?.teacherId}`);
+      // 根據權限決定查詢範圍
+      // super_admin 和 admin 可以看所有人的申請，其他人只能看自己的
+      let url = "/v1/classes";
+      if (user?.permission === "super_admin" || user?.permission === "admin") {
+        // super_admin 和 admin 看所有申請
+        url = "/v1/classes";
+      } else {
+        // 其他人只看自己的申請
+        url = `/v1/classes?teacher=${user?.teacherId}`;
+      }
+
+      const response = await apiClient.get(url);
 
       if (response.data && response.data.data) {
         setApplications(response.data.data as TutionClass[]);

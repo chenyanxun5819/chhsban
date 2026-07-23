@@ -61,6 +61,61 @@ function verifyApiKey(request: Request): boolean {
 }
 
 /**
+ * 生成簡單的 JWT-like token
+ * 格式: Base64(email:timestamp:secret)
+ */
+function generateToken(
+  email: string,
+  secret: string = "chhsban-secret",
+): string {
+  const payload = `${email}:${Date.now()}:${secret}`;
+  return Buffer.from(payload).toString("base64");
+}
+
+/**
+ * 處理認證驗證 (Email 驗證)
+ */
+async function handleAuthVerify(
+  manager: TeacherKVManager,
+  request: Request,
+): Promise<Response> {
+  try {
+    const body = (await request.json()) as { email?: string };
+
+    if (!body.email) {
+      return errorResponse("缺少 email 欄位");
+    }
+
+    const email = String(body.email).trim().toLowerCase();
+
+    // 從 KV 查詢所有教師
+    const allTeachers = await manager.getAllTeachers();
+    const teacher = allTeachers.find((t) => t.email.toLowerCase() === email);
+
+    if (!teacher) {
+      return errorResponse("Email 未在系統中註冊", 401);
+    }
+
+    // 生成 token
+    const token = generateToken(email);
+
+    return successResponse(
+      {
+        token,
+        teacher_id: teacher.teacher_id,
+        teacher_name: teacher.name_cn || teacher.name_en || "Unknown",
+        email: teacher.email,
+        permission: teacher.permission || "teacher",
+      },
+      "驗證成功",
+    );
+  } catch (error) {
+    console.error("Error in auth verify:", error);
+    return errorResponse("驗證失敗", 500);
+  }
+}
+
+/**
  * 建立 JSON 回應
  */
 function jsonResponse<T>(data: ApiResponse<T>, status: number = 200): Response {
@@ -421,6 +476,20 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
   // 健康檢查
   if (pathname === "/api/health") {
     return handleHealth();
+  }
+
+  // 認證端點 (不需要 API Key)
+  if (pathname === "/auth/verify") {
+    if (method === "POST") {
+      return handleAuthVerify(manager, request);
+    } else {
+      return errorResponse("方法不允許", 405);
+    }
+  }
+
+  // 驗證 API Key（除了健康檢查）
+  if (!verifyApiKey(request)) {
+    return errorResponse("未授權：缺少有效的 API Key", 401);
   }
 
   // 教師資料 API

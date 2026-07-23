@@ -1,476 +1,465 @@
 import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Layout } from "@/components/common/Layout";
-import { useAuth } from "@/context/AuthContext";
-import { scheduleService } from "@/services/scheduleService";
-import type { TutionSchedule } from "@/types/index";
+import apiClient from "@/utils/api";
+import {
+  TutionScheduleExtended,
+  ConflictResult,
+} from "@/types/index";
 import "./schedule-management.css";
 
-import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
-import { Layout } from "@/components/common/Layout";
-import { useAuth } from "@/context/AuthContext";
-import { scheduleService } from "@/services/scheduleService";
-import type { TutionSchedule } from "@/types/index";
-import "./schedule-management.css";
-
-type ModalType =
-  | null
-  | "create"
-  | "cancel"
-  | "reschedule"
-  | "mark_held";
-
-interface ModalState {
-  type: ModalType;
-  scheduleId?: string;
-  data?: {
-    reason?: string;
-    newDate?: string;
-  };
-}
+type ViewMode = "month" | "week" | "day";
 
 export const ScheduleManagement: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
 
-  const [schedules, setSchedules] = useState<TutionSchedule[]>([]);
+  const [schedules, setSchedules] = useState<TutionScheduleExtended[]>([]);
+  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [selectedDate, setSelectedDate] = useState(new Date());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [successMsg, setSuccessMsg] = useState<string | null>(null);
-  const [modal, setModal] = useState<ModalState>({ type: null });
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [conflicts, setConflicts] = useState<ConflictResult | null>(null);
 
-  // Form state for modals
+  // Form state
   const [formData, setFormData] = useState({
-    newDate: "",
-    reason: "",
+    date: "",
+    start_time: "19:00",
+    end_time: "21:00",
+    venue: "",
+    recurrence: "none",
   });
 
   useEffect(() => {
-    if (classId) {
-      fetchSchedules();
-    }
+    fetchSchedules();
   }, [classId]);
 
   const fetchSchedules = async () => {
     if (!classId) return;
     try {
       setLoading(true);
-      const data = await scheduleService.getSchedules(classId);
-      // 按日期排序
-      const sorted = [...data].sort(
-        (a, b) =>
-          new Date(a.scheduled_date).getTime() -
-          new Date(b.scheduled_date).getTime()
+      const res = await apiClient.get<TutionScheduleExtended[]>(
+        `/v1/classes/${classId}/schedule`
       );
-      setSchedules(sorted);
-      setError(null);
+      if (res.data) {
+        setSchedules(res.data);
+      }
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "載入開課記錄失敗"
-      );
-      console.error("Error fetching schedules:", err);
+      setError(err instanceof Error ? err.message : "載入時間表失敗");
+      console.error("Schedule fetch error:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  // 顯示成功訊息
-  const showSuccess = (msg: string) => {
-    setSuccessMsg(msg);
-    setTimeout(() => setSuccessMsg(null), 3000);
+  const handleCheckConflicts = async () => {
+    if (!formData.date || !classId) return;
+
+    try {
+      const res = await apiClient.post<ConflictResult>(
+        `/v1/schedule/check-conflicts`,
+        {
+          class_id: classId,
+          date: formData.date,
+          start_time: formData.start_time,
+          end_time: formData.end_time,
+          venue: formData.venue,
+        }
+      );
+      if (res.data) {
+        setConflicts(res.data);
+      }
+    } catch (err) {
+      console.error("Conflict check error:", err);
+    }
   };
 
-  // 建立新的開課記錄
-  const handleCreateSchedule = async () => {
-    if (!classId || !formData.newDate) {
-      setError("請選擇日期");
+  const handleAddSchedule = async () => {
+    if (!formData.date || !formData.venue || !classId) {
+      setError("請填寫所有必填欄位");
       return;
     }
 
     try {
-      await scheduleService.createSchedule(classId, formData.newDate);
-      showSuccess("開課記錄已建立");
-      await fetchSchedules();
-      setModal({ type: null });
-      setFormData({ newDate: "", reason: "" });
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "建立開課記錄失敗"
+      const payload: any = {
+        date: formData.date,
+        start_time: formData.start_time,
+        end_time: formData.end_time,
+        venue: formData.venue,
+      };
+
+      if (formData.recurrence !== "none") {
+        payload.recurrence = {
+          type: formData.recurrence,
+          interval: 1,
+        };
+      }
+
+      const res = await apiClient.post(
+        `/v1/classes/${classId}/schedule`,
+        payload
       );
+
+      if (res.status === 201 || res.data) {
+        await fetchSchedules();
+        setShowAddForm(false);
+        setFormData({
+          date: "",
+          start_time: "19:00",
+          end_time: "21:00",
+          venue: "",
+          recurrence: "none",
+        });
+        setConflicts(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "新增課程時間表失敗");
+      console.error("Schedule add error:", err);
     }
   };
 
-  // 標記為已上課
-  const handleMarkAsHeld = async (scheduleId: string) => {
-    try {
-      await scheduleService.markAsHeld(scheduleId);
-      showSuccess("已標記為上課");
-      await fetchSchedules();
-      setModal({ type: null });
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "標記失敗"
-      );
-    }
-  };
-
-  // 停課
-  const handleCancelClass = async () => {
-    if (!modal.scheduleId || !formData.reason) {
-      setError("請填寫停課原因");
-      return;
-    }
-
-    try {
-      await scheduleService.markAsCancelled(
-        modal.scheduleId,
-        formData.reason
-      );
-      showSuccess("已標記為停課");
-      await fetchSchedules();
-      setModal({ type: null });
-      setFormData({ newDate: "", reason: "" });
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "停課標記失敗"
-      );
-    }
-  };
-
-  // 調課
-  const handleReschedule = async () => {
-    if (!modal.scheduleId || !formData.newDate || !formData.reason) {
-      setError("請填寫新日期和調課原因");
-      return;
-    }
+  const handleDeleteSchedule = async (scheduleId: string) => {
+    if (!classId) return;
+    if (!confirm("確定刪除此課程時間表？")) return;
 
     try {
-      await scheduleService.markAsRescheduled(
-        modal.scheduleId,
-        formData.newDate,
-        formData.reason
+      await apiClient.delete(
+        `/v1/classes/${classId}/schedule/${scheduleId}`
       );
-      showSuccess("已標記為調課");
       await fetchSchedules();
-      setModal({ type: null });
-      setFormData({ newDate: "", reason: "" });
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "調課標記失敗"
-      );
+      setError(err instanceof Error ? err.message : "刪除時間表失敗");
+      console.error("Schedule delete error:", err);
     }
   };
 
-  // 格式化日期
+  const getDaysInMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+  };
+
+  const getFirstDayOfMonth = (date: Date) => {
+    return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
+  };
+
+  const renderCalendar = () => {
+    const daysInMonth = getDaysInMonth(selectedDate);
+    const firstDay = getFirstDayOfMonth(selectedDate);
+    const days = [];
+
+    // Empty cells for days before month starts
+    for (let i = 0; i < firstDay; i++) {
+      days.push(<div key={`empty-${i}`} className="calendar-day empty"></div>);
+    }
+
+    // Days of the month
+    for (let day = 1; day <= daysInMonth; day++) {
+      const dateStr = `${selectedDate.getFullYear()}-${String(
+        selectedDate.getMonth() + 1
+      ).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      
+      const daySchedules = schedules.filter((s) => s.date === dateStr);
+      const isToday =
+        new Date().toDateString() === new Date(dateStr).toDateString();
+
+      days.push(
+        <div
+          key={day}
+          className={`calendar-day ${isToday ? "today" : ""}`}
+          onClick={() => setSelectedDate(new Date(dateStr))}
+        >
+          <div className="day-number">{day}</div>
+          <div className="day-schedules">
+            {daySchedules.slice(0, 2).map((s) => (
+              <div key={s.schedule_id} className="schedule-dot">
+                {s.start_time}
+              </div>
+            ))}
+            {daySchedules.length > 2 && (
+              <div className="schedule-more">+{daySchedules.length - 2}</div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return days;
+  };
+
   const formatDate = (dateStr: string) => {
-    const date = new Date(dateStr + "T00:00:00");
-    return date.toLocaleDateString("zh-TW", {
+    return new Date(dateStr + "T00:00:00").toLocaleDateString("zh-TW", {
+      weekday: "short",
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
-      weekday: "short",
     });
-  };
-
-  // 分組開課記錄 (按日期)
-  const groupedSchedules = schedules.reduce(
-    (acc, schedule) => {
-      const date = schedule.scheduled_date;
-      if (!acc[date]) {
-        acc[date] = [];
-      }
-      acc[date].push(schedule);
-      return acc;
-    },
-    {} as Record<string, TutionSchedule[]>
-  );
-
-  // 獲取狀態標籤
-  const getStatusLabel = (status: string) => {
-    const labels: Record<string, { label: string; className: string }> = {
-      held: { label: "✓ 已上課", className: "status-held" },
-      cancelled: { label: "✗ 停課", className: "status-cancelled" },
-      rescheduled: { label: "⟳ 調課", className: "status-rescheduled" },
-    };
-    return labels[status] || { label: "未知", className: "status-unknown" };
   };
 
   if (loading) {
     return (
-      <Layout title="開課記錄管理">
-        <div className="schedule-loading">
-          <div className="spinner"></div>
-          <p>載入中...</p>
+      <Layout title="課程時間表">
+        <div className="schedule-management">
+          <div className="loading-spinner">載入中...</div>
         </div>
       </Layout>
     );
   }
 
   return (
-    <Layout title="開課記錄管理">
-      <div className="schedule-container">
-        {/* 錯誤和成功訊息 */}
-        {error && <div className="alert alert-error">{error}</div>}
-        {successMsg && (
-          <div className="alert alert-success">{successMsg}</div>
-        )}
-
-        {/* 操作按鈕 */}
-        <div className="schedule-actions">
+    <Layout title="課程時間表">
+      <div className="schedule-management">
+        {/* Header */}
+        <div className="schedule-header">
+          <div className="header-title">
+            <h2>課程時間表</h2>
+            <div className="view-controls">
+              <button
+                className={`view-btn ${viewMode === "month" ? "active" : ""}`}
+                onClick={() => setViewMode("month")}
+              >
+                月
+              </button>
+              <button
+                className={`view-btn ${viewMode === "week" ? "active" : ""}`}
+                onClick={() => setViewMode("week")}
+              >
+                周
+              </button>
+              <button
+                className={`view-btn ${viewMode === "day" ? "active" : ""}`}
+                onClick={() => setViewMode("day")}
+              >
+                日
+              </button>
+            </div>
+          </div>
           <button
-            className="btn btn-primary"
-            onClick={() => {
-              setModal({ type: "create" });
-              setFormData({ newDate: "", reason: "" });
-            }}
+            className="add-schedule-btn"
+            onClick={() => setShowAddForm(!showAddForm)}
           >
-            + 建立開課記錄
-          </button>
-          <button
-            className="btn btn-secondary"
-            onClick={() => navigate(-1)}
-          >
-            ← 返回
+            + 新增課程時間表
           </button>
         </div>
 
-        {/* 開課記錄列表 */}
-        {schedules.length === 0 ? (
-          <div className="schedule-empty">
-            <p>暫無開課記錄</p>
-          </div>
-        ) : (
-          <div className="schedule-list">
-            {Object.entries(groupedSchedules).map(([date, items]) => (
-              <div key={date} className="schedule-group">
-                <div className="group-header">
-                  <h3>{formatDate(date)}</h3>
-                </div>
-                <div className="group-items">
-                  {items.map((schedule) => {
-                    const status = getStatusLabel(
-                      schedule.status || "held"
-                    );
-                    return (
-                      <div
-                        key={schedule.schedule_id}
-                        className={`schedule-card ${status.className}`}
-                      >
-                        <div className="card-header">
-                          <span className={`status-badge ${status.className}`}>
-                            {status.label}
-                          </span>
-                        </div>
-                        <div className="card-body">
-                          <p className="date-info">
-                            📅 {formatDate(
-                              schedule.scheduled_date
-                            )}
-                          </p>
-                          {schedule.status === "cancelled" &&
-                            schedule.cancellation_reason && (
-                              <p className="reason-info">
-                                <strong>停課原因：</strong>
-                                {schedule.cancellation_reason}
-                              </p>
-                            )}
-                          {schedule.status === "rescheduled" && (
-                            <>
-                              {schedule.rescheduled_to && (
-                                <p className="reschedule-info">
-                                  <strong>調課至：</strong>
-                                  {formatDate(schedule.rescheduled_to)}
-                                </p>
-                              )}
-                              {schedule.reschedule_reason && (
-                                <p className="reason-info">
-                                  <strong>調課原因：</strong>
-                                  {schedule.reschedule_reason}
-                                </p>
-                              )}
-                            </>
-                          )}
-                        </div>
-                        <div className="card-actions">
-                          {(!schedule.status ||
-                            schedule.status === "held") && (
-                            <>
-                              <button
-                                className="btn-small btn-cancel"
-                                onClick={() => {
-                                  setModal({
-                                    type: "cancel",
-                                    scheduleId:
-                                      schedule.schedule_id,
-                                  });
-                                  setFormData({
-                                    newDate: "",
-                                    reason: "",
-                                  });
-                                }}
-                              >
-                                停課
-                              </button>
-                              <button
-                                className="btn-small btn-reschedule"
-                                onClick={() => {
-                                  setModal({
-                                    type: "reschedule",
-                                    scheduleId:
-                                      schedule.schedule_id,
-                                  });
-                                  setFormData({
-                                    newDate: "",
-                                    reason: "",
-                                  });
-                                }}
-                              >
-                                調課
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
+        {/* Add Form */}
+        {showAddForm && (
+          <div className="add-form-section">
+            <h3>新增課程時間表</h3>
+            <div className="form-grid">
+              <div className="form-group">
+                <label>日期</label>
+                <input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => {
+                    setFormData({ ...formData, date: e.target.value });
+                    setTimeout(handleCheckConflicts, 100);
+                  }}
+                  min={new Date().toISOString().split("T")[0]}
+                />
               </div>
-            ))}
+
+              <div className="form-group">
+                <label>開始時間</label>
+                <input
+                  type="time"
+                  value={formData.start_time}
+                  onChange={(e) => {
+                    setFormData({ ...formData, start_time: e.target.value });
+                    setTimeout(handleCheckConflicts, 100);
+                  }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>結束時間</label>
+                <input
+                  type="time"
+                  value={formData.end_time}
+                  onChange={(e) => {
+                    setFormData({ ...formData, end_time: e.target.value });
+                    setTimeout(handleCheckConflicts, 100);
+                  }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>教室位置</label>
+                <input
+                  type="text"
+                  placeholder="例：Room 101"
+                  value={formData.venue}
+                  onChange={(e) => {
+                    setFormData({ ...formData, venue: e.target.value });
+                    setTimeout(handleCheckConflicts, 100);
+                  }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label>重複</label>
+                <select
+                  value={formData.recurrence}
+                  onChange={(e) =>
+                    setFormData({ ...formData, recurrence: e.target.value })
+                  }
+                >
+                  <option value="none">不重複</option>
+                  <option value="weekly">每週重複</option>
+                  <option value="monthly">每月重複</option>
+                </select>
+              </div>
+            </div>
+
+            {conflicts && (
+              <div
+                className={`conflict-result ${
+                  conflicts.hasConflict ? "has-conflict" : "no-conflict"
+                }`}
+              >
+                {conflicts.hasConflict ? (
+                  <>
+                    <strong>⚠️ 發現衝突:</strong>
+                    <ul>
+                      {conflicts.conflicts.map((c, i) => (
+                        <li key={i}>{c.message}</li>
+                      ))}
+                    </ul>
+                  </>
+                ) : (
+                  <span>✓ 時間表檢查通過，無衝突</span>
+                )}
+                {conflicts.warnings.length > 0 && (
+                  <>
+                    <strong>⚠️ 警告:</strong>
+                    <ul>
+                      {conflicts.warnings.map((w, i) => (
+                        <li key={i}>{w}</li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+              </div>
+            )}
+
+            <div className="form-actions">
+              <button
+                className="btn btn-primary"
+                onClick={handleAddSchedule}
+                disabled={conflicts?.hasConflict}
+              >
+                新增課程
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => setShowAddForm(false)}
+              >
+                取消
+              </button>
+            </div>
           </div>
         )}
 
-        {/* 模態對話框 */}
-        {modal.type && (
-          <div
-            className="modal-overlay"
-            onClick={() => setModal({ type: null })}
-          >
-            <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-              {/* 建立開課記錄對話框 */}
-              {modal.type === "create" && (
-                <>
-                  <h2>建立開課記錄</h2>
-                  <div className="modal-form">
-                    <div className="form-group">
-                      <label>上課日期 *</label>
-                      <input
-                        type="date"
-                        value={formData.newDate}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            newDate: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="form-actions">
-                      <button
-                        className="btn btn-primary"
-                        onClick={handleCreateSchedule}
-                      >
-                        確定
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => setModal({ type: null })}
-                      >
-                        取消
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* 停課對話框 */}
-              {modal.type === "cancel" && (
-                <>
-                  <h2>停課</h2>
-                  <div className="modal-form">
-                    <div className="form-group">
-                      <label>停課原因 *</label>
-                      <textarea
-                        placeholder="請填寫停課原因..."
-                        value={formData.reason}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            reason: e.target.value,
-                          })
-                        }
-                        rows={3}
-                      />
-                    </div>
-                    <div className="form-actions">
-                      <button
-                        className="btn btn-danger"
-                        onClick={handleCancelClass}
-                      >
-                        確定停課
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => setModal({ type: null })}
-                      >
-                        取消
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {/* 調課對話框 */}
-              {modal.type === "reschedule" && (
-                <>
-                  <h2>調課</h2>
-                  <div className="modal-form">
-                    <div className="form-group">
-                      <label>新上課日期 *</label>
-                      <input
-                        type="date"
-                        value={formData.newDate}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            newDate: e.target.value,
-                          })
-                        }
-                      />
-                    </div>
-                    <div className="form-group">
-                      <label>調課原因 *</label>
-                      <textarea
-                        placeholder="請填寫調課原因..."
-                        value={formData.reason}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            reason: e.target.value,
-                          })
-                        }
-                        rows={3}
-                      />
-                    </div>
-                    <div className="form-actions">
-                      <button
-                        className="btn btn-primary"
-                        onClick={handleReschedule}
-                      >
-                        確定調課
-                      </button>
-                      <button
-                        className="btn btn-secondary"
-                        onClick={() => setModal({ type: null })}
-                      >
-                        取消
-                      </button>
-                    </div>
-                  </div>
-                </>
-              )}
+        {/* Calendar View */}
+        {viewMode === "month" && (
+          <div className="calendar-section">
+            <div className="calendar-header">
+              <button onClick={() => {
+                const newDate = new Date(selectedDate);
+                newDate.setMonth(newDate.getMonth() - 1);
+                setSelectedDate(newDate);
+              }}>
+                ← 上月
+              </button>
+              <span className="month-year">
+                {selectedDate.toLocaleDateString("zh-TW", {
+                  year: "numeric",
+                  month: "long",
+                })}
+              </span>
+              <button onClick={() => {
+                const newDate = new Date(selectedDate);
+                newDate.setMonth(newDate.getMonth() + 1);
+                setSelectedDate(newDate);
+              }}>
+                下月 →
+              </button>
             </div>
+
+            <div className="weekdays-header">
+              {["日", "一", "二", "三", "四", "五", "六"].map((day) => (
+                <div key={day} className="weekday">
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            <div className="calendar-grid">{renderCalendar()}</div>
+          </div>
+        )}
+
+        {/* Schedule List */}
+        <div className="schedule-list-section">
+          <h3>課程清單 - {formatDate(selectedDate.toISOString().split("T")[0])}</h3>
+
+          <div className="schedule-list">
+            {schedules
+              .filter(
+                (s) =>
+                  s.date ===
+                  selectedDate.toISOString().split("T")[0]
+              )
+              .sort((a, b) => a.start_time.localeCompare(b.start_time))
+              .map((schedule) => (
+                <div key={schedule.schedule_id} className="schedule-item">
+                  <div className="schedule-time">
+                    <div className="time-badge">
+                      {schedule.start_time} - {schedule.end_time}
+                    </div>
+                  </div>
+                  <div className="schedule-info">
+                    <div className="venue-name">
+                      📍 {schedule.venue}
+                    </div>
+                    <div className="schedule-status">
+                      狀態：<span className={`status-${schedule.status}`}>
+                        {schedule.status === "scheduled" && "計劃中"}
+                        {schedule.status === "ongoing" && "進行中"}
+                        {schedule.status === "completed" && "已完成"}
+                        {schedule.status === "cancelled" && "已取消"}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="schedule-actions">
+                    <button
+                      className="action-btn edit"
+                      onClick={() =>
+                        console.log("Edit schedule", schedule.schedule_id)
+                      }
+                    >
+                      編輯
+                    </button>
+                    <button
+                      className="action-btn delete"
+                      onClick={() => handleDeleteSchedule(schedule.schedule_id)}
+                    >
+                      刪除
+                    </button>
+                  </div>
+                </div>
+              ))}
+            {schedules.filter(
+              (s) =>
+                s.date === selectedDate.toISOString().split("T")[0]
+            ).length === 0 && (
+              <div className="empty-state">此日期未有課程安排</div>
+            )}
+          </div>
+        </div>
+
+        {error && (
+          <div className="error-banner">
+            <span>⚠️ {error}</span>
           </div>
         )}
       </div>

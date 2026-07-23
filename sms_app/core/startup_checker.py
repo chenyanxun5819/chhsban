@@ -365,10 +365,12 @@ class StartupChecker:
             log(f"    ❌ 缓存更新失败: {e}")
             return False
     
-    def check_and_update(self, log_callback=None) -> dict:
+    def check_and_update_full(self, log_callback=None) -> dict:
         """
-        检查项目总数是否符合
-        如果不符合则更新
+        完整的全量更新（舍弃旧缓存，重新下载所有项目）
+        用于：
+        - 手动更新按钮（用户主动点击）
+        - 首次初始化（无缓存）
         
         Returns:
             dict: {
@@ -449,18 +451,17 @@ class StartupChecker:
             result['page_total'] = page_total
             result['cached_total'] = cached_total
             
-            # 检查是否匹配
-            if page_total == cached_total:
-                log(f"  ✅ 数据一致，无需更新")
-                result['matched'] = True
-                result['message'] = f"✅ 数据一致 (总数: {page_total})"
-                session.close()
-                return result
-            
-            log(f"  ⚠️  数据不一致！")
-            log(f"     - 页面总数: {page_total}")
-            log(f"     - 缓存总数: {cached_total}")
-            log(f"     - 差异: {page_total - cached_total} 条")
+            # 【修改】手动更新时，即使项目数相同也要强制更新
+            # 因为项目名称可能在 SMS 上被修改，仅比对数量无法检测
+            # 比对逻辑只保留在增量检查中
+            log(f"  📥 手动更新：强制重新下载所有项目")
+            if page_total != cached_total:
+                log(f"  ⚠️  数据不一致！")
+                log(f"     - 页面总数: {page_total}")
+                log(f"     - 缓存总数: {cached_total}")
+                log(f"     - 差异: {page_total - cached_total} 条")
+            else:
+                log(f"  💡 项目数相同 ({page_total})，但仍需检查是否有项目名称改动")
             
             # 需要更新
             log(f"  📥 正在更新缓存...")
@@ -687,8 +688,145 @@ class StartupChecker:
                 session.close()
                 return result
             
-            # 数据不一致：舍弃旧缓存，整批重新下载覆盖（避免部分合并导致缓存与实际数据逐渐产生差异）
-            log(f"  ⚠️  数据不一致 (差异: {page_total - cached_total} 条)")
+            # 数据不一致：智能增量检查
+            diff_count = page_total - cached_total
+            log(f"  ⚠️  数据不一致 (差异: {diff_count} 条)")
+            
+            # 如果差异在 10 条以内，只检查最后一页
+            if 0 < diff_count <= 10:
+                log(f"  💡 差异较小 ({diff_count} 条)，只检查最后一页...")
+                
+                # 计算缓存的最后一页和新总数的最后一页
+                cached_last_page = (cached_total + 9) // 10
+                page_last_page = (page_total + 9) // 10
+                
+                # 获取最后一页的新项目
+                try:
+                    params = {
+                        'ItemM_page': page_last_page,
+                        'ajax': 'item-m-grid',
+                        'r': 'transaction/itemSetting/index'
+                    }
+                    response = session.get(self.BASE_URL, params=params, timeout=10)
+                    
+                    class ProjectTableParser:
+                        def __init__(self):
+                            self.rows = []
+                            self.in_tbody = False
+                            self.in_tr = False
+                            self.cells = []
+                            self.cell_content = ""
+                        
+                        def handle_starttag(self, tag, attrs):
+                            if tag == 'tbody':
+                                self.in_tbody = True
+                            elif tag == 'tr' and self.in_tbody:
+                                self.in_tr = True
+                                self.cells = []
+                            elif tag == 'td' and self.in_tr:
+                                self.cell_content = ""
+                        
+                        def handle_endtag(self, tag):
+                            if tag == 'tbody':
+                                self.in_tbody = False
+                            elif tag == 'tr' and self.in_tbody:
+                                self.in_tr = False
+                                if self.cells:
+                                    self.rows.append(self.cells)
+                            elif tag == 'td' and self.in_tr:
+                                self.cells.append(self.cell_content.strip())
+                        
+                        def handle_data(self, data):
+                            if self.in_tr:
+                                self.cell_content += data
+                    
+                    from html.parser import HTMLParser
+                    
+                    class SmartProjectParser(HTMLParser):
+                        def __init__(self):
+                            super().__init__()
+                            self.rows = []
+                            self.in_tbody = False
+                            self.in_tr = False
+                            self.cells = []
+                            self.cell_content = ""
+                        
+                        def handle_starttag(self, tag, attrs):
+                            if tag == 'tbody':
+                                self.in_tbody = True
+                            elif tag == 'tr' and self.in_tbody:
+                                self.in_tr = True
+                                self.cells = []
+                            elif tag == 'td' and self.in_tr:
+                                self.cell_content = ""
+                        
+                        def handle_endtag(self, tag):
+                            if tag == 'tbody':
+                                self.in_tbody = False
+                            elif tag == 'tr' and self.in_tbody:
+                                self.in_tr = False
+                                if self.cells:
+                                    self.rows.append(self.cells)
+                            elif tag == 'td' and self.in_tr:
+                                self.cells.append(self.cell_content.strip())
+                        
+                        def handle_data(self, data):
+                            if self.in_tr:
+                                self.cell_content += data
+                    
+                    parser = SmartProjectParser()
+                    parser.feed(response.text)
+                    
+                    # 获取最后一页的项目
+                    last_page_projects = []
+                    for row in parser.rows:
+                        if len(row) >= 2:
+                            project_code = row[0]
+                            project_name = row[1]
+                            if project_code and project_name:
+                                last_page_projects.append({
+                                    '项目代码': project_code,
+                                    '项目名称': project_name,
+                                    '分数': 0.0
+                                })
+                    
+                    log(f"  ✅ 最后一页包含 {len(last_page_projects)} 个项目")
+                    
+                    # 如果最后一页有数据，说明新增项目在最后
+                    # 获取旧缓存的项目，并追加新项目
+                    if last_page_projects:
+                        old_projects, _ = self.cache_manager.load_cache()
+                        
+                        # 获取旧项目的集合（以项目代码去重）
+                        old_codes = {p.get('项目代码', '') for p in (old_projects or [])}
+                        
+                        # 新增项目（不在旧项目中的）
+                        new_projects = [p for p in last_page_projects if p.get('项目代码', '') not in old_codes]
+                        
+                        if new_projects:
+                            # 合并旧项目和新增项目
+                            merged_projects = (old_projects or []) + new_projects
+                            
+                            log(f"  ✅ 新增 {len(new_projects)} 个项目")
+                            log(f"  📦 更新缓存 ({cached_total} → {page_total} 条)...")
+                            
+                            if self.update_projects_cache(merged_projects, page_total, log_callback):
+                                result['updated'] = True
+                                result['message'] = f"✅ 已更新 ({cached_total} → {page_total}，新增 {len(new_projects)} 条)"
+                            else:
+                                result['message'] = f"❌ 更新失败"
+                        else:
+                            log(f"  ℹ️  最后一页数据与缓存一致，无需更新")
+                            result['matched'] = True
+                            result['message'] = f"✅ 数据已是最新"
+                    
+                    session.close()
+                    return result
+                
+                except Exception as e:
+                    log(f"  ⚠️  最后一页检查失败，回退到全量重新下载...")
+            
+            # 差异 > 10 或最后一页检查失败：全量重新下载
             log(f"  🗑️  清除旧缓存...")
             self.cache_manager.clear_cache()
 
@@ -724,6 +862,14 @@ class StartupChecker:
         
         finally:
             log("="*70 + "\n")
+    
+    def check_and_update(self, log_callback=None) -> dict:
+        """
+        向后兼容的别名方法
+        调用 check_and_update_full() 执行完整的全量更新
+        用于：手动更新按钮（用户主动点击）
+        """
+        return self.check_and_update_full(log_callback=log_callback)
 
 
 if __name__ == "__main__":

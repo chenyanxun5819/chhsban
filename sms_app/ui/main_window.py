@@ -122,7 +122,7 @@ class MainWindow(QMainWindow):
         console_label = QLabel("📋 执行日志")
         console_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
         
-        version_label = QLabel('"SMS输入校外实习和特殊绩效分数系统" | 教务处 陈九天 2026/6/20 V2.0')
+        version_label = QLabel('"SMS输入校外实习和特殊绩效分数系统" | 教务处 陈九天 2026/7/22 V2.1')
         version_label.setFont(QFont("Segoe UI", 8))
         version_label.setStyleSheet("color: #888888;")
         

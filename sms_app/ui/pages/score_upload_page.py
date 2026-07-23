@@ -68,6 +68,22 @@ class UploadThread(QThread):
             else:
                 emit_log('info', f"[上传线程] 读取到活动代码: {activity_code}")
             
+            # 读取学期（从 B3，新增）
+            semester_val = ws.cell(row=3, column=2).value  # B3
+            semester = None  # None表示使用表单默认值
+            if semester_val:
+                try:
+                    semester_int = int(semester_val)
+                    if semester_int in [1, 2]:
+                        semester = str(semester_int)
+                        emit_log('info', f"[上传线程] 读取到学期: {semester}")
+                    else:
+                        emit_log('warning', f"[上传线程] B3 学期值无效 ({semester_val})，使用表单默认值")
+                except:
+                    emit_log('warning', f"[上传线程] B3 学期格式错误，使用表单默认值")
+            else:
+                emit_log('info', "[上传线程] B3 未填写学期，使用表单默认值")
+            
             # 读取数据（从第5行开始）
             scores_data = []
             for row_num in range(5, ws.max_row + 1):

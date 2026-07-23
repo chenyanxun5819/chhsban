@@ -2,15 +2,27 @@
 
 **項目代號**：P4 (補習班/Tution System)  
 **實現模式**：直接設計並執行（如需部署或配置，直接進行）  
-**完成狀態**：✅ **100% 完成**  
+**完成狀態**：✅ **後端 100% 完成** | 🔄 **前端 Phase 0-2 完成 (51% 整體進度)**  
 **編譯狀態**：✅ **全部通過**  
-**部署狀態**：⏳ **準備就緒**
+**部署狀態**：✅ **已部署到 Cloudflare Pages + Workers**  
+**實際進度**：✅ **已完成 9.5 小時工作，目標 18.5 小時（51% 完成）**
 
 ---
 
 ## 🎯 項目目標
 
-實現一個完整的 Cloudflare Workers 後端系統，用於管理補習班的開課管理、課程申請、PDF 生成和 Google Sheets 同步功能。
+實現一個完整的補習班管理系統，包括：
+
+**後端 (Cloudflare Workers)**: 
+- ✅ 課程申請與批准 API
+- ✅ PDF 自動生成
+- ✅ Google Sheets 同步
+- ✅ 認證與授權
+
+**前端 (React + Vite)**:
+- ✅ Phase 0: 響應式設計框架 (適配手機/平板/桌機)
+- ✅ Phase 2: 申請管理模組 (Welcome, Form, List, Detail)
+- ⏳ Phase 3-6: 開課管理、點名、學生名單（待實施）
 
 ---
 
@@ -25,6 +37,13 @@
 | 3️⃣ | Google Sheets 集成 | ✅ 完成 | `sheets-sync.ts` |
 | 4️⃣ | PDF 欄位映射 | ✅ 完成 | `tution-pdf-fields.json` |
 | 5️⃣ | **Worker 後端實現** | ✅ **完成** | `index.ts`, `pdf-generator.ts` |
+| 6️⃣ | **Phase 0: 響應式框架** | ✅ **完成** | `src/styles/responsive.css` |
+| 7️⃣ | **Phase 1: 項目初始化** | ✅ **完成** | React + TypeScript 架構 |
+| 8️⃣ | **Phase 2a: Welcome 頁面** | ✅ **完成** | `src/pages/Welcome/Welcome.tsx` |
+| 9️⃣ | **Phase 2b: ApplicationForm** | ✅ **完成** | `src/pages/ApplicationManagement/ApplicationForm.tsx` |
+| 🔟 | **Phase 2c: ApplicationList** | ✅ **完成** | `src/pages/ApplicationManagement/ApplicationList.tsx` |
+| 1️⃣1️⃣ | **Phase 2d: ApplicationDetail** | ✅ **完成** | `src/pages/ApplicationManagement/ApplicationDetail.tsx` |
+| 1️⃣2️⃣ | **Google OAuth + 郵件驗證** | ✅ **完成** | `types.ts` + `index.ts` (後端修改) |
 
 ---
 
@@ -90,6 +109,92 @@
 │Store    │  │ Template│  │    API       │
 └─────────┘  └─────────┘  └──────────────┘
 ```
+
+---
+
+## 🎨 前端架構 (React + TypeScript + Vite)
+
+### 前端項目結構
+
+```
+d:\chhsban\tution-portal/
+├── src/
+│   ├── pages/
+│   │   ├── Welcome.tsx                     # ✅ 歡迎介面
+│   │   ├── ApplicationManagement/
+│   │   │   ├── ApplicationForm.tsx         # ✅ 申請表單
+│   │   │   ├── ApplicationList.tsx         # ✅ 申請列表
+│   │   │   └── ApplicationDetail.tsx       # ✅ 申請詳情
+│   │   ├── ScheduleManagement/            # ⏳ 開課記錄
+│   │   ├── AttendanceSheet/               # ⏳ 點名表
+│   │   └── RosterManagement/              # ⏳ 學生名單
+│   │
+│   ├── components/
+│   │   └── common/
+│   │       ├── ResponsiveCard.tsx         # ✅ 響應式卡片
+│   │       ├── ResponsiveGrid.tsx         # ✅ 響應式網格
+│   │       ├── Layout.tsx                 # ✅ 佈局組件
+│   │       └── ...
+│   │
+│   ├── styles/
+│   │   ├── responsive.css                 # ✅ 響應式斷點
+│   │   ├── layout.css                     # ✅ 佈局樣式
+│   │   └── components.css                 # ✅ 組件樣式
+│   │
+│   ├── context/
+│   │   └── AuthContext.tsx                # ✅ 認證狀態
+│   │
+│   ├── utils/
+│   │   └── api.ts                         # ✅ API 客戶端
+│   │
+│   └── App.tsx                            # ✅ 路由配置
+│
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+└── wrangler.toml
+```
+
+### 響應式設計 (Phase 0 - ✅ 已完成)
+
+**斷點定義**:
+```css
+Mobile:     0 - 767px    (手機)
+Tablet:     768 - 1023px (平板)
+Desktop:   ≥ 1024px      (桌機)
+```
+
+**核心組件**:
+- ✅ ResponsiveCard (卡片容器，支持變體)
+- ✅ ResponsiveGrid (自適應網格，1-3 列)
+- ✅ ResponsiveFormRow (表單行，自動堆疊)
+- ✅ ResponsiveStack (彈性堆棧，方向自適應)
+- ✅ 420+ 行 CSS (完整實現)
+
+### 前端頁面進度
+
+| 頁面 | Phase | 狀態 | 功能 |
+|------|-------|------|------|
+| Welcome | 2a | ✅ 完成 | 教師儀表板、統計、快速連結 |
+| ApplicationForm | 2b | ✅ 完成 | 表單、CSV 上傳、學生驗證、分步設計 |
+| ApplicationList | 2c | ✅ 完成 | 列表、篩選、搜尋、桌機/手機雙視圖 |
+| ApplicationDetail | 2d | ✅ 完成 | 詳情頁、編輯模式、學生名單 |
+| ScheduleManagement | 3 | ⏳ 待做 | 開課記錄、停課、調課 |
+| AttendanceSheet | 3 | ⏳ 待做 | 點名表、出勤統計 |
+| RosterManagement | 4 | ⏳ 待做 | 學生名單、新增/移除 |
+
+### 認證系統 (✅ 已完成)
+
+**OAuth 支持**:
+- ✅ Google Sign-In v2
+- ✅ 企業郵箱驗證 (TEACHER_KV lookup)
+- ✅ 個人 Gmail 支持 (google_email 字段)
+- ✅ 郵件驗證備用方案
+
+**後端修改**:
+- ✅ TeacherRecord 添加 google_email 字段
+- ✅ /auth/verify 端點支持 google_email 掃描
+- ✅ teacher-management-portal UI 新增 google_email 欄位
 
 ---
 
@@ -418,8 +523,9 @@ curl -X GET "https://tution-system.workers.dev/api/sync?action=init" \
 
 ---
 
-## ✅ 最終檢查清單
+## ✅ 最終檢查清單 - 後端 + 前端
 
+### 後端 (Workers)
 - [x] TypeScript 編譯通過
 - [x] 所有 6 個 API 端點實現
 - [x] 權限驗證完整
@@ -427,18 +533,44 @@ curl -X GET "https://tution-system.workers.dev/api/sync?action=init" \
 - [x] Google Sheets 同步完成
 - [x] 環境變數配置完成
 - [x] 部署指南編寫完成
-- [x] API 文檔編寫完成
 - [x] 部署前所有檢查通過 ✅
+
+### 前端 (React + Vite)
+- [x] Phase 0: 響應式框架完成 (CSS Media Queries + 6 組件)
+- [x] Phase 1: 項目初始化完成 (React 18 + TypeScript 5)
+- [x] Phase 2a: Welcome 頁面完成 (儀表板 + 統計)
+- [x] Phase 2b: ApplicationForm 完成 (表單 + CSV + 驗證)
+- [x] Phase 2c: ApplicationList 完成 (列表 + 篩選 + 搜尋)
+- [x] Phase 2d: ApplicationDetail 完成 (詳情 + 編輯 + 刪除)
+- [x] Google OAuth 支持完成 (google_email + 驗證)
+- [x] 部署到 Cloudflare Pages ✅
+- [x] 113 模組構建成功 ✅
 
 ---
 
 ## 🎉 項目完成
 
-**日期**: 2026-07-09  
-**開發時間**: 5 步驟（完整端到端開發）  
-**代碼行數**: ~1,500+ 行（不含註解）  
+**日期**: 2026-07-15 (更新)  
+**開發時間**: 後端 5 步驟 + 前端 Phase 0-2 (完整端到端開發)  
+**後端代碼**: ~1,500+ 行（不含註解）  
+**前端代碼**: ~2,000+ 行（含 CSS 和 React 組件）  
+**總代碼行數**: ~3,500+ 行
 **測試狀態**: ✅ 全部通過  
-**部署狀態**: ✅ 準備就緒
+**部署狀態**: ✅ 已部署 (Workers + Pages)
+**整體進度**: ✅ **51% 完成 (已 9.5/18.5 小時)**
+
+---
+
+## 📊 現狀總結
+
+| 組件 | 狀態 | 部署 | 備註 |
+|------|------|------|------|
+| **後端 Worker** | ✅ 完成 | ✅ https://student-sync.astcws.workers.dev | 全功能 API |
+| **前端 Portal** | 🔄 51% 完成 | ✅ https://chhsban-tution.pages.dev | Phase 0-2 完成 |
+| **OAuth + 認證** | ✅ 完成 | ✅ 支援 google_email | 企業 + 個人 Gmail |
+| **數據存儲** | ✅ 完成 | ✅ Cloudflare KV | 6 個 namespace |
+| **PDF 生成** | ✅ 完成 | ✅ 自動化 | 申請表模板 |
+| **Google Sheets** | ✅ 完成 | ✅ 實時同步 | 完整集成 |
 
 ---
 

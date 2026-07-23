@@ -68,18 +68,22 @@ def build_executable():
                 shutil.rmtree(dir_path)
                 print(f"✓ 已删除 {dir_path.name}/")
             except PermissionError:
-                print(f"⚠ {dir_path.name}/ 被占用，尝试重新删除...")
-                time.sleep(1)
+                print(f"⚠ {dir_path.name}/ 被占用，尝试备份...")
+                backup_path = dir_path.parent / f"{dir_path.name}_backup_{int(time.time())}"
                 try:
-                    shutil.rmtree(dir_path)
-                    print(f"✓ 已删除 {dir_path.name}/")
+                    dir_path.rename(backup_path)
+                    print(f"✓ 已备份到 {backup_path.name}/")
                 except Exception as e:
-                    print(f"⚠ 跳过 {dir_path.name}/: {e}")
+                    print(f"⚠ 备份失败: {e}，继续...")
+            except Exception as e:
+                print(f"⚠ 跳过 {dir_path.name}/: {e}")
     
     # 3. 运行 PyInstaller
     print("\n[3/4] 运行 PyInstaller...")
     
     # 构建命令
+    icon_path = app_dir / "assets" / "icon.ico"
+    assets_dir = app_dir / "assets"
     pyinstaller_cmd = [
         sys.executable, "-m", "PyInstaller",
         "--onefile",                    # 单个文件
@@ -88,10 +92,12 @@ def build_executable():
         f"--specpath={app_dir}",        # spec 文件位置
         "--add-data", str(styles_qss) + ";ui",  # 添加样式文件
         "--add-data", str(template_xlsx) + ";.",  # 添加模板文件
+        "--add-data", str(assets_dir) + ";assets",  # 添加资源文件（包括图标）
         "--hidden-import=selenium",
         "--hidden-import=openpyxl",
         "--hidden-import=cryptography",
         "--hidden-import=PyQt6.QtWebEngineWidgets",
+        f"--icon={icon_path}",          # 应用图标
         str(main_app)
     ]
     
