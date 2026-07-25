@@ -18,6 +18,10 @@ apiClient.interceptors.request.use(
     if (token && config.headers) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    console.info("API request", {
+      method: config.method,
+      url: `${config.baseURL || ""}${config.url || ""}`,
+    });
     return config;
   },
   (error) => {
@@ -35,6 +39,24 @@ apiClient.interceptors.response.use(
       localStorage.removeItem("auth_user");
       window.location.href = "/";
     }
+
+    if (!error.response) {
+      console.error("API network error", {
+        baseURL: API_BASE_URL,
+        message: error.message,
+        code: error.code,
+      });
+      return Promise.reject(
+        new Error(`無法連線到伺服器：${API_BASE_URL}`)
+      );
+    }
+
+    console.error("API response error", {
+      baseURL: API_BASE_URL,
+      status: error.response.status,
+      data: error.response.data,
+    });
+
     return Promise.reject(error);
   }
 );

@@ -1,3 +1,4 @@
+import axios from "axios";
 import apiClient from "@/utils/api";
 
 export interface AuthVerifyResponse {
@@ -43,13 +44,23 @@ export const verifyTeacherEmail = async (
 
     return authData;
   } catch (error) {
-    if (error instanceof Error) {
-      // 檢查是否是 401 (未找到教師)
-      if (error.message.includes("401")) {
+    if (axios.isAxiosError(error)) {
+      if (!error.response) {
+        throw new Error("無法連線到登入服務，請檢查網路後再試");
+      }
+
+      if (error.response.status === 401) {
         throw new Error("Email 未在系統中註冊，請檢查輸入是否正確");
       }
+
+      const apiError = error.response.data as { error?: string; message?: string } | undefined;
+      throw new Error(apiError?.error || apiError?.message || "驗證失敗，請稍後再試");
+    }
+
+    if (error instanceof Error) {
       throw error;
     }
+
     throw new Error("驗證失敗，請重試");
   }
 };
