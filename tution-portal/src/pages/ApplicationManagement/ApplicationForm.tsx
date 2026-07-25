@@ -6,7 +6,6 @@ import { TutionRosterSnapshot } from "@/types";
 import { createApplication, validateStudents } from "@/services/classService";
 import {
   FORMS,
-  SUBJECTS,
   DAYS_OF_WEEK,
   FIXED_TIME_START,
   FIXED_TIME_END,
@@ -22,10 +21,9 @@ interface FormData {
   day_of_week: string;
   start_date: string;
   fees: number;
-  venue: string;
 }
 
-type StudentInputMethod = "csv" | "xlsx" | "manual";
+type StudentInputMethod = "csv" | "manual";
 
 const ApplicationForm: React.FC = () => {
   const navigate = useNavigate();
@@ -42,13 +40,18 @@ const ApplicationForm: React.FC = () => {
     day_of_week: "",
     start_date: getMinDate(),
     fees: 0,
-    venue: "",
   });
+
+  // 根據年級計算學費
+  const getFeesForForm = (formValue: string): number => {
+    if (["初一", "初二", "初三"].includes(formValue)) return 60;
+    if (["高一", "高二", "高三"].includes(formValue)) return 70;
+    return 0;
+  };
 
   // 學生名單
   const [studentInputMethod, setStudentInputMethod] = useState<StudentInputMethod>("csv");
   const [csvContent, setCsvContent] = useState("");
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [manualStudents, setManualStudents] = useState<TutionRosterSnapshot[]>([]);
   const [newStudentId, setNewStudentId] = useState("");
 
@@ -64,34 +67,51 @@ const ApplicationForm: React.FC = () => {
     e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>
   ) => {
     const { name, value } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: name === "fees" ? parseFloat(value) : value,
-    }));
+    if (name === "form") {
+      // 年級改變時，自動更新學費
+      const newFees = getFeesForForm(value);
+      setFormData((prev) => ({
+        ...prev,
+        form: value,
+        fees: newFees,
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
     setError(null);
   };
 
-  // 檔案上傳 (CSV 或 XLSX)
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // CSV / XLSX 上傳
+  const handleCsvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      setUploadedFile(file);
+    if (!file) return;
+
+    try {
       setError(null);
       
-      // CSV 格式直接讀取為文本
-      if (file.type === "text/csv" || file.name.endsWith(".csv")) {
+      if (file.name.endsWith(".xlsx") || file.name.endsWith(".xls")) {
+        // 處理 XLSX 文件
+        const studentIds = await parseXLSX(file);
+        setCsvContent(studentIds.join("\n"));
+      } else if (file.name.endsWith(".csv") || file.name.endsWith(".txt")) {
+        // 處理 CSV 文件
         const reader = new FileReader();
         reader.onload = (event) => {
           const content = event.target?.result as string;
           setCsvContent(content);
         };
-        reader.readAsText(file);
-      } else if (
-        file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
-        file.name.endsWith(".xlsx")
-      ) {
-        setCsvContent("");
+        reader.onerror = () => {
+          setError("讀取 CSV 文件失敗");
+        };
+        reader.readAsText(file, "UTF-8");
+      } else {
+        setError("只支持 CSV、TXT 或 XLSX 檔案");
       }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "上傳失敗");
     }
   };
 
@@ -131,8 +151,8 @@ const ApplicationForm: React.FC = () => {
 
   // 驗證學生名單
   const validateStudentList = async () => {
-    if ((studentInputMethod === "csv" || studentInputMethod === "xlsx") && !uploadedFile && !csvContent.trim()) {
-      setError("請上傳檔案或輸入學生 ID");
+    if (studentInputMethod === "csv" && !csvContent.trim()) {
+      setError("請上傳 CSV 文件或輸入學生 ID");
       return;
     }
 
@@ -148,8 +168,6 @@ const ApplicationForm: React.FC = () => {
       if (studentInputMethod === "csv") {
         const lines = parseCSV(csvContent);
         studentIds = lines;
-      } else if (studentInputMethod === "xlsx" && uploadedFile) {
-        studentIds = await parseXLSX(uploadedFile);
       } else {
         studentIds = manualStudents.map((s) => s.student_id);
       }
@@ -163,7 +181,7 @@ const ApplicationForm: React.FC = () => {
         );
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "驗證失敗，請重試");
+      setError("驗證失敗，請重試");
     } finally {
       setValidating(false);
     }
@@ -177,8 +195,7 @@ const ApplicationForm: React.FC = () => {
       !formData.subject ||
       !formData.day_of_week ||
       !formData.start_date ||
-      formData.fees <= 0 ||
-      !formData.venue
+      formData.fees <= 0
     ) {
       setError("請填寫所有必填字段");
       return;
@@ -200,13 +217,20 @@ const ApplicationForm: React.FC = () => {
         day_of_week: formData.day_of_week,
         start_date: formData.start_date,
         fees: formData.fees,
-        venue: formData.venue,
+        venue: "",  // 上課地點由管理者填寫
         initial_roster: validationResult.valid,
       });
 
       setSuccess(true);
       setTimeout(() => {
-        navigate(`/applications/${application.class_id}`);
+        // 從不同的可能字段中取得 class_id
+        const classId = application?.class_id || (application as any)?.data?.class_id || "";
+        if (classId) {
+          navigate(`/applications/${classId}`);
+        } else {
+          // 如果沒有 class_id，返回列表頁面
+          navigate("/applications");
+        }
       }, 1500);
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || "提交失敗，請重試";
@@ -300,28 +324,10 @@ const ApplicationForm: React.FC = () => {
               <div className="form-row form-row--2col">
                 <div className="form-group">
                   <label>學費 (RM) *</label>
-                  <input
-                    type="number"
-                    name="fees"
-                    value={formData.fees}
-                    onChange={handleFormChange}
-                    min="0"
-                    step="0.01"
-                    placeholder="例: 70"
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>上課地點 *</label>
-                  <input
-                    type="text"
-                    name="venue"
-                    value={formData.venue}
-                    onChange={handleFormChange}
-                    placeholder="例: 教室 A101"
-                    required
-                  />
+                  <div className="fee-display">
+                    <span className="fee-value">RM {formData.fees}</span>
+                    <p className="fee-note">系統自動根據年級填寫，無法修改</p>
+                  </div>
                 </div>
               </div>
 
@@ -347,15 +353,6 @@ const ApplicationForm: React.FC = () => {
                 <label>
                   <input
                     type="radio"
-                    value="xlsx"
-                    checked={studentInputMethod === "xlsx"}
-                    onChange={(e) => setStudentInputMethod(e.target.value as StudentInputMethod)}
-                  />
-                  上傳 XLSX 文件
-                </label>
-                <label>
-                  <input
-                    type="radio"
                     value="manual"
                     checked={studentInputMethod === "manual"}
                     onChange={(e) => setStudentInputMethod(e.target.value as StudentInputMethod)}
@@ -364,15 +361,15 @@ const ApplicationForm: React.FC = () => {
                 </label>
               </div>
 
-              {(studentInputMethod === "csv" || studentInputMethod === "xlsx") ? (
+              {studentInputMethod === "csv" ? (
                 <div className="form-group">
-                  <label>{studentInputMethod === "csv" ? "上傳 CSV 文件" : "上傳 XLSX 文件"} *</label>
+                  <label>上傳 CSV 文件 *</label>
                   <input
                     type="file"
-                    accept={studentInputMethod === "csv" ? ".csv,.txt" : ".xlsx"}
-                    onChange={handleFileUpload}
+                    accept=".csv,.txt"
+                    onChange={handleCsvUpload}
                   />
-                  <p className="form-hint">格式: 第一列為學生 ID (一行一個)</p>
+                  <p className="form-hint">格式: 每行一個學生 ID</p>
                   {csvContent && (
                     <div className="csv-preview">
                       <p>預覽:</p>
@@ -380,11 +377,6 @@ const ApplicationForm: React.FC = () => {
                       {csvContent.split("\n").length > 5 && (
                         <p>... 共 {csvContent.split("\n").length} 行</p>
                       )}
-                    </div>
-                  )}
-                  {uploadedFile && !csvContent && (
-                    <div className="csv-preview">
-                      <p>✓ 已選擇文件: {uploadedFile.name}</p>
                     </div>
                   )}
                 </div>
@@ -450,6 +442,35 @@ const ApplicationForm: React.FC = () => {
               {validationResult && (
                 <div className="validation-result">
                   <p className="success">✅ {validationResult.valid.length} 名學生驗證成功</p>
+                  
+                  {/* 學生詳細信息表 */}
+                  {validationResult.valid.length > 0 && (
+                    <div className="student-details-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>學號</th>
+                            <th>中文姓名</th>
+                            <th>Name</th>
+                            <th>班級</th>
+                            <th>性別/走宿</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {validationResult.valid.map((student) => (
+                            <tr key={student.student_id}>
+                              <td>{student.student_no}</td>
+                              <td>{student.name_cn}</td>
+                              <td>{student.name_en || "-"}</td>
+                              <td>{student.real_class_name || "-"}</td>
+                              <td>{student.gender_boarding || "-"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                  
                   {validationResult.invalid.length > 0 && (
                     <p className="warning">
                       ⚠️ {validationResult.invalid.length} 名學生不存在
@@ -558,28 +579,10 @@ const ApplicationForm: React.FC = () => {
 
                 <div className="form-group">
                   <label>學費 (RM) *</label>
-                  <input
-                    type="number"
-                    name="fees"
-                    value={formData.fees}
-                    onChange={handleFormChange}
-                    min="0"
-                    step="0.01"
-                    placeholder="例: 70"
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>上課地點 *</label>
-                  <input
-                    type="text"
-                    name="venue"
-                    value={formData.venue}
-                    onChange={handleFormChange}
-                    placeholder="例: 教室 A101"
-                    required
-                  />
+                  <div className="fee-display">
+                    <span className="fee-value">RM {formData.fees}</span>
+                    <p className="fee-note">系統自動根據年級填寫，無法修改</p>
+                  </div>
                 </div>
 
                 <div className="form-note">
@@ -690,6 +693,40 @@ const ApplicationForm: React.FC = () => {
                 {validationResult && (
                   <div className="validation-result">
                     <p className="success">✅ {validationResult.valid.length} 名學生驗證成功</p>
+                    
+                    {/* 學生詳細信息表 */}
+                    {validationResult.valid.length > 0 && (
+                      <div className="student-details-table mobile">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>學號</th>
+                              <th>中文姓名</th>
+                              <th>Name</th>
+                              <th>班級</th>
+                              <th>性別/走宿</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {validationResult.valid.map((student) => (
+                              <tr key={student.student_id}>
+                                <td>{student.student_no}</td>
+                                <td>{student.name_cn}</td>
+                                <td>{student.name_en}</td>
+                                <td>{student.real_class_name || "-"}</td>
+                                <td>{student.gender_boarding || "-"}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                    
+                    {validationResult.invalid.length > 0 && (
+                      <p className="warning">
+                        ⚠️ {validationResult.invalid.length} 名學生不存在
+                      </p>
+                    )}
                   </div>
                 )}
 

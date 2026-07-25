@@ -11,13 +11,6 @@ import {
 } from "@/types/index";
 import "./attendance-sheet.css";
 
-interface GridCell {
-  studentId: string;
-  scheduleId: string;
-  status: AttendanceRecordStatus;
-  remarks?: string;
-}
-
 export const AttendanceSheet: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
 

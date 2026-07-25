@@ -60,6 +60,10 @@ export interface TutionRosterSnapshot {
   student_id: string;
   student_no: string;
   name_cn: string;
+  name_en?: string;
+  real_class_name?: string;
+  input_class_name?: string;
+  gender_boarding?: string;
 }
 
 export interface TutionRoster {
@@ -130,12 +134,12 @@ export interface RecurrenceRule {
   exceptions?: string[];
 }
 
-export interface TutionScheduleExtended extends TutionSchedule {
+export interface TutionScheduleExtended extends Omit<TutionSchedule, 'status'> {
   date: string;
   start_time: string;
   end_time: string;
   venue: string;
-  status: "scheduled" | "ongoing" | "completed" | "cancelled";
+  status: ScheduleStatus | "scheduled" | "ongoing" | "completed";
   recurrence?: RecurrenceRule;
 }
 

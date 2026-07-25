@@ -407,3 +407,79 @@
     display: none;
   }
 }
+
+/* ========== 學費顯示 ========== */
+
+.fee-display {
+  background: rgba(82, 196, 26, 0.05);
+  border: 1px solid rgba(82, 196, 26, 0.2);
+  border-radius: 4px;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-md);
+}
+
+.fee-value {
+  font-size: 24px;
+  font-weight: 700;
+  color: #52c41a;
+}
+
+.fee-note {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+/* ========== 學生詳細信息表 ========== */
+
+.student-details-table {
+  margin-top: var(--spacing-md);
+  overflow-x: auto;
+}
+
+.student-details-table table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.student-details-table th {
+  background: var(--bg-light);
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: var(--text-primary);
+  border-bottom: 2px solid var(--border-color);
+  white-space: nowrap;
+}
+
+.student-details-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.student-details-table tbody tr:hover {
+  background: var(--bg-light);
+}
+
+/* 手機版學生詳細信息表 */
+.student-details-table.mobile {
+  font-size: 12px;
+}
+
+.student-details-table.mobile th {
+  padding: 8px 10px;
+}
+
+.student-details-table.mobile td {
+  padding: 8px 10px;
+}
+
+.student-details-table.mobile th,
+.student-details-table.mobile td {
+  white-space: normal;
+  word-break: break-word;
+}

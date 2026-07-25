@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { Layout } from "@/components/common/Layout";
 import apiClient from "@/utils/api";
 import {
@@ -12,7 +12,6 @@ type ViewMode = "month" | "week" | "day";
 
 export const ScheduleManagement: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
-  const navigate = useNavigate();
 
   const [schedules, setSchedules] = useState<TutionScheduleExtended[]>([]);
   const [viewMode, setViewMode] = useState<ViewMode>("month");

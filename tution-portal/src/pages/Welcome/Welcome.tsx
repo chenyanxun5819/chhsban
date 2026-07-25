@@ -5,7 +5,6 @@ import { Layout } from "@/components/common/Layout";
 import {
   ResponsiveCard,
   ResponsiveGrid,
-  ResponsiveStack,
 } from "@/components/common/ResponsiveCard";
 import { TutionClass, TutionStatus } from "@/types";
 import apiClient from "@/utils/api";
@@ -30,7 +29,7 @@ const Welcome: React.FC = () => {
 
   useEffect(() => {
     fetchApplications();
-  }, []);
+  }, [user?.teacherId]);
 
   const fetchApplications = async () => {
     try {
@@ -64,15 +63,14 @@ const Welcome: React.FC = () => {
   };
 
   const getStatusBadge = (status: TutionStatus) => {
-    const statusMap: Record<TutionStatus, { label: string; className: string }> = {
-      pending: { label: "⏳ 待審批", className: "badge-pending" },
-      approved: { label: "✅ 已批准", className: "badge-approved" },
-      rejected: { label: "❌ 已拒絕", className: "badge-rejected" },
-      active: { label: "🚀 進行中", className: "badge-active" },
-      ended: { label: "🏁 已結束", className: "badge-ended" },
+    const statusMap: Record<TutionStatus, string> = {
+      pending: "⏳ 待審批",
+      approved: "✅ 已批准",
+      rejected: "❌ 已拒絕",
+      active: "🚀 進行中",
+      ended: "🏁 已結束",
     };
-    const info = statusMap[status];
-    return <span className={`badge ${info.className}`}>{info.label}</span>;
+    return statusMap[status] || status;
   };
 
   return (

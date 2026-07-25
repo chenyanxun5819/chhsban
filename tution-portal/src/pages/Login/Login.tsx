@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import "./login.css";
@@ -24,57 +24,8 @@ export const Login: React.FC = () => {
     }
   }, [isAuthenticated, navigate]);
 
-  // 初始化 Google Sign-In
-  useEffect(() => {
-    const initGoogleSignIn = () => {
-      if (window.google?.accounts?.id) {
-        window.google.accounts.id.initialize({
-          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
-          callback: handleGoogleResponse,
-        });
-
-        const buttonElement = document.getElementById("google-signin-button");
-        if (buttonElement) {
-          window.google.accounts.id.renderButton(buttonElement, {
-            theme: "outline",
-            size: "large",
-            width: "300",
-          });
-        }
-      }
-    };
-
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = initGoogleSignIn;
-    document.head.appendChild(script);
-
-    return () => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
-    };
-  }, []);
-
-  // 當切換到 Google 登入時，重新渲染 Google 按鈕
-  useEffect(() => {
-    if (!useManualInput && window.google?.accounts?.id) {
-      const buttonElement = document.getElementById("google-signin-button");
-      if (buttonElement) {
-        // 清空容器再重新渲染
-        buttonElement.innerHTML = "";
-        window.google.accounts.id.renderButton(buttonElement, {
-          theme: "outline",
-          size: "large",
-          width: "300",
-        });
-      }
-    }
-  }, [useManualInput]);
-
-  const handleGoogleResponse = async (response: any) => {
+  // 使用 useCallback 確保回調函數不會改變
+  const handleGoogleResponse = useCallback(async (response: any) => {
     try {
       setLoading(true);
       setError(null);
@@ -92,7 +43,65 @@ export const Login: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [login]);
+
+  // 初始化 Google Sign-In
+  useEffect(() => {
+    const initGoogleSignIn = () => {
+      if (window.google?.accounts?.id) {
+        // 只在尚未初始化時初始化
+        try {
+          window.google.accounts.id.initialize({
+            client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+            callback: handleGoogleResponse,
+          });
+        } catch (err) {
+          console.warn("Google Sign-In already initialized");
+        }
+
+        const buttonElement = document.getElementById("google-signin-button");
+        if (buttonElement) {
+          window.google.accounts.id.renderButton(buttonElement, {
+            theme: "outline",
+            size: "large",
+            width: "300",
+          });
+        }
+      }
+    };
+
+    // 檢查 Google 腳本是否已加載
+    if (window.google?.accounts?.id) {
+      initGoogleSignIn();
+    } else {
+      const script = document.createElement("script");
+      script.src = "https://accounts.google.com/gsi/client";
+      script.async = true;
+      script.defer = true;
+      script.onload = initGoogleSignIn;
+      document.head.appendChild(script);
+
+      return () => {
+        if (script.parentNode) {
+          script.parentNode.removeChild(script);
+        }
+      };
+    }
+  }, [handleGoogleResponse]);
+
+  // 當切換到 Google 登入時，重新渲染 Google 按鈕
+  useEffect(() => {
+    if (!useManualInput && window.google?.accounts?.id) {
+      const buttonElement = document.getElementById("google-signin-button");
+      if (buttonElement && buttonElement.innerHTML === "") {
+        window.google.accounts.id.renderButton(buttonElement, {
+          theme: "outline",
+          size: "large",
+          width: "300",
+        });
+      }
+    }
+  }, [useManualInput]);
 
   const handleManualLogin = async (e: React.FormEvent) => {
     e.preventDefault();

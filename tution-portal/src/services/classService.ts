@@ -37,6 +37,9 @@ export async function validateStudent(
         student_id: student.student_id,
         student_no: student.student_no,
         name_cn: student.name_cn,
+        name_en: student.name_en || "-",
+        real_class_name: student.real_class_name || "-",
+        gender_boarding: student.gender_boarding || "-",
       };
     }
   } catch (error) {
