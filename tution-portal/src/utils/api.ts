@@ -3,6 +3,10 @@ import axios, { AxiosInstance } from "axios";
 // 根據環境變數設定 API 基礎 URL
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8787/api";
 
+function isAuthVerifyRequest(url?: string): boolean {
+  return (url || "").includes("/auth/verify");
+}
+
 const apiClient: AxiosInstance = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
@@ -33,11 +37,20 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 && !isAuthVerifyRequest(error.config?.url)) {
       // Token 過期或無效，清除本地存儲並重定向到登入頁
       localStorage.removeItem("auth_token");
       localStorage.removeItem("auth_user");
       window.location.href = "/";
+    }
+
+    if (error.response?.status === 401 && isAuthVerifyRequest(error.config?.url)) {
+      console.warn("Auth verify rejected", {
+        baseURL: API_BASE_URL,
+        url: error.config?.url,
+        status: error.response.status,
+        data: error.response.data,
+      });
     }
 
     if (!error.response) {

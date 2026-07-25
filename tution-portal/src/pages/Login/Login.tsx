@@ -116,6 +116,10 @@ export const Login: React.FC = () => {
       setError(null);
       await login(email);
     } catch (err) {
+      console.error("Manual login failed", {
+        email: email.trim().toLowerCase(),
+        error: err,
+      });
       setError(
         err instanceof Error ? err.message : "登入失敗，請檢查 Email 是否正確"
       );
