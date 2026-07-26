@@ -35,14 +35,15 @@ export const useRoster = (classId?: string) => {
         const response = await apiClient.get(url);
         setRoster(response.data || []);
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Error fetching roster";
+        const message =
+          err instanceof Error ? err.message : "Error fetching roster";
         setError(message);
         console.error("useRoster error:", message);
       } finally {
         setLoading(false);
       }
     },
-    [classId]
+    [classId],
   );
 
   const add = useCallback(
@@ -56,14 +57,15 @@ export const useRoster = (classId?: string) => {
         setRoster((prev) => [...prev, ...response.data]);
         return response.data;
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Error adding students";
+        const message =
+          err instanceof Error ? err.message : "Error adding students";
         setError(message);
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    [classId]
+    [classId],
   );
 
   const remove = useCallback(async (rosterId: string) => {
@@ -72,7 +74,8 @@ export const useRoster = (classId?: string) => {
       await apiClient.delete(`/api/v1/rosters/${rosterId}`);
       setRoster((prev) => prev.filter((r) => r.roster_id !== rosterId));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Error removing student";
+      const message =
+        err instanceof Error ? err.message : "Error removing student";
       setError(message);
       throw err;
     } finally {
@@ -84,20 +87,24 @@ export const useRoster = (classId?: string) => {
     async (rosterId: string, data: Partial<TutionRoster>) => {
       try {
         setLoading(true);
-        const response = await apiClient.put(`/api/v1/rosters/${rosterId}`, data);
+        const response = await apiClient.put(
+          `/api/v1/rosters/${rosterId}`,
+          data,
+        );
         setRoster((prev) =>
-          prev.map((r) => (r.roster_id === rosterId ? response.data : r))
+          prev.map((r) => (r.roster_id === rosterId ? response.data : r)),
         );
         return response.data;
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Error updating student";
+        const message =
+          err instanceof Error ? err.message : "Error updating student";
         setError(message);
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    []
+    [],
   );
 
   return {

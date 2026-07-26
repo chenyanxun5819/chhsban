@@ -21,12 +21,12 @@ export async function parseXLSX(file: File): Promise<string[]> {
       try {
         const data = new Uint8Array(event.target?.result as ArrayBuffer);
         // 配置 XLSX 以正確處理 UTF-8 和中文字符
-        const workbook = XLSX.read(data, { 
+        const workbook = XLSX.read(data, {
           type: "array",
           cellFormula: false,
         });
         const worksheet = workbook.Sheets[workbook.SheetNames[0]];
-        
+
         if (!worksheet) {
           reject(new Error("工作表為空"));
           return;
@@ -59,7 +59,7 @@ export async function parseXLSX(file: File): Promise<string[]> {
               return /^\d+$/.test(val) ? val : "";
             })
             .filter((id) => id.length > 0);
-          
+
           if (allIds.length > 0) {
             resolve(allIds);
           } else {
@@ -70,7 +70,12 @@ export async function parseXLSX(file: File): Promise<string[]> {
         }
       } catch (error) {
         console.error("XLSX 解析錯誤:", error);
-        reject(new Error("XLSX 解析失敗: " + (error instanceof Error ? error.message : "未知錯誤")));
+        reject(
+          new Error(
+            "XLSX 解析失敗: " +
+              (error instanceof Error ? error.message : "未知錯誤"),
+          ),
+        );
       }
     };
     reader.onerror = () => reject(new Error("讀取檔案失敗"));

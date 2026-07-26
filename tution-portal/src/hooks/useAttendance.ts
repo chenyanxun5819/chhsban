@@ -52,27 +52,25 @@ export const useAttendance = (scheduleId?: string) => {
         setLoading(false);
       }
     },
-    [scheduleId]
+    [scheduleId],
   );
 
-  const record = useCallback(
-    async (data: AttendanceCreateData) => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await apiClient.post(`/api/v1/attendances`, data);
-        setAttendance((prev) => [...prev, response.data]);
-        return response.data;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Error recording attendance";
-        setError(message);
-        throw err;
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+  const record = useCallback(async (data: AttendanceCreateData) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiClient.post(`/api/v1/attendances`, data);
+      setAttendance((prev) => [...prev, response.data]);
+      return response.data;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Error recording attendance";
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const update = useCallback(
     async (attendanceId: string, data: Partial<AttendanceCreateData>) => {
@@ -81,21 +79,24 @@ export const useAttendance = (scheduleId?: string) => {
         setError(null);
         const response = await apiClient.put(
           `/api/v1/attendances/${attendanceId}`,
-          data
+          data,
         );
         setAttendance((prev) =>
-          prev.map((a) => (a.attendance_id === attendanceId ? response.data : a))
+          prev.map((a) =>
+            a.attendance_id === attendanceId ? response.data : a,
+          ),
         );
         return response.data;
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Error updating attendance";
+        const message =
+          err instanceof Error ? err.message : "Error updating attendance";
         setError(message);
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    []
+    [],
   );
 
   const recordBatch = useCallback(async (records: AttendanceCreateData[]) => {
@@ -103,13 +104,14 @@ export const useAttendance = (scheduleId?: string) => {
       setLoading(true);
       setError(null);
       const responses = await Promise.all(
-        records.map((r) => apiClient.post(`/api/v1/attendances`, r))
+        records.map((r) => apiClient.post(`/api/v1/attendances`, r)),
       );
       const newRecords = responses.map((r) => r.data);
       setAttendance((prev) => [...prev, ...newRecords]);
       return newRecords;
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Error recording batch attendance";
+      const message =
+        err instanceof Error ? err.message : "Error recording batch attendance";
       setError(message);
       throw err;
     } finally {

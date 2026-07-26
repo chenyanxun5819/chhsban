@@ -20,6 +20,7 @@ from ui.pages.project_input_page import ProjectInputPage
 from ui.pages.score_upload_page import ScoreUploadPage
 from ui.pages.student_list_download_page import StudentListDownloadPage
 from ui.widgets.console_output import ConsoleOutput
+from app_version import APP_FOOTER_TEXT, APP_WINDOW_TITLE
 
 
 class MainWindow(QMainWindow):
@@ -32,7 +33,7 @@ class MainWindow(QMainWindow):
         
     def init_ui(self):
         """初始化 UI"""
-        self.setWindowTitle("SMS 学生成绩自动上传系统")
+        self.setWindowTitle(APP_WINDOW_TITLE)
         
         # 主容器
         main_widget = QWidget()
@@ -122,7 +123,7 @@ class MainWindow(QMainWindow):
         console_label = QLabel("📋 执行日志")
         console_label.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
         
-        version_label = QLabel('"SMS输入校外实习和特殊绩效分数系统" | 教务处 陈九天 2026/7/22 V2.1')
+        version_label = QLabel(APP_FOOTER_TEXT)
         version_label.setFont(QFont("Segoe UI", 8))
         version_label.setStyleSheet("color: #888888;")
         

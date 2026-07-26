@@ -9,6 +9,8 @@ import sys
 import subprocess
 from pathlib import Path
 
+from app_version import APP_EXE_NAME
+
 
 def run_command(cmd, description):
     """运行命令"""
@@ -81,25 +83,38 @@ def build_executable():
     # 3. 运行 PyInstaller
     print("\n[3/4] 运行 PyInstaller...")
     
-    # 构建命令
-    icon_path = app_dir / "assets" / "icon.ico"
-    assets_dir = app_dir / "assets"
-    pyinstaller_cmd = [
-        sys.executable, "-m", "PyInstaller",
-        "--onefile",                    # 单个文件
-        "--windowed",                   # 无控制台窗口
-        f"--name=SMS成绩上传工具",      # 应用名称
-        f"--specpath={app_dir}",        # spec 文件位置
-        "--add-data", str(styles_qss) + ";ui",  # 添加样式文件
-        "--add-data", str(template_xlsx) + ";.",  # 添加模板文件
-        "--add-data", str(assets_dir) + ";assets",  # 添加资源文件（包括图标）
-        "--hidden-import=selenium",
-        "--hidden-import=openpyxl",
-        "--hidden-import=cryptography",
-        "--hidden-import=PyQt6.QtWebEngineWidgets",
-        f"--icon={icon_path}",          # 应用图标
-        str(main_app)
-    ]
+    # 检查是否已有 .spec 文件
+    spec_file = app_dir / "SMS成绩上传工具.spec"
+    
+    if spec_file.exists():
+        print(f"✓ 发现现有 .spec 文件，使用它编译（保留您的自定义配置）")
+        pyinstaller_cmd = [
+            sys.executable, "-m", "PyInstaller",
+            str(spec_file),
+            "--distpath", str(dist_dir),
+            "--workpath", str(build_dir),
+        ]
+    else:
+        print(f"✓ 未发现 .spec 文件，生成新的配置")
+        # 构建命令
+        icon_path = app_dir / "assets" / "icon.ico"
+        assets_dir = app_dir / "assets"
+        pyinstaller_cmd = [
+            sys.executable, "-m", "PyInstaller",
+            "--onefile",                    # 单个文件
+            "--windowed",                   # 无控制台窗口
+            f"--name={APP_EXE_NAME}",      # 应用名称（包含版本号）
+            f"--specpath={app_dir}",        # spec 文件位置
+            "--add-data", str(styles_qss) + ";ui",  # 添加样式文件
+            "--add-data", str(template_xlsx) + ";.",  # 添加模板文件
+            "--add-data", str(assets_dir) + ";assets",  # 添加资源文件（包括图标）
+            "--hidden-import=selenium",
+            "--hidden-import=openpyxl",
+            "--hidden-import=cryptography",
+            "--hidden-import=PyQt6.QtWebEngineWidgets",
+            f"--icon={icon_path}",          # 应用图标
+            str(main_app)
+        ]
     
     if not run_command(pyinstaller_cmd, "PyInstaller 打包"):
         print("❌ 打包失败")
@@ -108,9 +123,11 @@ def build_executable():
     # 4. 验证输出
     print("\n[4/4] 验证打包结果...")
     
-    exe_path = dist_dir / "SMS成绩上传工具.exe"
+    # 查找生成的 .exe 文件（可能包含版本号）
+    exe_files = list(dist_dir.glob("SMS*.exe"))
     
-    if exe_path.exists():
+    if exe_files:
+        exe_path = exe_files[0]  # 使用第一个匹配的文件
         file_size = exe_path.stat().st_size / (1024 * 1024)
         print(f"✓ 可执行档已生成")
         print(f"  路径: {exe_path}")
@@ -127,21 +144,26 @@ def main():
     
     try:
         if build_executable():
+            # 查找生成的 .exe 文件
+            dist_dir = Path(__file__).parent / "dist"
+            exe_files = list(dist_dir.glob("SMS*.exe"))
+            exe_path = exe_files[0] if exe_files else dist_dir / "SMS成绩上传工具.exe"
+            
             print(f"""
 ╔═══════════════════════════════════════════════════════════════════╗
 ║                     ✅ 打包完成！                                 ║
 ╚═══════════════════════════════════════════════════════════════════╝
 
 可执行档位置:
-  {Path(__file__).parent / "dist" / "SMS成绩上传工具.exe"}
+  {exe_path}
 
 使用方式:
-  1. 双击 SMS成绩上传工具.exe 即可运行
+  1. 双击 {exe_path.name} 即可运行
   2. 无需安装 Python 环境
   3. 首次启动会创建配置目录：C:\\Users\\<用户名>\\.sms_app
 
 分发说明:
-  - 可将 SMS成绩上传工具.exe 分发给其他用户使用
+  - 可将 {exe_path.name} 分发给其他用户使用
   - 每个用户的凭证独立保存，互不影响
   - 如需卸载，直接删除 .exe 文件即可
             """)

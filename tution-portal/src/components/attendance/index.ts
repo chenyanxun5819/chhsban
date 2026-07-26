@@ -1,1 +1,5 @@
-export { AttendanceTable, AttendanceCell, AttendanceStats } from "./AttendanceTable";
+export {
+  AttendanceTable,
+  AttendanceCell,
+  AttendanceStats,
+} from "./AttendanceTable";

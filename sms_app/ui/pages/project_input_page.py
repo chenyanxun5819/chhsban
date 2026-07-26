@@ -340,14 +340,27 @@ class FetchLastProjectThread(QThread):
             
             response = self.session.get(url, params=params, timeout=10, verify=False)
             
-            match = re.search(r'第\s*\d+[-~]\d+\s*条，?共\s*(\d+)\s*条', response.text)
-            if match:
-                return int(match.group(1))
+            # 尝试多种匹配模式
+            patterns = [
+                r'第\s*\d+[-~]\d+\s*条，?共\s*(\d+)\s*条',
+                r'共\s*(\d+)\s*条',
+                r'total[:\s]+(\d+)',
+            ]
             
+            for pattern in patterns:
+                match = re.search(pattern, response.text, re.IGNORECASE)
+                if match:
+                    count = int(match.group(1))
+                    print(f"✅ 获取总数成功: {count}")
+                    return count
+            
+            print(f"⚠️  未找到总数匹配，响应长度: {len(response.text)}")
             return None
             
         except Exception as e:
             print(f"❌ 获取总数异常: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
 
@@ -789,10 +802,17 @@ class ProjectInputPage:
         if success:
             self.console.log_success(message)
             
-            # 项目成功添加，现在从服务器读取最后一条记录
+            # 【修改】先刷新列表，确保新项目立即显示
+            # 重新触发搜索以刷新当前显示的项目列表
+            self._on_selection_changed()
+            
+            # 项目成功添加，现在从服务器读取最后一条记录（用于更新缓存序号）
             self.console.log_info("📥 正在从服务器读取最后一条记录...", "#6a9fb5")
             
             try:
+                # 关闭旧的 AddProjectThread session，延迟以避免会话冲突
+                time.sleep(1)
+                
                 # 启动后台线程获取最后的项目数据
                 self.fetch_last_project_thread = FetchLastProjectThread(
                     self.config.get_credentials()[0],
@@ -831,10 +851,10 @@ class ProjectInputPage:
                 existing_codes = {p.get('项目代码'): i for i, p in enumerate(projects)}
                 
                 if code in existing_codes:
-                    # 更新现有项目
+                    # 更新现有项目的序号
                     idx = existing_codes[code]
-                    projects[idx] = project_data
-                    self.console.log_info(f"📝 已更新缓存中的项目: {code}", "#dcdcaa")
+                    projects[idx]['序号'] = project_data.get('序号', '')
+                    self.console.log_info(f"📝 已更新缓存中的项目序号: {code} → {project_data.get('序号', 'N/A')}", "#dcdcaa")
                 else:
                     # 添加新项目
                     projects.append(project_data)
@@ -854,16 +874,12 @@ class ProjectInputPage:
                 
                 # 保存更新的缓存
                 cache_manager.save_cache(projects, metadata)
-                self.console.log_success("💾 缓存已更新")
-                
-                # 刷新项目列表
-                self._load_projects_from_cache()
-                self.console.log_success("🔄 项目列表已更新")
+                self.console.log_success("💾 缓存序号已更新")
                 
             except Exception as e:
                 self.console.log_warning(f"⚠️  缓存保存失败: {e}")
         else:
-            self.console.log_warning(f"⚠️  获取最后一条记录失败: {message}")
+            self.console.log_info(f"ℹ️  获取最后一条记录失败: {message}（不影响项目添加）")
         
         # 清空输入框
         self.code_input.clear()

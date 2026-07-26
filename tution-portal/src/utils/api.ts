@@ -1,7 +1,8 @@
 import axios, { AxiosInstance } from "axios";
 
 // 根據環境變數設定 API 基礎 URL
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8787/api";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:8787/api";
 
 function isAuthVerifyRequest(url?: string): boolean {
   return (url || "").includes("/auth/verify");
@@ -30,21 +31,27 @@ apiClient.interceptors.request.use(
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // 響應攔截器：處理認證錯誤
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 && !isAuthVerifyRequest(error.config?.url)) {
+    if (
+      error.response?.status === 401 &&
+      !isAuthVerifyRequest(error.config?.url)
+    ) {
       // Token 過期或無效，清除本地存儲並重定向到登入頁
       localStorage.removeItem("auth_token");
       localStorage.removeItem("auth_user");
       window.location.href = "/";
     }
 
-    if (error.response?.status === 401 && isAuthVerifyRequest(error.config?.url)) {
+    if (
+      error.response?.status === 401 &&
+      isAuthVerifyRequest(error.config?.url)
+    ) {
       console.warn("Auth verify rejected", {
         baseURL: API_BASE_URL,
         url: error.config?.url,
@@ -59,9 +66,7 @@ apiClient.interceptors.response.use(
         message: error.message,
         code: error.code,
       });
-      return Promise.reject(
-        new Error(`無法連線到伺服器：${API_BASE_URL}`)
-      );
+      return Promise.reject(new Error(`無法連線到伺服器：${API_BASE_URL}`));
     }
 
     console.error("API response error", {
@@ -71,7 +76,7 @@ apiClient.interceptors.response.use(
     });
 
     return Promise.reject(error);
-  }
+  },
 );
 
 export default apiClient;

@@ -655,10 +655,53 @@ class StartupChecker:
             cached_total = self.get_cached_total_count()
             log(f"  📦 缓存总数: {cached_total} 条")
             
+            # 如果缓存为空，首次下载后直接返回，不使用强制更新逻辑
             if cached_total == 0:
-                log(f"  ℹ️  缓存为空，使用全量检查")
+                log(f"  ℹ️  缓存为空，首次下载所有项目...")
+                page_total = self.get_page_total_count(session)
+                
+                if page_total is None:
+                    log("  ❌ 无法从页面获取总数")
+                    result['message'] = "无法从页面获取总数"
+                    session.close()
+                    return result
+                
+                log(f"  ✅ 页面总数: {page_total}")
+                
+                # 下载所有项目
+                log(f"    💡 使用浏览器自动化提取...")
+                new_projects = self.extract_projects_with_playwright(username, password, log_callback)
+                
+                if new_projects:
+                    page_total = len(new_projects)
+                    log(f"    ✅ Playwright 提取成功，共 {page_total} 条项目")
+                else:
+                    log(f"    ⚠️  Playwright 提取失败，回退到分页方法...")
+                    new_projects = self.fetch_new_projects(session, 0, log_callback, expected_total=page_total)
+                    
+                    if not new_projects:
+                        log(f"    ⚠️  分页方法未获取到项目")
+                        result['message'] = f"无法获取项目数据"
+                        session.close()
+                        return result
+                    
+                    page_total = len(new_projects)
+                    log(f"    ✅ 分页提取成功，共 {page_total} 条项目")
+                
+                # 保存缓存
+                if self.update_projects_cache(new_projects, page_total, log_callback):
+                    result['checked'] = True
+                    result['page_total'] = page_total
+                    result['cached_total'] = 0
+                    result['updated'] = True
+                    result['message'] = f"✅ 首次下载完成 (共 {page_total} 条)"
+                    log(f"  ✅ {result['message']}")
+                else:
+                    result['message'] = "保存缓存失败"
+                    log(f"  ❌ {result['message']}")
+                
                 session.close()
-                return self.check_and_update(log_callback)
+                return result
             
             # 计算缓存的最后一页
             cached_last_page = (cached_total + 9) // 10

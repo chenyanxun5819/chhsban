@@ -53,8 +53,12 @@ export const verifyTeacherEmail = async (
         throw new Error("Email 未在系統中註冊，請檢查輸入是否正確");
       }
 
-      const apiError = error.response.data as { error?: string; message?: string } | undefined;
-      throw new Error(apiError?.error || apiError?.message || "驗證失敗，請稍後再試");
+      const apiError = error.response.data as
+        | { error?: string; message?: string }
+        | undefined;
+      throw new Error(
+        apiError?.error || apiError?.message || "驗證失敗，請稍後再試",
+      );
     }
 
     if (error instanceof Error) {

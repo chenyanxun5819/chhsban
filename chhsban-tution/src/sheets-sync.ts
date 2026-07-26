@@ -29,30 +29,36 @@ export class TutionSheetsSync {
 
   /**
    * 初始化 Google Sheet 工作表結構
+   * 注意：使用 API Key 只能读取，无法创建/重命名工作表
+   * 请手动在 Google Sheet 中创建以下工作表：
+   * - Classes
+   * - Roster  
+   * - Attendance
    */
   async initializeSheets(): Promise<void> {
     try {
-      // 1. 清除現有工作表（保留第一個）
+      // 检查 Google Sheet 是否可访问
       const spreadsheet = await this.getSpreadsheet();
       const sheets = spreadsheet.sheets || [];
-
-      for (let i = sheets.length - 1; i > 0; i--) {
-        await this.deleteSheet(sheets[i].properties.sheetId);
+      
+      // 检查必需的工作表是否存在
+      const sheetNames = sheets.map((s: any) => s.properties.title);
+      const requiredSheets = [
+        this.sheetNames.classes,
+        this.sheetNames.roster,
+        this.sheetNames.attendance
+      ];
+      
+      const missingSheets = requiredSheets.filter(name => !sheetNames.includes(name));
+      
+      if (missingSheets.length > 0) {
+        throw new Error(
+          `请手动创建以下工作表: ${missingSheets.join(", ")}\n` +
+          `当前存在的工作表: ${sheetNames.join(", ")}`
+        );
       }
-
-      // 2. 重命名第一個工作表為 Classes
-      if (sheets.length > 0) {
-        await this.renameSheet(sheets[0].properties.sheetId, this.sheetNames.classes);
-      }
-
-      // 3. 建立 Roster 和 Attendance 工作表
-      await this.addSheet(this.sheetNames.roster);
-      await this.addSheet(this.sheetNames.attendance);
-
-      // 4. 寫入欄位標題
-      await this.writeClassesHeader();
-      await this.writeRosterHeader();
-      await this.writeAttendanceHeader();
+      
+      return;
     } catch (error) {
       console.error("Error initializing sheets:", error);
       throw error;

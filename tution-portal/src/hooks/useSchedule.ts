@@ -55,47 +55,49 @@ export const useSchedule = (classId?: string) => {
         setLoading(false);
       }
     },
-    [classId]
+    [classId],
   );
 
-  const create = useCallback(
-    async (data: ScheduleCreateData) => {
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await apiClient.post(`/api/v1/schedules`, data);
-        setSchedules((prev) => [...prev, response.data]);
-        return response.data;
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Error creating schedule";
-        setError(message);
-        throw err;
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
+  const create = useCallback(async (data: ScheduleCreateData) => {
+    try {
+      setLoading(true);
+      setError(null);
+      const response = await apiClient.post(`/api/v1/schedules`, data);
+      setSchedules((prev) => [...prev, response.data]);
+      return response.data;
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Error creating schedule";
+      setError(message);
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const update = useCallback(
     async (scheduleId: string, data: Partial<ScheduleCreateData>) => {
       try {
         setLoading(true);
         setError(null);
-        const response = await apiClient.put(`/api/v1/schedules/${scheduleId}`, data);
+        const response = await apiClient.put(
+          `/api/v1/schedules/${scheduleId}`,
+          data,
+        );
         setSchedules((prev) =>
-          prev.map((s) => (s.schedule_id === scheduleId ? response.data : s))
+          prev.map((s) => (s.schedule_id === scheduleId ? response.data : s)),
         );
         return response.data;
       } catch (err) {
-        const message = err instanceof Error ? err.message : "Error updating schedule";
+        const message =
+          err instanceof Error ? err.message : "Error updating schedule";
         setError(message);
         throw err;
       } finally {
         setLoading(false);
       }
     },
-    []
+    [],
   );
 
   const remove = useCallback(async (scheduleId: string) => {
@@ -105,7 +107,8 @@ export const useSchedule = (classId?: string) => {
       await apiClient.delete(`/api/v1/schedules/${scheduleId}`);
       setSchedules((prev) => prev.filter((s) => s.schedule_id !== scheduleId));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Error deleting schedule";
+      const message =
+        err instanceof Error ? err.message : "Error deleting schedule";
       setError(message);
       throw err;
     } finally {

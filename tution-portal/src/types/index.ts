@@ -30,7 +30,12 @@ export interface LoginResponse {
 
 // ========== Tution Portal 特有類型 ==========
 
-export type TutionStatus = "pending" | "approved" | "rejected" | "active" | "ended";
+export type TutionStatus =
+  | "pending"
+  | "approved"
+  | "rejected"
+  | "active"
+  | "ended";
 export type ScheduleStatus = "held" | "cancelled" | "rescheduled";
 export type AttendanceStatus = "present" | "absent" | "late";
 export type RosterStatus = "initial" | "active" | "dropped";
@@ -134,7 +139,7 @@ export interface RecurrenceRule {
   exceptions?: string[];
 }
 
-export interface TutionScheduleExtended extends Omit<TutionSchedule, 'status'> {
+export interface TutionScheduleExtended extends Omit<TutionSchedule, "status"> {
   date: string;
   start_time: string;
   end_time: string;
@@ -155,7 +160,12 @@ export interface ConflictResult {
 
 // ========== Phase 3: 出席表管理類型 ==========
 
-export type AttendanceRecordStatus = "present" | "absent" | "late" | "early" | "not_attended";
+export type AttendanceRecordStatus =
+  | "present"
+  | "absent"
+  | "late"
+  | "early"
+  | "not_attended";
 
 export interface AttendanceRecord {
   record_id: string;

@@ -33,6 +33,44 @@ id = "ab63a42d9b6643e3ae5b17e7f807da03"
 binding = "TUTION_ATTENDANCE_KV"
 id = "d16847622dd244bb9d1d235cdfce6d1c"
 
+# 環境變數（默認環境）
+[vars]
+GOOGLE_SHEETS_SPREADSHEET_ID = "18Fq3eWpf6Z1kx_-ihB0Hs38O3IomBzxJQne8QYHoYJI"
+GOOGLE_SHEETS_SHEET_CLASSES = "Classes"
+GOOGLE_SHEETS_SHEET_ROSTER = "Roster"
+GOOGLE_SHEETS_SHEET_ATTENDANCE = "Attendance"
+
+# 生產環境配置
+[env.production]
+routes = [
+  { pattern = "api.chhsban.tution.mybazaar.my/*", zone_name = "mybazaar.my" }
+]
+
+# KV 綁定配置（生產環境）
+[[env.production.kv_namespaces]]
+binding = "STUDENT_KV"
+id = "9d870e2344c84c74a1ed2f2851c93408"
+
+[[env.production.kv_namespaces]]
+binding = "TEACHER_KV"
+id = "8892dc8c30984f4591850521a1b57ed8"
+
+[[env.production.kv_namespaces]]
+binding = "AUTH_KV"
+id = "8ddeccbeeae9440fafba384d35205a81"
+
+[[env.production.kv_namespaces]]
+binding = "TUTION_CLASS_KV"
+id = "16fbdfd4c5e2444ebea8c55d313e00f8"
+
+[[env.production.kv_namespaces]]
+binding = "TUTION_ROSTER_KV"
+id = "ab63a42d9b6643e3ae5b17e7f807da03"
+
+[[env.production.kv_namespaces]]
+binding = "TUTION_ATTENDANCE_KV"
+id = "d16847622dd244bb9d1d235cdfce6d1c"
+
 # 環境變數
 [env.production.vars]
 GOOGLE_SHEETS_SPREADSHEET_ID = "18Fq3eWpf6Z1kx_-ihB0Hs38O3IomBzxJQne8QYHoYJI"

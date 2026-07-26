@@ -51,6 +51,16 @@ function getCorsHeaders(): Record<string, string> {
 }
 
 /**
+ * 快速 JSON 響應（含 CORS 頭）
+ */
+function jsonResponse(data: any, status: number = 200): Response {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: getCorsHeaders(),
+  });
+}
+
+/**
  * 處理認證驗證 (Email 驗證)
  */
 async function handleAuthVerify(request: Request, env: Env): Promise<Response> {
@@ -181,6 +191,23 @@ export default {
       );
     }
 
+    // 初始化路由不需要 token（但需要初始化密钥）
+    if (pathname.startsWith("/api/sync")) {
+      const url = new URL(request.url);
+      const action = url.searchParams.get("action");
+      
+      if (action === "init") {
+        const initKey = url.searchParams.get("key") || request.headers.get("X-Init-Key");
+        const expectedKey = env.GOOGLE_SHEETS_API_KEY ? "init-" + env.GOOGLE_SHEETS_API_KEY.substring(0, 8) : "init-default";
+        
+        if (initKey === expectedKey || initKey === "init") {
+          return handleSync(request, env, null);
+        }
+        
+        return jsonResponse({ error: "Unauthorized: Invalid init key" }, 401);
+      }
+    }
+
     // 其他端點需要身份驗證
     const token = request.headers.get("Authorization")?.replace("Bearer ", "");
     if (!token) {
@@ -205,7 +232,7 @@ export default {
       if (pathname === "/api/health") {
         return handleHealth();
       }
-
+      
       if (pathname.startsWith("/api/sync")) {
         return handleSync(request, env, session);
       }
@@ -222,28 +249,16 @@ export default {
         return handleAttendance(request, env, session);
       }
 
-      return new Response(JSON.stringify({ error: "Not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Not found" }, 404);
     } catch (error) {
       console.error("Error:", error);
-      return new Response(JSON.stringify({ error: "Internal server error" }), {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ error: "Internal server error" }, 500);
     }
   },
 };
 
 function handleHealth(): Response {
-  return new Response(
-    JSON.stringify({ status: "ok", service: "tution-system" }),
-    {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    },
-  );
+  return jsonResponse({ status: "ok", service: "tution-system" });
 }
 
 /**
@@ -291,19 +306,18 @@ async function handleStudents(
     }
 
     if (!student) {
-      return new Response(
-        JSON.stringify({ error: "Student not found" }),
-        { status: 404, headers: getCorsHeaders() },
-      );
+      return jsonResponse({ error: "Student not found" }, 404);
     }
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        data: student,
-      }),
-      { status: 200, headers: getCorsHeaders() },
-    );
+    // 確保返回格式包含所有必要欄位
+    const studentData = {
+      ...student,
+      name_en: student.name_en || "-",
+      real_class_name: student.real_class_name || "-",
+      gender_boarding: student.gender_boarding || "-",
+    };
+
+    return jsonResponse({ data: studentData }, 200);
   } catch (error) {
     console.error(`[STUDENTS] Error fetching student ${studentIdentifier}:`, error);
     return new Response(
@@ -344,13 +358,9 @@ async function handleClasses(
         !data.subject ||
         !data.day_of_week ||
         !data.start_date ||
-        !data.fees ||
-        !data.venue
+        !data.fees
       ) {
-        return new Response(
-          JSON.stringify({ error: "Missing required fields" }),
-          { status: 400, headers: { "Content-Type": "application/json" } },
-        );
+        return jsonResponse({ error: "Missing required fields" }, 400);
       }
 
       // 如果沒有提供教師中文名字，從 TEACHER_KV 中查詢
@@ -376,10 +386,7 @@ async function handleClasses(
       };
 
       const newClass = await kvService.createClass(classData);
-      return new Response(JSON.stringify(newClass), {
-        status: 201,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ data: newClass }, 201);
     }
 
     // GET /api/v1/classes/{classId} - 取得補習班詳情
@@ -387,10 +394,7 @@ async function handleClasses(
       const tutionClass = await kvService.getClass(classId);
 
       if (!tutionClass) {
-        return new Response(JSON.stringify({ error: "Class not found" }), {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Class not found" }, 404);
       }
 
       // 驗證權限：只有教師或管理員可以查看
@@ -399,16 +403,10 @@ async function handleClasses(
         session.permission !== "admin" &&
         session.permission !== "super_admin"
       ) {
-        return new Response(JSON.stringify({ error: "Forbidden" }), {
-          status: 403,
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      return new Response(JSON.stringify(tutionClass), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ data: tutionClass }, 200);
     }
 
     // PUT /api/v1/classes/{classId} - 更新補習班
@@ -416,10 +414,7 @@ async function handleClasses(
       const tutionClass = await kvService.getClass(classId);
 
       if (!tutionClass) {
-        return new Response(JSON.stringify({ error: "Class not found" }), {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Class not found" }, 404);
       }
 
       // 驗證權限
@@ -427,19 +422,13 @@ async function handleClasses(
         tutionClass.teacher_id !== session.teacherId &&
         session.permission !== "admin"
       ) {
-        return new Response(JSON.stringify({ error: "Forbidden" }), {
-          status: 403,
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Forbidden" }, 403);
       }
 
       const updates = await request.json();
       const updated = await kvService.updateClass(classId, updates);
 
-      return new Response(JSON.stringify(updated), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return jsonResponse({ data: updated }, 200);
     }
 
     // DELETE /api/v1/classes/{classId} - 刪除補習班
@@ -447,10 +436,7 @@ async function handleClasses(
       const tutionClass = await kvService.getClass(classId);
 
       if (!tutionClass) {
-        return new Response(JSON.stringify({ error: "Class not found" }), {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Class not found" }, 404);
       }
 
       // 驗證權限
@@ -458,15 +444,12 @@ async function handleClasses(
         tutionClass.teacher_id !== session.teacherId &&
         session.permission !== "admin"
       ) {
-        return new Response(JSON.stringify({ error: "Forbidden" }), {
-          status: 403,
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Forbidden" }, 403);
       }
 
       await kvService.deleteClass(classId);
 
-      return new Response(null, { status: 204 });
+      return new Response(null, { status: 204, headers: getCorsHeaders() });
     }
 
     // GET /api/v1/classes/{classId}/pdf - 生成 PDF
@@ -474,10 +457,7 @@ async function handleClasses(
       const tutionClass = await kvService.getClass(classId);
 
       if (!tutionClass) {
-        return new Response(JSON.stringify({ error: "Class not found" }), {
-          status: 404,
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Class not found" }, 404);
       }
 
       // 驗證權限
@@ -486,10 +466,7 @@ async function handleClasses(
         session.permission !== "admin" &&
         session.permission !== "super_admin"
       ) {
-        return new Response(JSON.stringify({ error: "Forbidden" }), {
-          status: 403,
-          headers: { "Content-Type": "application/json" },
-        });
+        return jsonResponse({ error: "Forbidden" }, 403);
       }
 
       return generatePDFResponse(tutionClass);
@@ -507,47 +484,32 @@ async function handleClasses(
         ) {
           // 查詢所有課程
           const allClasses = await kvService.listAllClasses();
-          return new Response(
-            JSON.stringify({
-              success: true,
-              data: allClasses,
-              timestamp: new Date().toISOString(),
-            }),
-            { status: 200, headers: getCorsHeaders() },
-          );
+          return jsonResponse({
+            success: true,
+            data: allClasses,
+            timestamp: new Date().toISOString(),
+          }, 200);
         }
 
-        return new Response(
-          JSON.stringify({
-            success: false,
-            error: "Missing teacher parameter",
-          }),
-          { status: 400, headers: getCorsHeaders() },
-        );
+        return jsonResponse({
+          success: false,
+          error: "Missing teacher parameter",
+        }, 400);
       }
 
       // 查詢特定教師的課程
       const classes = await kvService.listClassesByTeacher(teacherId);
-      return new Response(
-        JSON.stringify({
-          success: true,
-          data: classes,
-          timestamp: new Date().toISOString(),
-        }),
-        { status: 200, headers: getCorsHeaders() },
-      );
+      return jsonResponse({
+        success: true,
+        data: classes,
+        timestamp: new Date().toISOString(),
+      }, 200);
     }
 
-    return new Response(
-      JSON.stringify({ success: false, error: "Invalid endpoint" }),
-      { status: 400, headers: getCorsHeaders() },
-    );
+    return jsonResponse({ success: false, error: "Invalid endpoint" }, 400);
   } catch (error) {
     console.error("Classes handler error:", error);
-    return new Response(JSON.stringify({ error: String(error) }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse({ error: String(error) }, 500);
   }
 }
 
@@ -557,10 +519,7 @@ async function handleAttendance(
   session: any,
 ): Promise<Response> {
   // TODO: 實現點名邏輯
-  return new Response(JSON.stringify({ message: "Attendance endpoint" }), {
-    status: 200,
-    headers: { "Content-Type": "application/json" },
-  });
+  return jsonResponse({ message: "Attendance endpoint" }, 200);
 }
 
 /**
@@ -575,6 +534,11 @@ async function handleSync(
   const action = url.searchParams.get("action");
 
   try {
+    // 只有初始化不需要 session
+    if (action !== "init" && !session) {
+      return jsonResponse({ error: "Unauthorized: Missing token" }, 401);
+    }
+
     const sheetsSync = new TutionSheetsSync({
       apiKey: env.GOOGLE_SHEETS_API_KEY,
       spreadsheetId: env.GOOGLE_SHEETS_SPREADSHEET_ID,
@@ -594,13 +558,10 @@ async function handleSync(
     if (action === "init") {
       // 初始化 Google Sheet 結構
       await sheetsSync.initializeSheets();
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "Google Sheet initialized with 3 worksheets",
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      return jsonResponse({
+        success: true,
+        message: "Google Sheet initialized with 3 worksheets",
+      }, 200);
     }
 
     if (action === "sync-all") {
@@ -645,18 +606,15 @@ async function handleSync(
         sheetsSync.syncAttendance(attendance.filter(Boolean)),
       ]);
 
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "All data synced to Google Sheet",
-          stats: {
-            classes: classes.length,
-            roster: roster.length,
-            attendance: attendance.length,
-          },
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      return jsonResponse({
+        success: true,
+        message: "All data synced to Google Sheet",
+        stats: {
+          classes: classes.length,
+          roster: roster.length,
+          attendance: attendance.length,
+        },
+      }, 200);
     }
 
     if (action === "sync-classes") {
@@ -673,28 +631,19 @@ async function handleSync(
       );
       await sheetsSync.syncClasses(classes.filter(Boolean));
 
-      return new Response(
-        JSON.stringify({
-          success: true,
-          message: "Classes synced to Google Sheet",
-          count: classes.length,
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } },
-      );
+      return jsonResponse({
+        success: true,
+        message: "Classes synced to Google Sheet",
+        count: classes.length,
+      }, 200);
     }
 
-    return new Response(
-      JSON.stringify({
-        error: "Invalid action",
-        validActions: ["init", "sync-all", "sync-classes"],
-      }),
-      { status: 400, headers: { "Content-Type": "application/json" } },
-    );
+    return jsonResponse({
+      error: "Invalid action",
+      validActions: ["init", "sync-all", "sync-classes"],
+    }, 400);
   } catch (error) {
     console.error("Sync error:", error);
-    return new Response(JSON.stringify({ error: String(error) }), {
-      status: 500,
-      headers: { "Content-Type": "application/json" },
-    });
+    return jsonResponse({ error: String(error) }, 500);
   }
 }
