@@ -453,14 +453,14 @@ src/components/
 
 | Phase | 功能 | 預計時間 | 實際進度 |
 |-------|------|---------|---------|
-| P3 | AdminPanel | 1.5 hr | ⏳ |
+| P3 | AdminPanel | 1.5 hr | ✅ 完成 |
 | P3 | ScheduleManagement | 2 hr | ⏳ |
 | P3 | AttendanceSheet | 1 hr | ⏳ |
-| **P3 小計** | — | **4.5 hr** | — |
+| **P3 小計** | — | **4.5 hr** | ✅ 1/3 |
 | P4 | RosterManagement | 1.75 hr | ⏳ |
 | P5 | AttendanceTracking | 1.25 hr | ⏳ |
 | P6 | PDF + Sheets | 1 hr | ⏳ |
-| **總計** | — | **~9 hr** | — |
+| **總計** | — | **~9 hr** | 16.7% ✅ |
 | **當前** | Phase 0-2 + OAuth | **10.5 hr ✅** | — |
 | **完成後** | 所有功能 | **~19.5 hr** | — |
 
