@@ -731,17 +731,17 @@ d:\chhsban\tution-portal/
 | | • 遲到/缺席 | | | | | ✅ |
 | | • 提交與修改 | | | | | ✅ |
 | | • 手機橫向滾動表格 | | | | | ✅ |
-| **Phase 4** | 學生名單 (響應式) | RosterManagement | POST/DELETE /rosters | ⭐⭐⭐ | 1.75 hr | ⏳ |
-| | • 列表展示 | | | | | ⏳ |
-| | • 新增學生 | | | | | ⏳ |
-| | • 批量上傳 | | | | | ⏳ |
-| | • 移除學生 | | | | | ⏳ |
+| **Phase 4** | 學生名單 (響應式) | RosterManagement | POST/DELETE /rosters | ⭐⭐⭐ | 1.75 hr | ✅ |
+| | • 列表展示 | | | | | ✅ |
+| | • 新增學生 | | | | | ✅ |
+| | • 批量上傳 | | | | | ✅ |
+| | • 移除學生 | | | | | ✅ |
 | **Phase 4** | 出勤統計 (響應式) | AttendanceStats | GET /attendances | ⭐⭐⭐ | 1.25 hr | ⏳ |
 | **Phase 5** | PDF 下載 (響應式) | PDFDownload | GET /classes/:id/pdf | ⭐⭐⭐ | 1 hr | ⏳ |
 | **Phase 6** | Google Sheets | — | GET /api/sync | ⭐ | 30 min | ⏳ |
-| — | **已完成** (Phase 0-2 + OAuth + Phase 3.1-3.3) | — | — | — | **~15.5 hr** | **✅** |
+| — | **已完成** (Phase 0-2 + OAuth + Phase 3.1-3.4) | — | — | — | **~18 hr** | **✅** |
 | — | **總計** (含響應式) | — | — | — | **~18.5 hr** | — |
-| — | **待實施** (Phase 3.4-6) | — | — | — | **~3 hr** | **⏳** |
+| — | **待實施** (Phase 4-6) | — | — | — | **~0.5 hr** | **⏳** |
 
 ---
 

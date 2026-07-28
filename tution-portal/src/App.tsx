@@ -9,6 +9,9 @@ import ApplicationDetail from "@/pages/ApplicationManagement/ApplicationDetail";
 import AdminPanel from "@/pages/AdminPanel/AdminPanel";
 import ScheduleManagement from "@/pages/ScheduleManagement/ScheduleManagement";
 import AttendanceSheet from "@/pages/AttendanceSheet/AttendanceSheet";
+import RosterManagementPage from "@/pages/RosterManagement/RosterManagement";
+import AttendanceStatsPage from "@/pages/AttendanceStats/AttendanceStats";
+import PDFDownloadPage from "@/pages/PDFDownload/PDFDownload";
 import { useEffect, useState } from "react";
 import { TutionClass } from "@/types";
 import apiClient from "@/utils/api";
@@ -75,11 +78,6 @@ const ClassList = () => {
   );
 };
 
-const RosterManagement = () => (
-  <Layout title="學生名單">
-    <div className="page"><h1>學生名單 (待實施)</h1></div>
-  </Layout>
-);
 const Dashboard = () => (
   <Layout title="系統首頁">
     <div className="page"><h1>系統首頁 (待實施)</h1></div>
@@ -161,7 +159,7 @@ const AppRoutes = () => {
         path="/classes/:id/roster"
         element={
           <ProtectedRoute>
-            <RosterManagement />
+            <RosterManagementPage />
           </ProtectedRoute>
         }
       />
@@ -170,6 +168,22 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <AttendanceSheet />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/classes/:id/stats"
+        element={
+          <ProtectedRoute>
+            <AttendanceStatsPage />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/classes/:id/pdf"
+        element={
+          <ProtectedRoute>
+            <PDFDownloadPage />
           </ProtectedRoute>
         }
       />

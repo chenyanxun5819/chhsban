@@ -1,0 +1,819 @@
+/* ========================================
+   出勤統計分析 (AttendanceStats) 樣式表
+   ======================================== */
+
+.attendance-stats-page {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-header {
+  margin-bottom: 30px;
+}
+
+.page-header h1 {
+  font-size: 28px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: #333;
+}
+
+.page-header .subtitle {
+  font-size: 14px;
+  color: #666;
+  margin: 0;
+}
+
+/* ========================================
+   警告訊息
+   ======================================== */
+
+.alert {
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.alert-danger {
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+.alert button {
+  font-size: 16px;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+
+.alert button:hover {
+  opacity: 1;
+}
+
+/* ========================================
+   加載狀態
+   ======================================== */
+
+.loading-state {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  font-size: 16px;
+  color: #666;
+}
+
+/* ========================================
+   日期範圍選擇器
+   ======================================== */
+
+.date-range-selector {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 30px;
+  padding: 15px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  flex-wrap: wrap;
+}
+
+.date-inputs {
+  display: flex;
+  gap: 15px;
+  flex: 1;
+  min-width: 300px;
+  flex-wrap: wrap;
+}
+
+.date-inputs label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #555;
+}
+
+.date-inputs input {
+  padding: 6px 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover {
+  background-color: #5a6268;
+  transform: translateY(-1px);
+}
+
+/* ========================================
+   統計摘要卡片
+   ======================================== */
+
+.stats-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 15px;
+  margin-bottom: 30px;
+}
+
+.stat-card {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 20px;
+  border-radius: 8px;
+  background-color: white;
+  border-left: 4px solid #ccc;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card.primary {
+  border-left-color: #007bff;
+}
+
+.stat-card.success {
+  border-left-color: #28a745;
+}
+
+.stat-card.warning {
+  border-left-color: #ffc107;
+}
+
+.stat-card.danger {
+  border-left-color: #dc3545;
+}
+
+.stat-card.info {
+  border-left-color: #17a2b8;
+}
+
+.stat-icon {
+  font-size: 32px;
+  min-width: 40px;
+  text-align: center;
+}
+
+.stat-content {
+  flex: 1;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: #888;
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #333;
+}
+
+.stat-percentage {
+  font-size: 12px;
+  color: #666;
+  margin-top: 2px;
+}
+
+.stat-subtitle {
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+}
+
+/* ========================================
+   圖表容器
+   ======================================== */
+
+.attendance-chart-container {
+  margin-bottom: 30px;
+  background-color: white;
+  border-radius: 8px;
+  padding: 25px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.chart-wrapper h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 20px 0;
+  color: #333;
+}
+
+.pie-chart {
+  display: flex;
+  gap: 30px;
+  align-items: center;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+}
+
+.pie-svg {
+  width: 200px;
+  height: 200px;
+  flex-shrink: 0;
+}
+
+.chart-legend {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  flex: 1;
+  min-width: 150px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+}
+
+.legend-color {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.legend-label {
+  color: #555;
+}
+
+/* ========================================
+   橫條圖
+   ======================================== */
+
+.bar-chart {
+  margin-top: 30px;
+}
+
+.bar-chart h4 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 15px 0;
+  color: #333;
+}
+
+.bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.bar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.bar-label {
+  min-width: 50px;
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+  text-align: right;
+}
+
+.bar-track {
+  flex: 1;
+  min-width: 100px;
+  height: 20px;
+  background-color: #e9ecef;
+  border-radius: 10px;
+  overflow: hidden;
+  min-height: 20px;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: 10px;
+  transition: width 0.5s ease;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding-right: 4px;
+}
+
+.bar-fill.success {
+  background-color: #28a745;
+}
+
+.bar-fill.warning {
+  background-color: #ffc107;
+}
+
+.bar-fill.danger {
+  background-color: #dc3545;
+}
+
+.bar-value {
+  min-width: 45px;
+  text-align: right;
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* ========================================
+   出勤歷史容器
+   ======================================== */
+
+.attendance-history-container {
+  background-color: white;
+  border-radius: 8px;
+  padding: 25px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.history-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 15px;
+}
+
+.history-header h3 {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+  color: #333;
+}
+
+.view-toggle {
+  display: flex;
+  gap: 8px;
+}
+
+.toggle-btn {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  background-color: white;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.3s;
+  color: #666;
+}
+
+.toggle-btn.active {
+  background-color: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.toggle-btn:hover {
+  border-color: #007bff;
+}
+
+/* ========================================
+   按日期分組
+   ======================================== */
+
+.history-by-date {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.date-group {
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.date-header {
+  display: flex;
+  justify-content: space-between;
+  padding: 12px 15px;
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: #333;
+  font-size: 14px;
+}
+
+.record-count {
+  font-weight: 400;
+  color: #888;
+  font-size: 13px;
+}
+
+.records-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.record-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 12px 15px;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 13px;
+}
+
+.record-item:last-child {
+  border-bottom: none;
+}
+
+.record-student {
+  min-width: 80px;
+  font-weight: 500;
+  color: #555;
+}
+
+.record-status {
+  flex: 1;
+}
+
+.status-badge {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  min-width: 70px;
+}
+
+.status-badge.success {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-badge.warning {
+  background-color: #fff3cd;
+  color: #856404;
+}
+
+.status-badge.danger {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.record-time {
+  min-width: 60px;
+  text-align: right;
+  color: #999;
+  font-size: 12px;
+}
+
+/* ========================================
+   按學生統計
+   ======================================== */
+
+.history-by-student {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.search-box {
+  display: flex;
+}
+
+.search-input {
+  flex: 1;
+  padding: 10px 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.25);
+}
+
+.empty-message {
+  padding: 30px;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
+}
+
+.student-stats-table {
+  border: 1px solid #e9ecef;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+  gap: 0;
+  padding: 12px 15px;
+  background-color: #f8f9fa;
+  font-weight: 600;
+  font-size: 13px;
+  color: #555;
+  border-bottom: 2px solid #ddd;
+}
+
+.table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 1fr 1fr;
+  gap: 0;
+  padding: 12px 15px;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 13px;
+  align-items: center;
+  transition: background-color 0.2s;
+}
+
+.table-row:last-child {
+  border-bottom: none;
+}
+
+.table-row:hover {
+  background-color: #f8f9fa;
+}
+
+.col-name {
+  color: #333;
+  font-weight: 500;
+}
+
+.col-stat {
+  text-align: center;
+  font-weight: 600;
+}
+
+.col-stat.success {
+  color: #28a745;
+}
+
+.col-stat.warning {
+  color: #ffc107;
+}
+
+.col-stat.danger {
+  color: #dc3545;
+}
+
+.col-rate {
+  text-align: center;
+  font-weight: 700;
+  color: #333;
+}
+
+.col-rate.excellent {
+  color: #28a745;
+}
+
+.col-rate.poor {
+  color: #dc3545;
+}
+
+/* ========================================
+   響應式設計 (平板)
+   ======================================== */
+
+@media (max-width: 1023px) {
+  .attendance-stats-page {
+    padding: 15px;
+  }
+
+  .stats-summary {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+
+  .stat-card {
+    padding: 15px;
+    gap: 10px;
+  }
+
+  .stat-icon {
+    font-size: 28px;
+  }
+
+  .stat-value {
+    font-size: 24px;
+  }
+
+  .pie-chart {
+    gap: 20px;
+  }
+
+  .pie-svg {
+    width: 180px;
+    height: 180px;
+  }
+
+  .table-header,
+  .table-row {
+    grid-template-columns: 1fr 0.7fr 0.7fr 0.7fr 0.7fr 0.7fr;
+    font-size: 12px;
+  }
+}
+
+/* ========================================
+   響應式設計 (手機)
+   ======================================== */
+
+@media (max-width: 767px) {
+  .attendance-stats-page {
+    padding: 12px;
+  }
+
+  .page-header h1 {
+    font-size: 22px;
+  }
+
+  .page-header .subtitle {
+    font-size: 12px;
+  }
+
+  .date-range-selector {
+    flex-direction: column;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .date-inputs {
+    flex-direction: column;
+    min-width: 100%;
+  }
+
+  .date-inputs label {
+    width: 100%;
+  }
+
+  .date-inputs input {
+    flex: 1;
+    width: 100%;
+  }
+
+  .btn-secondary {
+    width: 100%;
+  }
+
+  .stats-summary {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .stat-icon {
+    font-size: 24px;
+  }
+
+  .stat-value {
+    font-size: 20px;
+  }
+
+  .stat-label {
+    font-size: 12px;
+  }
+
+  .attendance-chart-container {
+    padding: 15px;
+  }
+
+  .chart-wrapper h3 {
+    font-size: 16px;
+    margin-bottom: 15px;
+  }
+
+  .pie-chart {
+    flex-direction: column;
+    gap: 15px;
+    align-items: center;
+  }
+
+  .pie-svg {
+    width: 150px;
+    height: 150px;
+  }
+
+  .chart-legend {
+    width: 100%;
+  }
+
+  .bar-item {
+    gap: 8px;
+  }
+
+  .bar-label {
+    min-width: 40px;
+    font-size: 12px;
+  }
+
+  .bar-value {
+    font-size: 12px;
+    min-width: 40px;
+  }
+
+  .attendance-history-container {
+    padding: 15px;
+  }
+
+  .history-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .history-header h3 {
+    font-size: 16px;
+    width: 100%;
+  }
+
+  .view-toggle {
+    width: 100%;
+  }
+
+  .toggle-btn {
+    flex: 1;
+    font-size: 12px;
+    padding: 8px 10px;
+  }
+
+  .date-header {
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .record-item {
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+
+  .record-student {
+    min-width: 70px;
+  }
+
+  .record-time {
+    width: 100%;
+    text-align: left;
+  }
+
+  .search-input {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+
+  .table-header,
+  .table-row {
+    grid-template-columns: 1fr 0.6fr 0.6fr 0.6fr 0.6fr 0.6fr;
+    padding: 10px 8px;
+    font-size: 11px;
+    gap: 0;
+  }
+
+  .col-name {
+    font-size: 12px;
+  }
+
+  .table-row {
+    padding: 10px 8px;
+  }
+
+  /* 手機上可橫向滾動表格 */
+  .student-stats-table {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
