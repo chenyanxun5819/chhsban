@@ -82,44 +82,26 @@ export class TutionKVService implements TutionKVManager {
 
   async listClassesByTeacher(teacherId: string): Promise<TutionClass[]> {
     const result = await this.classKV.list({ prefix: "class_" });
-    const classes: TutionClass[] = [];
-
-    for (const item of result.keys) {
-      const tutionClass = await this.getClass(item.name);
-      if (tutionClass && tutionClass.teacher_id === teacherId) {
-        classes.push(tutionClass);
-      }
-    }
-
-    return classes;
+    const classes = await Promise.all(result.keys.map((item: any) => this.getClass(item.name)));
+    return classes.filter((c: any): c is TutionClass => c !== null && c.teacher_id === teacherId);
   }
 
   async listClassesByStatus(status: TutionClassStatus): Promise<TutionClass[]> {
     const result = await this.classKV.list({ prefix: "class_" });
-    const classes: TutionClass[] = [];
-
-    for (const item of result.keys) {
-      const tutionClass = await this.getClass(item.name);
-      if (tutionClass && tutionClass.approval_status === status) {
-        classes.push(tutionClass);
-      }
-    }
-
-    return classes;
+    const classes = await Promise.all(result.keys.map((item: any) => this.getClass(item.name)));
+    return classes.filter((c: any): c is TutionClass => c !== null && c.approval_status === status);
   }
 
   async listAllClasses(): Promise<TutionClass[]> {
     const result = await this.classKV.list({ prefix: "class_" });
-    const classes: TutionClass[] = [];
+    const classes = await Promise.all(result.keys.map((item: any) => this.getClass(item.name)));
+    return classes.filter((c: any): c is TutionClass => c !== null);
+  }
 
-    for (const item of result.keys) {
-      const tutionClass = await this.getClass(item.name);
-      if (tutionClass) {
-        classes.push(tutionClass);
-      }
-    }
-
-    return classes;
+  async listAllRoster(): Promise<TutionRoster[]> {
+    const result = await this.rosterKV.list({ prefix: "roster_" });
+    const roster = await Promise.all(result.keys.map((item: any) => this.getRosterEntry(item.name)));
+    return roster.filter((r: any): r is TutionRoster => r !== null);
   }
 
   // ===== 學生名單操作 =====
@@ -149,16 +131,8 @@ export class TutionKVService implements TutionKVManager {
 
   async listRosterByClass(classId: string): Promise<TutionRoster[]> {
     const result = await this.rosterKV.list({ prefix: "roster_" });
-    const roster: TutionRoster[] = [];
-
-    for (const item of result.keys) {
-      const entry = await this.getRosterEntry(item.name);
-      if (entry && entry.class_id === classId) {
-        roster.push(entry);
-      }
-    }
-
-    return roster;
+    const roster = await Promise.all(result.keys.map((item: any) => this.getRosterEntry(item.name)));
+    return roster.filter((r: any): r is TutionRoster => r !== null && r.class_id === classId);
   }
 
   async updateRosterEntry(
@@ -189,6 +163,10 @@ export class TutionKVService implements TutionKVManager {
     });
   }
 
+  async deleteRosterEntry(rosterId: string): Promise<void> {
+    await this.rosterKV.delete(rosterId);
+  }
+
   // ===== 出勤紀錄操作 =====
 
   async recordAttendance(
@@ -217,21 +195,16 @@ export class TutionKVService implements TutionKVManager {
     classId: string,
   ): Promise<TutionAttendance[]> {
     const result = await this.attendanceKV.list({ prefix: "attendance_" });
-    const records: TutionAttendance[] = [];
-
-    for (const item of result.keys) {
-      const attendance = await this.getAttendanceRecord(item.name);
-      if (
-        attendance &&
-        attendance.student_id === studentId &&
-        attendance.class_id === classId
-      ) {
-        records.push(attendance);
-      }
-    }
+    const attendanceRecords = await Promise.all(
+      result.keys.map((item: any) => this.getAttendanceRecord(item.name)),
+    );
+    const records = attendanceRecords.filter(
+      (a: any): a is TutionAttendance =>
+        a !== null && a.student_id === studentId && a.class_id === classId,
+    );
 
     return records.sort(
-      (a, b) =>
+      (a: TutionAttendance, b: TutionAttendance) =>
         new Date(a.class_date).getTime() - new Date(b.class_date).getTime(),
     );
   }

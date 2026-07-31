@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node \"C:/Users/MSI/AppData/Local/Temp/claude/d--chhsban-chhsban-acadoc/a910f3e1-66f7-4a6b-8b05-0c20a6d02c80/scratchpad/parse.js\")",
+      "Bash(node -e ' *)",
+      "Bash(wrangler kv *)",
+      "Bash(sort -t_ -k2 -n)",
+      "Bash(wrangler pages *)",
+      "Bash(curl -s \"https://tution-portal.pages.dev/\")",
+      "Bash(curl -sI \"https://tution-portal.pages.dev/\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(curl -s \"https://tution-system.astcws.workers.dev/api/health\")",
+      "Bash(curl -s -o /dev/null -w \"%{http_code}\\\\n\" \"https://tution-system.astcws.workers.dev/api/v1/students/7247\")",
+      "Bash(git add *)"
+    ],
+    "additionalDirectories": [
+      "D:\\chhsban"
+    ]
+  }
+}

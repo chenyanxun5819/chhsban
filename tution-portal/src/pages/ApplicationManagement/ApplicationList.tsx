@@ -6,7 +6,7 @@ import { TutionClass, TutionStatus } from "@/types";
 import apiClient from "@/utils/api";
 import "./application-list.css";
 
-type FilterStatus = "all" | "pending" | "approved" | "rejected" | "active";
+type FilterStatus = "all" | "pending" | "reviewing" | "approved" | "rejected" | "active";
 
 const ApplicationList: React.FC = () => {
   const navigate = useNavigate();
@@ -18,29 +18,20 @@ const ApplicationList: React.FC = () => {
   const [searchText, setSearchText] = useState("");
 
   useEffect(() => {
+    if (!user) {
+      return;
+    }
+
     fetchApplications();
-  }, []);
+  }, [user?.teacherId, user?.permission]);
 
   const fetchApplications = async () => {
     try {
       setLoading(true);
       setError(null);
-      // 根據權限決定查詢範圍
-      // super_admin 和 admin 可以看所有人的申請，其他人只能看自己的
-      let url = "/v1/classes";
-      if (user?.permission === "super_admin" || user?.permission === "admin") {
-        // super_admin 和 admin 看所有申請
-        url = "/v1/classes";
-      } else {
-        // 其他人只看自己的申請
-        url = `/v1/classes?teacher=${user?.teacherId}`;
-      }
-
-      const response = await apiClient.get(url);
-
-      if (response.data && response.data.data) {
-        setApplications(response.data.data as TutionClass[]);
-      }
+      const response = await apiClient.get("/v1/my/classes");
+      const myApplications = response.data?.data as TutionClass[] | undefined;
+      setApplications(myApplications || []);
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || "載入申請列表失敗";
       setError(errorMessage);
@@ -72,6 +63,7 @@ const ApplicationList: React.FC = () => {
   const getStatusInfo = (status: TutionStatus) => {
     const statusMap: Record<TutionStatus, { label: string; badge: string; color: string }> = {
       pending: { label: "待審批", badge: "⏳", color: "warning" },
+      reviewing: { label: "審核中", badge: "🔍", color: "info" },
       approved: { label: "已批准", badge: "✅", color: "success" },
       rejected: { label: "已拒絕", badge: "❌", color: "danger" },
       active: { label: "進行中", badge: "🚀", color: "info" },
@@ -90,8 +82,13 @@ const ApplicationList: React.FC = () => {
   };
 
   return (
-    <Layout title="申請列表">
+    <Layout title="申請歷史">
       <div className="list-container">
+        <div className="list-page-title">
+          <h1>我的申請歷史</h1>
+          <p>只顯示目前登入申請人的歷史申請記錄</p>
+        </div>
+
         {/* 搜尋和篩選欄 */}
         <div className="list-header">
           <div className="search-box">
@@ -115,6 +112,12 @@ const ApplicationList: React.FC = () => {
               onClick={() => setFilterStatus("pending")}
             >
               待審批
+            </button>
+            <button
+              className={`filter-tab ${filterStatus === "reviewing" ? "active" : ""}`}
+              onClick={() => setFilterStatus("reviewing")}
+            >
+              審核中
             </button>
             <button
               className={`filter-tab ${filterStatus === "approved" ? "active" : ""}`}

@@ -11,18 +11,23 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ title, onMenuToggle, menuOpen }) => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <header className="main-header">
       <div className="header__left">
-        <button
-          className="header__menu-toggle hide-desktop"
-          onClick={onMenuToggle}
-          aria-label="Toggle menu"
-        >
-          <span className={`menu-icon ${menuOpen ? "open" : ""}`}></span>
+        {onMenuToggle && (
+          <button
+            className="header__menu-toggle hide-desktop"
+            onClick={onMenuToggle}
+            aria-label="Toggle menu"
+          >
+            <span className={`menu-icon ${menuOpen ? "open" : ""}`}></span>
+          </button>
+        )}
+        <button className="header__title header__title--link" onClick={() => navigate("/")}>
+          {title || "補習班系統"}
         </button>
-        <h1 className="header__title">{title || "補習班系統"}</h1>
       </div>
       <div className="header__right">
         <div className="user-info">
@@ -40,27 +45,16 @@ export const Header: React.FC<HeaderProps> = ({ title, onMenuToggle, menuOpen })
   );
 };
 
-interface NavItem {
-  id: string;
-  label: string;
-  path: string;
-  icon?: string;
-}
-
 interface SidebarProps {
-  open?: boolean;
   onClose?: () => void;
 }
 
-const navItems: NavItem[] = [
-  { id: "home", label: "首頁", path: "/", icon: "🏠" },
-  { id: "apps", label: "申請", path: "/applications", icon: "📋" },
-  { id: "classes", label: "課程", path: "/classes", icon: "📚" },
-];
-
+/**
+ * 側邊欄只保留給 super_admin 使用（進入管理後台）。
+ * 一般教師的唯一導覽需求是回首頁，已改由 Header 標題點擊處理，不需要側邊欄。
+ */
 export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
 
   const handleNavClick = (path: string) => {
     navigate(path);
@@ -75,55 +69,25 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
           <h2>補習班系統</h2>
         </div>
         <ul className="nav-list">
-          {navItems.map((item) => (
-            <li key={item.id}>
-              <button
-                className="nav-item"
-                onClick={() => handleNavClick(item.path)}
-              >
-                <span className="nav-item__icon">{item.icon}</span>
-                <span className="nav-item__label">{item.label}</span>
-              </button>
-            </li>
-          ))}
-          {user?.permission === "super_admin" && (
-            <>
-              <li>
-                <button
-                  className="nav-item"
-                  onClick={() => handleNavClick("/admin")}
-                >
-                  <span className="nav-item__icon">⚙️</span>
-                  <span className="nav-item__label">審批</span>
-                </button>
-              </li>
-              <li>
-                <button
-                  className="nav-item"
-                  onClick={() => handleNavClick("/admin")}
-                >
-                  <span className="nav-item__icon">🔐</span>
-                  <span className="nav-item__label">管理</span>
-                </button>
-              </li>
-            </>
-          )}
+          <li>
+            <button className="nav-item" onClick={() => handleNavClick("/admin")}>
+              <span className="nav-item__icon">🔐</span>
+              <span className="nav-item__label">管理後台</span>
+            </button>
+          </li>
         </ul>
       </nav>
 
       {/* 手機版底部導航 */}
       <nav className="nav-bottom">
-        {navItems.map((item) => (
-          <button
-            key={item.id}
-            className="nav-bottom__item"
-            onClick={() => handleNavClick(item.path)}
-            title={item.label}
-          >
-            <span className="nav-bottom__icon">{item.icon}</span>
-            <span className="nav-bottom__label">{item.label}</span>
-          </button>
-        ))}
+        <button
+          className="nav-bottom__item"
+          onClick={() => handleNavClick("/admin")}
+          title="管理後台"
+        >
+          <span className="nav-bottom__icon">🔐</span>
+          <span className="nav-bottom__label">管理後台</span>
+        </button>
       </nav>
     </>
   );
@@ -136,17 +100,21 @@ interface LayoutProps {
 
 export const Layout: React.FC<LayoutProps> = ({ title, children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user } = useAuth();
+  const showSidebar = user?.permission === "super_admin";
 
   return (
-    <div className="responsive-layout">
-      <div className="responsive-layout__sidebar">
-        <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      </div>
+    <div className={`responsive-layout ${showSidebar ? "" : "responsive-layout--no-sidebar"}`}>
+      {showSidebar && (
+        <div className="responsive-layout__sidebar">
+          <Sidebar onClose={() => setSidebarOpen(false)} />
+        </div>
+      )}
       <div className="responsive-layout__main">
         <Header
           title={title}
           menuOpen={sidebarOpen}
-          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+          onMenuToggle={showSidebar ? () => setSidebarOpen(!sidebarOpen) : undefined}
         />
         <main className="main-content container">
           {children}

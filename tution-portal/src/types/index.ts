@@ -32,6 +32,7 @@ export interface LoginResponse {
 
 export type TutionStatus =
   | "pending"
+  | "reviewing"
   | "approved"
   | "rejected"
   | "active"
@@ -42,6 +43,7 @@ export type RosterStatus = "initial" | "active" | "dropped";
 
 export interface TutionClass {
   class_id: string;
+  application_no?: string;
   teacher_id: string;
   teacher_name_cn: string;
   form: "F1" | "F2" | "F3" | "F4" | "F5" | "F6";
@@ -69,6 +71,25 @@ export interface TutionRosterSnapshot {
   real_class_name?: string;
   input_class_name?: string;
   gender_boarding?: string;
+}
+
+/**
+ * 已開課課程的學生名單條目（含加入/退出日期），
+ * 用於 RosterManagement 頁面。與 TutionRoster（出勤功能沿用的舊型別）分開，避免互相影響。
+ */
+export interface ClassRosterEntry {
+  roster_id: string;
+  class_id: string;
+  student_id: string;
+  student_no: string;
+  name_cn: string;
+  name_en: string;
+  real_class_name: string;
+  gender_boarding: string;
+  enrollment_date: string;
+  withdrawal_date: string | null;
+  withdrawal_reason: string | null;
+  is_active: boolean;
 }
 
 export interface TutionRoster {

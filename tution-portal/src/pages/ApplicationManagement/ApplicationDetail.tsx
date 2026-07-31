@@ -3,7 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Layout } from "@/components/common/Layout";
 import { TutionClass, TutionRosterSnapshot } from "@/types";
 import apiClient from "@/utils/api";
+import { validateStudent, updateRoster } from "@/services/classService";
+import { FORMS, DAYS_OF_WEEK } from "@/utils/validators";
 import "./application-detail.css";
+
+const DETAIL_RETRY_DELAYS_MS = [600, 1200, 2000];
 
 interface FormData {
   form: string;
@@ -16,7 +20,7 @@ interface FormData {
 
 const ApplicationDetail: React.FC = () => {
   const navigate = useNavigate();
-  const { classId } = useParams<{ classId: string }>();
+  const { id } = useParams<{ id: string }>();
 
   const [application, setApplication] = useState<TutionClass | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,22 +38,51 @@ const ApplicationDetail: React.FC = () => {
   });
 
   const [roster, setRoster] = useState<TutionRosterSnapshot[]>([]);
+  const [newStudentId, setNewStudentId] = useState("");
+  const [addingStudent, setAddingStudent] = useState(false);
+  const [rosterError, setRosterError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchApplicationDetail();
-  }, [classId]);
+  }, [id]);
+
+  const wait = (delayMs: number) =>
+    new Promise((resolve) => window.setTimeout(resolve, delayMs));
 
   const fetchApplicationDetail = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      if (!classId) {
+      if (!id) {
         setError("無效的申請 ID");
         return;
       }
 
-      const response = await apiClient.get(`/v1/classes/${classId}`);
+      let response = null;
+      let lastError: any = null;
+
+      for (let attempt = 0; attempt <= DETAIL_RETRY_DELAYS_MS.length; attempt += 1) {
+        try {
+          response = await apiClient.get(`/v1/classes/${id}`);
+          break;
+        } catch (err: any) {
+          lastError = err;
+          const status = err?.response?.status;
+          const shouldRetry = status === 404 && attempt < DETAIL_RETRY_DELAYS_MS.length;
+
+          if (!shouldRetry) {
+            throw err;
+          }
+
+          await wait(DETAIL_RETRY_DELAYS_MS[attempt]);
+        }
+      }
+
+      if (!response) {
+        throw lastError;
+      }
+
       const appData = response.data.data as TutionClass;
 
       setApplication(appData);
@@ -65,6 +98,7 @@ const ApplicationDetail: React.FC = () => {
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || "載入申請詳情失敗";
       setError(errorMessage);
+      setApplication(null);
     } finally {
       setLoading(false);
     }
@@ -81,11 +115,16 @@ const ApplicationDetail: React.FC = () => {
   };
 
   const handleSaveChanges = async () => {
+    if (roster.length === 0) {
+      setError("學生名單不能為空");
+      return;
+    }
+
     setIsUpdating(true);
     setError(null);
 
     try {
-      const response = await apiClient.put(`/v1/classes/${classId}`, {
+      await apiClient.put(`/v1/classes/${id}`, {
         form: formData.form,
         subject: formData.subject,
         day_of_week: formData.day_of_week,
@@ -94,7 +133,10 @@ const ApplicationDetail: React.FC = () => {
         venue: formData.venue,
       });
 
-      setApplication(response.data.data);
+      const updatedApp = await updateRoster(id!, roster);
+
+      setApplication(updatedApp);
+      setRoster(updatedApp.initial_roster || []);
       setIsEditing(false);
     } catch (err: any) {
       const errorMessage = err.response?.data?.error || "更新失敗，請重試";
@@ -102,6 +144,42 @@ const ApplicationDetail: React.FC = () => {
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  // 新增學生到名單
+  const handleAddRosterStudent = async () => {
+    if (!newStudentId.trim()) {
+      setRosterError("請輸入學生 ID");
+      return;
+    }
+
+    if (roster.find((s) => s.student_id === newStudentId.trim())) {
+      setRosterError("該學生已在名單中");
+      return;
+    }
+
+    setAddingStudent(true);
+    setRosterError(null);
+
+    try {
+      const student = await validateStudent(newStudentId.trim());
+      if (!student) {
+        setRosterError(`學生 ${newStudentId} 不存在`);
+        return;
+      }
+
+      setRoster((prev) => [...prev, student]);
+      setNewStudentId("");
+    } catch (err) {
+      setRosterError("驗證失敗，請重試");
+    } finally {
+      setAddingStudent(false);
+    }
+  };
+
+  // 從名單移除學生
+  const handleRemoveRosterStudent = (studentId: string) => {
+    setRoster((prev) => prev.filter((s) => s.student_id !== studentId));
   };
 
   const handleDeleteApplication = async () => {
@@ -113,7 +191,7 @@ const ApplicationDetail: React.FC = () => {
     setError(null);
 
     try {
-      await apiClient.delete(`/v1/classes/${classId}`);
+      await apiClient.delete(`/v1/classes/${id}`);
       setTimeout(() => {
         navigate("/applications");
       }, 800);
@@ -127,6 +205,8 @@ const ApplicationDetail: React.FC = () => {
 
   const handleCancelEdit = () => {
     setIsEditing(false);
+    setRosterError(null);
+    setNewStudentId("");
     if (application) {
       setFormData({
         form: application.form,
@@ -136,12 +216,14 @@ const ApplicationDetail: React.FC = () => {
         fees: application.fees,
         venue: application.venue,
       });
+      setRoster(application.initial_roster || []);
     }
   };
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; emoji: string; color: string }> = {
       pending: { label: "待審批", emoji: "⏳", color: "warning" },
+      reviewing: { label: "審核中", emoji: "🔍", color: "info" },
       approved: { label: "已批准", emoji: "✅", color: "success" },
       rejected: { label: "已拒絕", emoji: "❌", color: "danger" },
       active: { label: "進行中", emoji: "🚀", color: "info" },
@@ -185,7 +267,9 @@ const ApplicationDetail: React.FC = () => {
         <div className="detail-header">
           <div className="header-info">
             <h1>{application.subject}</h1>
-            <p>{application.form} 班</p>
+            <p>
+              {application.form} 班 · 申請教師：{application.teacher_name_cn}
+            </p>
           </div>
           {getStatusBadge(application.approval_status)}
         </div>
@@ -240,29 +324,34 @@ const ApplicationDetail: React.FC = () => {
                     name="subject"
                     value={formData.subject}
                     onChange={handleFormChange}
-                    disabled
                   />
                 </div>
                 <div className="form-group">
                   <label>年級 *</label>
-                  <input
-                    type="text"
-                    name="form"
-                    value={formData.form}
-                    onChange={handleFormChange}
-                    disabled
-                  />
+                  <select name="form" value={formData.form} onChange={handleFormChange}>
+                    {FORMS.map((f) => (
+                      <option key={f} value={f}>
+                        {f}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
               <div className="form-row form-row--2col">
                 <div className="form-group">
                   <label>上課日期 *</label>
-                  <input
-                    type="text"
+                  <select
+                    name="day_of_week"
                     value={formData.day_of_week}
-                    disabled
-                  />
+                    onChange={handleFormChange}
+                  >
+                    {DAYS_OF_WEEK.map((d) => (
+                      <option key={d.value} value={d.value}>
+                        {d.label}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div className="form-group">
                   <label>開課日期 *</label>
@@ -277,24 +366,12 @@ const ApplicationDetail: React.FC = () => {
 
               <div className="form-row form-row--2col">
                 <div className="form-group">
-                  <label>學費 (RM) *</label>
-                  <input
-                    type="number"
-                    name="fees"
-                    value={formData.fees}
-                    onChange={handleFormChange}
-                    min="0"
-                    step="0.01"
-                  />
+                  <label>學費</label>
+                  <p>RM {formData.fees}</p>
                 </div>
                 <div className="form-group">
-                  <label>上課地點 *</label>
-                  <input
-                    type="text"
-                    name="venue"
-                    value={formData.venue}
-                    onChange={handleFormChange}
-                  />
+                  <label>上課地點</label>
+                  <p>{formData.venue || "由管理者指定"}</p>
                 </div>
               </div>
             </div>
@@ -302,11 +379,13 @@ const ApplicationDetail: React.FC = () => {
         </div>
 
         {/* 學生名單 */}
-        {roster.length > 0 && (
+        {(roster.length > 0 || isEditing) && (
           <div className="detail-section">
             <h2 className="section-title">
               👥 學生名單 ({roster.length} 人)
             </h2>
+
+            {rosterError && <div className="alert alert-error">{rosterError}</div>}
 
             <div className="roster-table hide-mobile">
               <div className="table-wrapper">
@@ -316,6 +395,7 @@ const ApplicationDetail: React.FC = () => {
                       <th>學號</th>
                       <th>姓名</th>
                       <th>狀態</th>
+                      {isEditing && <th>操作</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -326,6 +406,17 @@ const ApplicationDetail: React.FC = () => {
                         <td>
                           <span className="badge badge-info">✓ 已驗證</span>
                         </td>
+                        {isEditing && (
+                          <td>
+                            <button
+                              type="button"
+                              className="btn btn-small btn-danger"
+                              onClick={() => handleRemoveRosterStudent(student.student_id)}
+                            >
+                              移除
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -340,10 +431,45 @@ const ApplicationDetail: React.FC = () => {
                     <p className="student-no">{student.student_no}</p>
                     <p className="student-name">{student.name_cn}</p>
                   </div>
-                  <span className="badge badge-info">✓</span>
+                  {isEditing ? (
+                    <button
+                      type="button"
+                      className="btn btn-small btn-danger"
+                      onClick={() => handleRemoveRosterStudent(student.student_id)}
+                    >
+                      移除
+                    </button>
+                  ) : (
+                    <span className="badge badge-info">✓</span>
+                  )}
                 </div>
               ))}
             </div>
+
+            {isEditing && (
+              <div className="roster-add-row">
+                <input
+                  type="text"
+                  value={newStudentId}
+                  onChange={(e) => setNewStudentId(e.target.value)}
+                  placeholder="輸入學生 ID"
+                  disabled={addingStudent}
+                  onKeyPress={(e) => {
+                    if (e.key === "Enter") {
+                      handleAddRosterStudent();
+                    }
+                  }}
+                />
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={handleAddRosterStudent}
+                  disabled={addingStudent}
+                >
+                  {addingStudent ? "驗證中..." : "新增學生"}
+                </button>
+              </div>
+            )}
           </div>
         )}
 

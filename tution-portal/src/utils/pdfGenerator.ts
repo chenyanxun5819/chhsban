@@ -16,7 +16,7 @@ export const generateApplicationPDF = (
     <html>
     <head>
       <meta charset="utf-8">
-      <title>應用表 - ${classInfo.class_id}</title>
+      <title>應用表 - ${classInfo.application_no || classInfo.class_id}</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Arial', sans-serif; color: #333; line-height: 1.6; }
@@ -50,7 +50,7 @@ export const generateApplicationPDF = (
           <div class="info-grid">
             <div class="info-item">
               <div class="info-label">課程編號</div>
-              <div class="info-value">${classInfo.class_id}</div>
+              <div class="info-value">${classInfo.application_no || classInfo.class_id}</div>
             </div>
             <div class="info-item">
               <div class="info-label">科目</div>
@@ -135,7 +135,7 @@ export const generateApplicationPDF = (
 
         <div class="footer">
           <p>本表格由補習班管理系統自動生成</p>
-          <p>補習班編號: ${classInfo.class_id} | 申請狀態: ${classInfo.approval_status}</p>
+          <p>補習班編號: ${classInfo.application_no || classInfo.class_id} | 申請狀態: ${classInfo.approval_status}</p>
         </div>
       </div>
     </body>
@@ -200,7 +200,7 @@ export const generateAttendancePDF = (
     <html>
     <head>
       <meta charset="utf-8">
-      <title>點名表 - ${classInfo.class_id}</title>
+      <title>點名表 - ${classInfo.application_no || classInfo.class_id}</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Arial', sans-serif; color: #333; line-height: 1.6; }
@@ -230,7 +230,7 @@ export const generateAttendancePDF = (
         <div class="course-info">
           <strong>課程:</strong> ${classInfo.subject} (${classInfo.form}) | 
           <strong>教師:</strong> ${classInfo.teacher_name_cn} | 
-          <strong>編號:</strong> ${classInfo.class_id}
+          <strong>編號:</strong> ${classInfo.application_no || classInfo.class_id}
         </div>
 
         <div class="attendance-records">
@@ -308,7 +308,7 @@ export const generateAttendanceReportPDF = (
     <html>
     <head>
       <meta charset="utf-8">
-      <title>出勤報告 - ${classInfo.class_id}</title>
+      <title>出勤報告 - ${classInfo.application_no || classInfo.class_id}</title>
       <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Arial', sans-serif; color: #333; line-height: 1.6; }

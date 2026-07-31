@@ -15,7 +15,7 @@ interface PageState {
 }
 
 const PDFDownloadPage: React.FC = () => {
-  const { classId } = useParams<{ classId: string }>();
+  const { id: classId } = useParams<{ id: string }>();
   const [state, setState] = React.useState<PageState>({
     loading: true,
     error: "",

@@ -98,6 +98,72 @@
   }
 }
 
+/* ========== 申請列表 (首頁) ========== */
+
+.app-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.app-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-sm) var(--spacing-lg);
+  padding: var(--spacing-md) var(--spacing-lg);
+  background: var(--bg-primary, #fff);
+}
+
+.app-row + .app-row {
+  border-top: 1px solid var(--border-color);
+}
+
+.app-row__main {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  min-width: 180px;
+}
+
+.app-row__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.app-row__badge {
+  font-size: 12px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.app-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-md);
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex: 1;
+}
+
+.app-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+}
+
+@media (max-width: 767px) {
+  .app-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--spacing-sm);
+  }
+}
+
 /* ========== 卡片內容樣式 ========== */
 
 .card-info {
@@ -135,6 +201,11 @@
 .badge-pending {
   background: rgba(250, 173, 20, 0.2);
   color: #faad14;
+}
+
+.badge-reviewing {
+  background: rgba(24, 144, 255, 0.2);
+  color: #1890ff;
 }
 
 .badge-approved {

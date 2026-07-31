@@ -5,122 +5,38 @@ import { Layout } from "@/components/common/Layout";
 import { ApprovalList, RejectModal } from "@/components/admin";
 import { adminService } from "@/services/adminService";
 import apiClient from "@/utils/api";
-import type {
-  AdminStatistic,
-  RecentActivity,
-  TutionClass,
-} from "@/types/index";
+import type { TutionClass } from "@/types/index";
 import "./admin-panel.css";
 
-type TabType = "dashboard" | "approvals";
+type TabType = "approvals" | "courses" | "teachers";
 
-interface StatCardProps {
-  label: string;
-  value: number;
-  icon: string;
-  color: "blue" | "green" | "orange" | "red";
-}
+const TEACHER_MANAGEMENT_URL = "https://master.teacher-management-portal.pages.dev/";
 
-const StatCard: React.FC<StatCardProps> = ({ label, value, icon, color }) => (
-  <div className={`stat-card stat-card--${color}`}>
-    <div className="stat-icon">{icon}</div>
-    <div className="stat-content">
-      <div className="stat-value">{value.toLocaleString()}</div>
-      <div className="stat-label">{label}</div>
-    </div>
-  </div>
-);
-
-interface ActivityItemProps {
-  activity: RecentActivity;
-}
-
-const ActivityItem: React.FC<ActivityItemProps> = ({ activity }) => {
-  const getActivityIcon = (type: string) => {
-    switch (type) {
-      case "application":
-        return "📋";
-      case "schedule":
-        return "📅";
-      case "attendance":
-        return "✓";
-      case "class_update":
-        return "🔄";
-      default:
-        return "•";
-    }
-  };
-
-  const getActivityColor = (type: string) => {
-    switch (type) {
-      case "application":
-        return "color-blue";
-      case "schedule":
-        return "color-green";
-      case "attendance":
-        return "color-orange";
-      case "class_update":
-        return "color-purple";
-      default:
-        return "color-gray";
-    }
-  };
-
-  const formatTime = (timestamp: number) => {
-    const now = Date.now();
-    const diff = Math.floor((now - timestamp) / 1000);
-
-    if (diff < 60) return "剛剛";
-    if (diff < 3600) return `${Math.floor(diff / 60)} 分鐘前`;
-    if (diff < 86400) return `${Math.floor(diff / 3600)} 小時前`;
-    if (diff < 604800) return `${Math.floor(diff / 86400)} 天前`;
-    return new Date(timestamp).toLocaleDateString("zh-TW");
-  };
-
-  return (
-    <div className={`activity-item ${getActivityColor(activity.type)}`}>
-      <div className="activity-icon">{getActivityIcon(activity.type)}</div>
-      <div className="activity-content">
-        <div className="activity-title">{activity.title}</div>
-        <div className="activity-description">{activity.description}</div>
-      </div>
-      <div className="activity-time">{formatTime(activity.timestamp)}</div>
-    </div>
-  );
+const COURSE_STATUS_LABELS: Record<string, string> = {
+  approved: "✅ 已批准",
+  active: "🚀 進行中",
+  ended: "🏁 已結束",
 };
-
-interface QuickActionProps {
-  label: string;
-  icon: string;
-  color: "blue" | "green" | "purple" | "orange";
-  onClick: () => void;
-}
-
-const QuickAction: React.FC<QuickActionProps> = ({ label, icon, color, onClick }) => (
-  <button className={`quick-action quick-action--${color}`} onClick={onClick}>
-    <div className="action-icon">{icon}</div>
-    <div className="action-label">{label}</div>
-  </button>
-);
 
 export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
 
-  // 狀態管理
-  const [currentTab, setCurrentTab] = useState<TabType>("dashboard");
-  const [stats, setStats] = useState<AdminStatistic | null>(null);
-  const [activities, setActivities] = useState<RecentActivity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [currentTab, setCurrentTab] = useState<TabType>("approvals");
   const [error, setError] = useState<string | null>(null);
 
   // 審批相關狀態
   const [applications, setApplications] = useState<TutionClass[]>([]);
   const [appLoading, setAppLoading] = useState(false);
+  const [pendingCount, setPendingCount] = useState(0);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
   const [selectedApp, setSelectedApp] = useState<TutionClass | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
+
+  // 已開課相關狀態
+  const [courses, setCourses] = useState<TutionClass[]>([]);
+  const [coursesLoading, setCoursesLoading] = useState(false);
 
   // 權限檢查：只有 super_admin 才能訪問此頁面
   useEffect(() => {
@@ -129,55 +45,59 @@ export const AdminPanel: React.FC = () => {
     }
   }, [user, navigate]);
 
-  // 載入儀表板數據
-  useEffect(() => {
-    if (user?.permission !== "super_admin" || currentTab !== "dashboard") {
-      return;
+  const fetchApplications = async () => {
+    try {
+      setAppLoading(true);
+      setError(null);
+      const response = await apiClient.get("/v1/classes");
+      const apps = ((response.data?.data as TutionClass[]) || []).filter(
+        (item) => item.approval_status === "pending" || item.approval_status === "reviewing",
+      );
+      setApplications(apps);
+      setPendingCount(apps.filter((a) => a.approval_status === "pending").length);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "載入申請失敗");
+      console.error("Fetch applications error:", err);
+    } finally {
+      setAppLoading(false);
     }
+  };
 
-    const fetchAdminData = async () => {
-      try {
-        setLoading(true);
-        const [statsRes, activitiesRes] = await Promise.all([
-          apiClient.get<AdminStatistic>("/v1/admin/statistics"),
-          apiClient.get<RecentActivity[]>("/v1/admin/activities"),
-        ]);
-
-        if (statsRes.data) setStats(statsRes.data);
-        if (activitiesRes.data) setActivities(activitiesRes.data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "載入數據失敗");
-        console.error("Admin data fetch error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchAdminData();
-  }, [currentTab]);
-
-  // 載入待審批應用
+  // 掛載時抓一次審批清單（同時作為分頁徽章的數量來源）
   useEffect(() => {
-    if (user?.permission !== "super_admin" || currentTab !== "approvals") {
-      return;
-    }
-
-    const fetchApplications = async () => {
-      try {
-        setAppLoading(true);
-        setError(null);
-        const apps = await adminService.getPendingApplications();
-        setApplications(apps);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "載入申請失敗");
-        console.error("Fetch applications error:", err);
-      } finally {
-        setAppLoading(false);
-      }
-    };
-
+    if (user?.permission !== "super_admin") return;
     fetchApplications();
-  }, [currentTab]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.permission]);
+
+  // 載入已開課課程
+  useEffect(() => {
+    if (user?.permission !== "super_admin" || currentTab !== "courses") {
+      return;
+    }
+
+    const fetchCourses = async () => {
+      try {
+        setCoursesLoading(true);
+        setError(null);
+        const response = await apiClient.get("/v1/classes");
+        const list = ((response.data?.data as TutionClass[]) || []).filter(
+          (item) =>
+            item.approval_status === "approved" ||
+            item.approval_status === "active" ||
+            item.approval_status === "ended",
+        );
+        setCourses(list);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "載入課程失敗");
+        console.error("Fetch courses error:", err);
+      } finally {
+        setCoursesLoading(false);
+      }
+    };
+
+    fetchCourses();
+  }, [currentTab, user?.permission]);
 
   // 批准申請
   const handleApprove = async (classId: string) => {
@@ -186,28 +106,61 @@ export const AdminPanel: React.FC = () => {
     }
 
     try {
-      setLoading(true);
       await adminService.approveApplication(classId);
-
-      // 更新列表
-      setApplications((prev) => prev.filter((app) => app.class_id !== classId));
-
-      // 更新統計
-      if (stats) {
-        setStats({
-          ...stats,
-          pendingApplications: Math.max(0, stats.pendingApplications - 1),
-        });
-      }
-
+      await fetchApplications();
       alert("✅ 申請已批准");
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "批准失敗";
       setError(errMsg);
       alert(`❌ ${errMsg}`);
       console.error("Approve error:", err);
-    } finally {
-      setLoading(false);
+    }
+  };
+
+  // 指定上課地點
+  const handleAssignVenue = async (classId: string, venue: string) => {
+    try {
+      await adminService.assignVenue(classId, venue);
+      await fetchApplications();
+      alert("✅ 已指定上課地點，申請狀態已轉為審核中");
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "指定地點失敗";
+      alert(`❌ ${errMsg}`);
+      console.error("Assign venue error:", err);
+    }
+  };
+
+  // 刪除申請
+  const handleDeleteApplication = async (classId: string) => {
+    if (!window.confirm("確定要刪除此申請嗎？此操作會一併清除 Cloudflare 中的資料，無法復原。")) {
+      return;
+    }
+
+    try {
+      await adminService.deleteApplication(classId);
+      await fetchApplications();
+      alert("✅ 申請已刪除");
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "刪除失敗";
+      alert(`❌ ${errMsg}`);
+      console.error("Delete error:", err);
+    }
+  };
+
+  // 刪除已開課的課程
+  const handleDeleteCourse = async (classId: string) => {
+    if (!window.confirm("確定要刪除此課程嗎？此操作會一併清除 Cloudflare 中的資料，無法復原。")) {
+      return;
+    }
+
+    try {
+      await adminService.deleteApplication(classId);
+      setCourses((prev) => prev.filter((c) => c.class_id !== classId));
+      alert("✅ 課程已刪除");
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "刪除失敗";
+      alert(`❌ ${errMsg}`);
+      console.error("Delete course error:", err);
     }
   };
 
@@ -226,21 +179,8 @@ export const AdminPanel: React.FC = () => {
     try {
       setRejectingId(selectedAppId);
       await adminService.rejectApplication(selectedAppId, reason);
+      await fetchApplications();
 
-      // 更新列表
-      setApplications((prev) =>
-        prev.filter((app) => app.class_id !== selectedAppId)
-      );
-
-      // 更新統計
-      if (stats) {
-        setStats({
-          ...stats,
-          pendingApplications: Math.max(0, stats.pendingApplications - 1),
-        });
-      }
-
-      // 關閉彈窗
       setRejectModalOpen(false);
       setSelectedAppId(null);
       setSelectedApp(null);
@@ -255,41 +195,8 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  // 查看詳情
-  const handleViewDetail = (classId: string) => {
-    // 可以導航到詳情頁面或打開詳情彈窗
-    const app = applications.find((a) => a.class_id === classId);
-    if (app) {
-      console.log("View detail:", app);
-      // 暫時用 alert 顯示
-      alert(
-        `詳情:\n\n班級: ${app.class_id}\n教師: ${app.teacher_name_cn}\n科目: ${app.subject}\n時間: ${app.day_of_week} ${app.time_start}-${app.time_end}\n地點: ${app.venue}\n收費: $${app.fees}`
-      );
-    }
-  };
-
-  const handleQuickAction = (action: string) => {
-    switch (action) {
-      case "approvals":
-        setCurrentTab("approvals");
-        break;
-      default:
-        console.log(`Quick action: ${action}`);
-    }
-  };
-
   if (!user || user.permission !== "super_admin") {
     return null;
-  }
-
-  if (loading && currentTab === "dashboard") {
-    return (
-      <Layout title="管理員儀表板">
-        <div className="admin-panel">
-          <div className="loading-spinner">載入中...</div>
-        </div>
-      </Layout>
-    );
   }
 
   return (
@@ -298,136 +205,36 @@ export const AdminPanel: React.FC = () => {
         {/* 選項卡導航 */}
         <div className="tab-navigation">
           <button
-            className={`tab-button ${currentTab === "dashboard" ? "tab-button--active" : ""}`}
-            onClick={() => setCurrentTab("dashboard")}
-          >
-            📊 儀表板
-          </button>
-          <button
             className={`tab-button ${currentTab === "approvals" ? "tab-button--active" : ""}`}
             onClick={() => setCurrentTab("approvals")}
           >
-            📋 申請審批{" "}
-            {stats && stats.pendingApplications > 0 && (
-              <span className="badge badge--danger">
-                {stats.pendingApplications}
-              </span>
-            )}
+            📋 審批管理{" "}
+            {pendingCount > 0 && <span className="badge badge--danger">{pendingCount}</span>}
+          </button>
+          <button
+            className={`tab-button ${currentTab === "courses" ? "tab-button--active" : ""}`}
+            onClick={() => setCurrentTab("courses")}
+          >
+            📚 已開課管理
+          </button>
+          <button
+            className={`tab-button ${currentTab === "teachers" ? "tab-button--active" : ""}`}
+            onClick={() => setCurrentTab("teachers")}
+          >
+            👨‍🏫 老師管理
           </button>
         </div>
 
-        {/* 儀表板標籤頁 */}
-        {currentTab === "dashboard" && (
-          <>
-            {/* 系統統計 */}
-            <section className="admin-section">
-              <h2 className="section-title">系統統計</h2>
-              <div className="stats-grid">
-                <StatCard
-                  label="教師總數"
-                  value={stats?.totalTeachers || 0}
-                  icon="👨‍🏫"
-                  color="blue"
-                />
-                <StatCard
-                  label="班級總數"
-                  value={stats?.totalClasses || 0}
-                  icon="📚"
-                  color="green"
-                />
-                <StatCard
-                  label="學生總數"
-                  value={stats?.totalStudents || 0}
-                  icon="👥"
-                  color="orange"
-                />
-                <StatCard
-                  label="待審申請"
-                  value={stats?.pendingApplications || 0}
-                  icon="⏳"
-                  color="red"
-                />
-              </div>
-            </section>
-
-            {/* 快速操作 */}
-            <section className="admin-section">
-              <h2 className="section-title">快速操作</h2>
-              <div className="quick-actions-grid">
-                <QuickAction
-                  label="審批申請"
-                  icon="📋"
-                  color="blue"
-                  onClick={() => handleQuickAction("approvals")}
-                />
-                <QuickAction
-                  label="新增教師"
-                  icon="➕"
-                  color="green"
-                  onClick={() => handleQuickAction("add-teacher")}
-                />
-                <QuickAction
-                  label="匯出報告"
-                  icon="📊"
-                  color="purple"
-                  onClick={() => handleQuickAction("export-report")}
-                />
-                <QuickAction
-                  label="系統設置"
-                  icon="⚙️"
-                  color="orange"
-                  onClick={() => handleQuickAction("settings")}
-                />
-              </div>
-            </section>
-
-            {/* 最近活動 */}
-            <section className="admin-section">
-              <h2 className="section-title">最近活動</h2>
-              <div className="activities-list">
-                {activities.length > 0 ? (
-                  activities.slice(0, 8).map((activity) => (
-                    <ActivityItem
-                      key={activity.activity_id}
-                      activity={activity}
-                    />
-                  ))
-                ) : (
-                  <div className="empty-state">暫無活動記錄</div>
-                )}
-              </div>
-            </section>
-
-            {/* 快速連結 */}
-            <section className="admin-section admin-section--footer">
-              <h2 className="section-title">快速連結</h2>
-              <div className="quick-links">
-                <a href="/admin/teachers" className="quick-link">
-                  👨‍🏫 教師管理
-                </a>
-                <a href="/admin/classes" className="quick-link">
-                  📚 班級管理
-                </a>
-                <a href="/admin/students" className="quick-link">
-                  👥 學生名冊
-                </a>
-                <a href="/admin/reports" className="quick-link">
-                  📊 出席報告
-                </a>
-              </div>
-            </section>
-          </>
-        )}
-
-        {/* 申請審批標籤頁 */}
+        {/* 審批管理 */}
         {currentTab === "approvals" && (
           <section className="admin-section">
-            <h2 className="section-title">待審批申請</h2>
+            <h2 className="section-title">審批管理</h2>
             <ApprovalList
               applications={applications}
               onApprove={handleApprove}
               onReject={handleRejectClick}
-              onViewDetail={handleViewDetail}
+              onAssignVenue={handleAssignVenue}
+              onDelete={handleDeleteApplication}
               loading={appLoading}
               empty={!appLoading && applications.length === 0}
             />
@@ -437,9 +244,7 @@ export const AdminPanel: React.FC = () => {
               isOpen={rejectModalOpen}
               classId={selectedAppId || ""}
               className={
-                selectedApp
-                  ? `${selectedApp.teacher_name_cn} - ${selectedApp.subject}`
-                  : ""
+                selectedApp ? `${selectedApp.teacher_name_cn} - ${selectedApp.subject}` : ""
               }
               onConfirm={handleRejectSubmit}
               onCancel={() => {
@@ -449,6 +254,91 @@ export const AdminPanel: React.FC = () => {
               }}
               loading={rejectingId !== null}
             />
+          </section>
+        )}
+
+        {/* 已開課管理 */}
+        {currentTab === "courses" && (
+          <section className="admin-section">
+            <h2 className="section-title">已開課管理</h2>
+            {coursesLoading ? (
+              <div className="loading-text">載入中...</div>
+            ) : courses.length === 0 ? (
+              <div className="empty-state">暫無已開課的課程</div>
+            ) : (
+              <div className="course-list">
+                {courses.map((course) => (
+                  <div key={course.class_id} className="course-row">
+                    <div className="course-row__main">
+                      <span className="course-row__title">
+                        {course.subject}（{course.form}）
+                      </span>
+                      <span className="course-row__badge">
+                        {COURSE_STATUS_LABELS[course.approval_status] || course.approval_status}
+                      </span>
+                    </div>
+                    <div className="course-row__meta">
+                      <span>👨‍🏫 {course.teacher_name_cn}</span>
+                      <span>📍 {course.venue || "-"}</span>
+                      <span>
+                        📅 {course.day_of_week} {course.time_start}-{course.time_end}
+                      </span>
+                    </div>
+                    <div className="course-row__actions">
+                      <button
+                        className="btn btn-small"
+                        onClick={() => navigate(`/classes/${course.class_id}/roster`)}
+                      >
+                        👥 管理學生
+                      </button>
+                      <button
+                        className="btn btn-small"
+                        onClick={() => navigate(`/classes/${course.class_id}/schedule`)}
+                      >
+                        📅 開課記錄
+                      </button>
+                      <button
+                        className="btn btn-small"
+                        onClick={() => navigate(`/classes/${course.class_id}/attendance`)}
+                      >
+                        ✓ 點名
+                      </button>
+                      <button
+                        className="btn btn-small"
+                        onClick={() => navigate(`/classes/${course.class_id}/pdf`)}
+                      >
+                        📄 PDF
+                      </button>
+                      <button
+                        className="btn btn-small btn--danger"
+                        onClick={() => handleDeleteCourse(course.class_id)}
+                      >
+                        🗑️ 刪除
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* 老師管理 */}
+        {currentTab === "teachers" && (
+          <section className="admin-section">
+            <h2 className="section-title">老師管理</h2>
+            <div className="teacher-management-card">
+              <p>
+                教師資料管理目前由獨立系統負責，尚未與本系統整合登入，需要用該系統的帳號另外登入一次。
+              </p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                onClick={() => window.open(TEACHER_MANAGEMENT_URL, "_blank", "noopener,noreferrer")}
+              >
+                前往教師管理系統 ↗
+              </button>
+            </div>
           </section>
         )}
 

@@ -215,6 +215,8 @@ const ApplicationForm: React.FC = () => {
         form: formData.form,
         subject: formData.subject,
         day_of_week: formData.day_of_week,
+        time_start: FIXED_TIME_START,
+        time_end: FIXED_TIME_END,
         start_date: formData.start_date,
         fees: formData.fees,
         venue: "",  // 上課地點由管理者填寫

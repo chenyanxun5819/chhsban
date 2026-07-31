@@ -10,6 +10,8 @@ export async function createApplication(
     form: string;
     subject: string;
     day_of_week: string;
+    time_start: string;
+    time_end: string;
     start_date: string;
     fees: number;
     venue: string;
@@ -19,6 +21,19 @@ export async function createApplication(
   const response = await apiClient.post("/v1/classes", {
     teacher_id: teacherId,
     ...data,
+  });
+  return response.data.data;
+}
+
+/**
+ * 重新提交學生名單（僅限待審批階段）
+ */
+export async function updateRoster(
+  classId: string,
+  students: TutionRosterSnapshot[]
+): Promise<TutionClass> {
+  const response = await apiClient.put(`/v1/classes/${classId}/roster`, {
+    students,
   });
   return response.data.data;
 }

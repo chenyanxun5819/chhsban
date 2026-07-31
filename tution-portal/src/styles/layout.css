@@ -26,6 +26,18 @@
   margin: 0;
 }
 
+.header__title--link {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  cursor: pointer;
+}
+
+.header__title--link:hover {
+  color: var(--primary-color);
+}
+
 .header__right {
   display: flex;
   align-items: center;
@@ -243,6 +255,10 @@
     display: flex;
     flex-direction: column;
   }
+
+  .responsive-layout--no-sidebar .responsive-layout__main {
+    margin-left: 0;
+  }
 }
 
 @media (max-width: 1023px) {
@@ -254,5 +270,9 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+  }
+
+  .responsive-layout--no-sidebar .nav-bottom {
+    display: none;
   }
 }

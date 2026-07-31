@@ -80,6 +80,22 @@ export const adminService = {
   },
 
   /**
+   * 指定上課地點（狀態進入審核中，鎖定申請人編輯權限）
+   */
+  async assignVenue(classId: string, venue: string): Promise<TutionClass> {
+    try {
+      const response = await apiClient.put<TutionClass>(
+        `/v1/classes/${classId}/venue`,
+        { venue }
+      );
+      return response.data!;
+    } catch (error) {
+      console.error("Failed to assign venue:", error);
+      throw error;
+    }
+  },
+
+  /**
    * 下載應用為 PDF
    */
   async downloadApplicationPdf(classId: string): Promise<Blob> {

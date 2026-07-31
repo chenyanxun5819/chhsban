@@ -96,6 +96,7 @@ export const KV_CONFIG = {
  */
 export enum TutionClassStatus {
   PENDING = "pending",           // 待批准
+  REVIEWING = "reviewing",       // 審核中（已指定上課地點）
   APPROVED = "approved",         // 已批准
   REJECTED = "rejected",         // 已駁回
   ACTIVE = "active",             // 進行中

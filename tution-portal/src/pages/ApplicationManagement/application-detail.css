@@ -225,6 +225,20 @@
   gap: 8px;
 }
 
+.roster-add-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.roster-add-row input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 14px;
+}
+
 .roster-card {
   display: flex;
   justify-content: space-between;

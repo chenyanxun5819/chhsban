@@ -27,24 +27,26 @@ const ClassList = () => {
 
   useEffect(() => {
     const fetchClasses = async () => {
+      if (!user?.teacherId) {
+        setClasses([]);
+        setError(null);
+        setLoading(false);
+        return;
+      }
+
       try {
         setLoading(true);
         setError(null);
-        // 根據權限決定查詢範圍
-        // super_admin 和 admin 可以看所有人的課程，其他人只能看自己的
-        let url = "/v1/classes";
-        if (user?.permission !== "super_admin" && user?.permission !== "admin") {
-          url = `/v1/classes?teacher=${user?.teacherId}`;
-        }
+        const response = await apiClient.get(
+          `/v1/classes?teacher=${encodeURIComponent(user.teacherId)}`
+        );
+        const ownedClasses = (response.data?.data as TutionClass[]) || [];
 
-        const response = await apiClient.get(url);
-        if (response.data && response.data.data) {
-          // 只顯示已批准、進行中的課程
-          const approvedClasses = (response.data.data as TutionClass[]).filter(
-            (c) => c.approval_status === "approved" || c.approval_status === "active"
-          );
-          setClasses(approvedClasses);
-        }
+        const approvedClasses = ownedClasses.filter(
+          (c) => c.approval_status === "approved" || c.approval_status === "active"
+        );
+
+        setClasses(approvedClasses);
       } catch (err: any) {
         const errorMessage = err.response?.data?.error || "載入課程列表失敗";
         setError(errorMessage);
@@ -54,7 +56,7 @@ const ClassList = () => {
     };
 
     fetchClasses();
-  }, [user?.teacherId, user?.permission]);
+  }, [user?.teacherId]);
 
   return (
     <Layout title="已批准課程">

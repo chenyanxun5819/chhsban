@@ -18,7 +18,7 @@
  * - 建立記錄: 1 PUT 
  */
 
-import { createAuthKVManager, createTeacherKVManager, createStudentKVManager } from "@chhsban/kv-utils";
+import { createAuthKVManager, createTeacherKVManager, createStudentKVManager, TutionClassStatus } from "@chhsban/kv-utils";
 import { KV_NAMESPACES } from "@chhsban/cloudflare-config";
 import { TutionSheetsSync } from "./sheets-sync";
 import { TutionKVService } from "./tution-service";
@@ -31,11 +31,76 @@ interface Env {
   TUTION_CLASS_KV: KVNamespace;
   TUTION_ROSTER_KV: KVNamespace;
   TUTION_ATTENDANCE_KV: KVNamespace;
-  GOOGLE_SHEETS_API_KEY: string;
+  GOOGLE_SHEETS_API_KEY?: string;
   GOOGLE_SHEETS_SPREADSHEET_ID: string;
   GOOGLE_SHEETS_SHEET_CLASSES: string;
   GOOGLE_SHEETS_SHEET_ROSTER: string;
   GOOGLE_SHEETS_SHEET_ATTENDANCE: string;
+  GOOGLE_SERVICE_ACCOUNT_EMAIL?: string;
+  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?: string;
+  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID?: string;
+}
+
+interface IncomingRosterSnapshot {
+  student_id: string;
+  student_no?: string;
+  name_cn: string;
+  name_en?: string;
+  real_class_name?: string;
+  input_class_name?: string;
+  gender_boarding?: string;
+}
+
+const FIXED_TIME_START = "19:00";
+const FIXED_TIME_END = "21:00";
+
+async function buildRosterSnapshots(
+  env: Env,
+  kvService: TutionKVService,
+  classId: string,
+): Promise<IncomingRosterSnapshot[]> {
+  const studentManager = createStudentKVManager(env.STUDENT_KV);
+  const rosterEntries = await kvService.listRosterByClass(classId);
+
+  return Promise.all(
+    rosterEntries.map(async (entry) => {
+      const student = await studentManager.getStudent(entry.student_id);
+
+      return {
+        student_id: entry.student_id,
+        student_no: student?.student_id || entry.student_id,
+        name_cn: entry.student_name_cn,
+        name_en: entry.student_name_en,
+        real_class_name: entry.student_class,
+        input_class_name: entry.student_class,
+      };
+    }),
+  );
+}
+
+async function buildClassResponse(
+  env: Env,
+  kvService: TutionKVService,
+  tutionClass: any,
+): Promise<any> {
+  const teacherManager = createTeacherKVManager(env.TEACHER_KV);
+  const teacher = tutionClass.teacher_id
+    ? await teacherManager.getTeacher(tutionClass.teacher_id)
+    : null;
+
+  const initialRoster = Array.isArray(tutionClass.initial_roster) && tutionClass.initial_roster.length > 0
+    ? tutionClass.initial_roster
+    : await buildRosterSnapshots(env, kvService, tutionClass.class_id);
+
+  return {
+    ...tutionClass,
+    teacher_name_cn:
+      tutionClass.teacher_name_cn ||
+      teacher?.name_cn ||
+      teacher?.name_en ||
+      "",
+    initial_roster: initialRoster,
+  };
 }
 
 /**
@@ -58,6 +123,36 @@ function jsonResponse(data: any, status: number = 200): Response {
     status,
     headers: getCorsHeaders(),
   });
+}
+
+async function syncClassDataToSheets(env: Env, kvService: TutionKVService): Promise<void> {
+  if (!env.GOOGLE_SHEETS_API_KEY && !env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
+    console.warn("[SHEETS] No Google Sheets credentials are configured; skipping sync");
+    return;
+  }
+
+  const sheetsSync = new TutionSheetsSync({
+    apiKey: env.GOOGLE_SHEETS_API_KEY,
+    spreadsheetId: env.GOOGLE_SHEETS_SPREADSHEET_ID,
+    serviceAccountEmail: env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+    serviceAccountPrivateKey: env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
+    serviceAccountPrivateKeyId: env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID,
+    sheetNames: {
+      classes: env.GOOGLE_SHEETS_SHEET_CLASSES,
+      roster: env.GOOGLE_SHEETS_SHEET_ROSTER,
+      attendance: env.GOOGLE_SHEETS_SHEET_ATTENDANCE,
+    },
+  });
+
+  const [classes, roster] = await Promise.all([
+    kvService.listAllClasses(),
+    kvService.listAllRoster(),
+  ]);
+
+  await Promise.all([
+    sheetsSync.syncClasses(classes),
+    sheetsSync.syncRoster(roster),
+  ]);
 }
 
 /**
@@ -241,6 +336,10 @@ export default {
         return handleStudents(request, env, session);
       }
 
+      if (pathname.startsWith("/api/v1/my/classes")) {
+        return handleMyClasses(request, env, session);
+      }
+
       if (pathname.startsWith("/api/v1/classes")) {
         return handleClasses(request, env, session);
       }
@@ -339,7 +438,9 @@ async function handleClasses(
   const method = request.method;
   const pathParts = url.pathname.split("/");
   const classId = pathParts[4]; // /api/v1/classes/{classId}
-  const subAction = pathParts[5]; // /api/v1/classes/{classId}/{pdf|pdf}
+  const subAction = pathParts[5]; // /api/v1/classes/{classId}/{pdf|roster}
+  const subId = pathParts[6]; // /api/v1/classes/{classId}/roster/{rosterId}
+  const subSubAction = pathParts[7]; // /api/v1/classes/{classId}/roster/{rosterId}/withdraw
 
   const kvService = new TutionKVService(
     env.TUTION_CLASS_KV,
@@ -367,26 +468,65 @@ async function handleClasses(
       let teacherNameCn = data.teacher_name_cn;
       if (!teacherNameCn) {
         try {
-          const teacherData = await env.TEACHER_KV.get(session.teacherId);
-          if (teacherData) {
-            const teacher = JSON.parse(teacherData);
-            teacherNameCn = teacher.name_cn || teacher.name || "";
-          }
+          const teacherManager = createTeacherKVManager(env.TEACHER_KV);
+          const teacher = await teacherManager.getTeacher(session.teacher_id);
+          teacherNameCn = teacher?.name_cn || teacher?.name_en || "";
         } catch (e) {
           console.warn("Failed to fetch teacher name:", e);
           teacherNameCn = "";
         }
       }
 
+      // 產生可讀的申請代碼：tution-{年份後兩碼}-{該年度序號}
+      const currentYear = new Date().getFullYear();
+      const existingClasses = await kvService.listAllClasses();
+      const sameYearCount = existingClasses.filter(
+        (c) => new Date(c.created_at).getFullYear() === currentYear,
+      ).length;
+      const applicationNo = `tution-${String(currentYear).slice(-2)}-${String(sameYearCount + 1).padStart(2, "0")}`;
+
       const classData = {
         ...data,
-        teacher_id: session.teacherId,
+        teacher_id: session.teacher_id,
         teacher_name_cn: teacherNameCn,
         approval_status: "pending",
+        time_start: data.time_start || FIXED_TIME_START,
+        time_end: data.time_end || FIXED_TIME_END,
+        application_no: applicationNo,
       };
 
       const newClass = await kvService.createClass(classData);
-      return jsonResponse({ data: newClass }, 201);
+
+      const initialRoster = Array.isArray(data.initial_roster)
+        ? (data.initial_roster as IncomingRosterSnapshot[])
+        : [];
+
+      if (initialRoster.length > 0) {
+        await Promise.all(
+          initialRoster.map((student) =>
+            kvService.addRosterEntry({
+              class_id: newClass.class_id,
+              student_id: student.student_id,
+              student_name_cn: student.name_cn,
+              student_name_en: student.name_en || "-",
+              student_class: student.real_class_name || student.input_class_name || "-",
+              enrollment_date: newClass.start_date,
+              is_active: true,
+              student_no: student.student_no || student.student_id,
+              gender_boarding: student.gender_boarding || "-",
+            } as any),
+          ),
+        );
+      }
+
+      try {
+        await syncClassDataToSheets(env, kvService);
+      } catch (syncError) {
+        console.error("[SHEETS] Failed to sync after class creation:", syncError);
+      }
+
+      const hydratedClass = await buildClassResponse(env, kvService, newClass);
+      return jsonResponse({ data: hydratedClass }, 201);
     }
 
     // GET /api/v1/classes/{classId} - 取得補習班詳情
@@ -399,14 +539,15 @@ async function handleClasses(
 
       // 驗證權限：只有教師或管理員可以查看
       if (
-        tutionClass.teacher_id !== session.teacherId &&
+        tutionClass.teacher_id !== session.teacher_id &&
         session.permission !== "admin" &&
         session.permission !== "super_admin"
       ) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      return jsonResponse({ data: tutionClass }, 200);
+      const hydratedClass = await buildClassResponse(env, kvService, tutionClass);
+      return jsonResponse({ data: hydratedClass }, 200);
     }
 
     // PUT /api/v1/classes/{classId} - 更新補習班
@@ -419,14 +560,21 @@ async function handleClasses(
 
       // 驗證權限
       if (
-        tutionClass.teacher_id !== session.teacherId &&
-        session.permission !== "admin"
+        tutionClass.teacher_id !== session.teacher_id &&
+        session.permission !== "admin" &&
+        session.permission !== "super_admin"
       ) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
       const updates = await request.json();
       const updated = await kvService.updateClass(classId, updates);
+
+      try {
+        await syncClassDataToSheets(env, kvService);
+      } catch (syncError) {
+        console.error("[SHEETS] Failed to sync after class update:", syncError);
+      }
 
       return jsonResponse({ data: updated }, 200);
     }
@@ -441,15 +589,324 @@ async function handleClasses(
 
       // 驗證權限
       if (
-        tutionClass.teacher_id !== session.teacherId &&
-        session.permission !== "admin"
+        tutionClass.teacher_id !== session.teacher_id &&
+        session.permission !== "admin" &&
+        session.permission !== "super_admin"
       ) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
+      const rosterEntries = await kvService.listRosterByClass(classId);
+      await Promise.all(rosterEntries.map((entry) => kvService.deleteRosterEntry(entry.roster_id)));
+
       await kvService.deleteClass(classId);
 
+      try {
+        await syncClassDataToSheets(env, kvService);
+      } catch (syncError) {
+        console.error("[SHEETS] Failed to sync after class deletion:", syncError);
+      }
+
       return new Response(null, { status: 204, headers: getCorsHeaders() });
+    }
+
+    // PUT /api/v1/classes/{classId}/approve 或 /reject - 管理員審批
+    if (method === "PUT" && classId && (subAction === "approve" || subAction === "reject")) {
+      if (session.permission !== "admin" && session.permission !== "super_admin") {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const tutionClass = await kvService.getClass(classId);
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+
+      const body = (await request.json()) as { rejection_reason?: string };
+      const updates: Record<string, unknown> =
+        subAction === "approve"
+          ? {
+              approval_status: "approved",
+              approved_by: session.teacher_id,
+              approved_at: Date.now(),
+            }
+          : {
+              approval_status: "rejected",
+              approved_by: session.teacher_id,
+              approved_at: Date.now(),
+              rejection_reason: body.rejection_reason || "",
+            };
+
+      const updated = await kvService.updateClass(classId, updates);
+
+      try {
+        await syncClassDataToSheets(env, kvService);
+      } catch (syncError) {
+        console.error("[SHEETS] Failed to sync after approval decision:", syncError);
+      }
+
+      return jsonResponse({ data: updated }, 200);
+    }
+
+    // PUT /api/v1/classes/{classId}/venue - 管理員指定上課地點，進入審核中
+    if (method === "PUT" && classId && subAction === "venue") {
+      if (session.permission !== "admin" && session.permission !== "super_admin") {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const tutionClass = await kvService.getClass(classId);
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+
+      const body = (await request.json()) as { venue?: string };
+      if (!body.venue) {
+        return jsonResponse({ error: "Missing venue" }, 400);
+      }
+
+      const updated = await kvService.updateClass(classId, {
+        venue: body.venue,
+        approval_status: "reviewing" as TutionClassStatus,
+      });
+
+      try {
+        await syncClassDataToSheets(env, kvService);
+      } catch (syncError) {
+        console.error("[SHEETS] Failed to sync after venue assignment:", syncError);
+      }
+
+      return jsonResponse({ data: updated }, 200);
+    }
+
+    // PUT /api/v1/classes/{classId}/roster - 申請人（待審批階段）重新提交學生名單
+    if (method === "PUT" && classId && subAction === "roster" && !subId) {
+      const tutionClass = await kvService.getClass(classId);
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+
+      if (
+        tutionClass.teacher_id !== session.teacher_id &&
+        session.permission !== "admin" &&
+        session.permission !== "super_admin"
+      ) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      if (tutionClass.approval_status !== "pending") {
+        return jsonResponse({ error: "只有待審批的申請可以修改學生名單" }, 400);
+      }
+
+      const body = (await request.json()) as { students?: IncomingRosterSnapshot[] };
+      const students = Array.isArray(body.students) ? body.students : [];
+
+      const existingEntries = await kvService.listRosterByClass(classId);
+      await Promise.all(existingEntries.map((entry) => kvService.deleteRosterEntry(entry.roster_id)));
+
+      await Promise.all(
+        students.map((student) =>
+          kvService.addRosterEntry({
+            class_id: classId,
+            student_id: student.student_id,
+            student_name_cn: student.name_cn,
+            student_name_en: student.name_en || "-",
+            student_class: student.real_class_name || student.input_class_name || "-",
+            enrollment_date: tutionClass.start_date,
+            is_active: true,
+            student_no: student.student_no || student.student_id,
+            gender_boarding: student.gender_boarding || "-",
+          } as any),
+        ),
+      );
+
+      const updated = await kvService.updateClass(classId, {
+        initial_roster: students,
+      } as any);
+
+      try {
+        await syncClassDataToSheets(env, kvService);
+      } catch (syncError) {
+        console.error("[SHEETS] Failed to sync after roster update:", syncError);
+      }
+
+      const hydratedClass = await buildClassResponse(env, kvService, updated);
+      return jsonResponse({ data: hydratedClass }, 200);
+    }
+
+    // GET /api/v1/classes/{classId}/roster - 查詢已開課課程的學生名單（含在讀 + 已退出）
+    if (method === "GET" && classId && subAction === "roster" && !subId) {
+      const tutionClass = await kvService.getClass(classId);
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+
+      if (
+        tutionClass.teacher_id !== session.teacher_id &&
+        session.permission !== "admin" &&
+        session.permission !== "super_admin"
+      ) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const entries = await kvService.listRosterByClass(classId);
+      const studentManager = createStudentKVManager(env.STUDENT_KV);
+
+      // STUDENT_KV 對同一位學生存在兩種 key 慣例：
+      // - student:{student_no} 是原始完整資料（含 gender_boarding / real_class_name）
+      // - student:{student_id} 是後來另一批只含核心欄位的精簡資料（沒有 gender_boarding）
+      // 用 student_id 直接查通常只會查到精簡版。申請當下驗證名單時是用 student_no
+      // 查到完整版並存進 class 的 initial_roster 快照，這裡優先拿那份快照當資料來源。
+      const initialRosterMap = new Map<string, any>(
+        (Array.isArray((tutionClass as any).initial_roster) ? (tutionClass as any).initial_roster : []).map(
+          (s: any) => [s.student_id, s],
+        ),
+      );
+
+      const hydrated = await Promise.all(
+        entries.map(async (entry) => {
+          const snapshot = initialRosterMap.get(entry.student_id);
+          const storedGenderBoarding = (entry as any).gender_boarding;
+
+          let genderBoarding = storedGenderBoarding || snapshot?.gender_boarding;
+          let studentNo = (entry as any).student_no || snapshot?.student_no;
+          let realClassName = snapshot?.real_class_name || entry.student_class;
+
+          if (!genderBoarding) {
+            const student: any = await studentManager.getStudent(entry.student_id);
+            genderBoarding = student?.gender_boarding;
+            studentNo = studentNo || student?.student_no;
+            realClassName = student?.real_class_name || realClassName;
+          }
+
+          return {
+            roster_id: entry.roster_id,
+            class_id: entry.class_id,
+            student_id: entry.student_id,
+            student_no: studentNo || entry.student_id,
+            name_cn: entry.student_name_cn,
+            name_en: entry.student_name_en,
+            real_class_name: realClassName,
+            gender_boarding: genderBoarding || "-",
+            enrollment_date: entry.enrollment_date,
+            withdrawal_date: entry.withdrawal_date || null,
+            withdrawal_reason: entry.withdrawal_reason || null,
+            is_active: entry.is_active,
+          };
+        }),
+      );
+
+      hydrated.sort((a, b) => (a.enrollment_date < b.enrollment_date ? -1 : 1));
+
+      return jsonResponse({ data: hydrated }, 200);
+    }
+
+    // POST /api/v1/classes/{classId}/roster - 已開課課程新增學生（記錄加入日期）
+    if (method === "POST" && classId && subAction === "roster") {
+      const tutionClass = await kvService.getClass(classId);
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+
+      if (
+        tutionClass.teacher_id !== session.teacher_id &&
+        session.permission !== "admin" &&
+        session.permission !== "super_admin"
+      ) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const body = (await request.json()) as { student_id?: string };
+      if (!body.student_id) {
+        return jsonResponse({ error: "Missing student_id" }, 400);
+      }
+
+      // 跟 handleStudents 一樣做雙重查詢：先當 student_no 直接查（完整資料通常存在這裡），
+      // 找不到再透過索引反查 student_id。
+      const studentManager = createStudentKVManager(env.STUDENT_KV);
+      let student: any = await studentManager.getStudent(body.student_id);
+      if (!student) {
+        const studentIdFromIndex = await env.STUDENT_KV.get(`student_no:${body.student_id}`);
+        if (studentIdFromIndex) {
+          student = await studentManager.getStudent(studentIdFromIndex);
+        }
+      }
+      if (!student) {
+        return jsonResponse({ error: "Student not found" }, 404);
+      }
+
+      const resolvedStudentId = student.student_id || body.student_id;
+
+      const existingEntries = await kvService.listRosterByClass(classId);
+      if (existingEntries.some((entry) => entry.student_id === resolvedStudentId && entry.is_active)) {
+        return jsonResponse({ error: "該學生已在名單中" }, 400);
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+      const entry = await kvService.addRosterEntry({
+        class_id: classId,
+        student_id: resolvedStudentId,
+        student_name_cn: student.name_cn,
+        student_name_en: student.name_en || "-",
+        student_class: student.real_class_name || student.class || "-",
+        enrollment_date: today,
+        is_active: true,
+        student_no: student.student_no || body.student_id,
+        gender_boarding: student.gender_boarding || "-",
+      } as any);
+
+      try {
+        await syncClassDataToSheets(env, kvService);
+      } catch (syncError) {
+        console.error("[SHEETS] Failed to sync after roster add:", syncError);
+      }
+
+      return jsonResponse({
+        data: {
+          roster_id: entry.roster_id,
+          class_id: entry.class_id,
+          student_id: entry.student_id,
+          student_no: student.student_no || body.student_id,
+          name_cn: student.name_cn,
+          name_en: student.name_en || "-",
+          real_class_name: student.real_class_name || student.class || "-",
+          gender_boarding: student.gender_boarding || "-",
+          enrollment_date: entry.enrollment_date,
+          withdrawal_date: null,
+          withdrawal_reason: null,
+          is_active: true,
+        },
+      }, 201);
+    }
+
+    // PUT /api/v1/classes/{classId}/roster/{rosterId}/withdraw - 已開課課程學生退出（記錄退出日期）
+    if (method === "PUT" && classId && subAction === "roster" && subId && subSubAction === "withdraw") {
+      const tutionClass = await kvService.getClass(classId);
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+
+      if (
+        tutionClass.teacher_id !== session.teacher_id &&
+        session.permission !== "admin" &&
+        session.permission !== "super_admin"
+      ) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const entry = await kvService.getRosterEntry(subId);
+      if (!entry || entry.class_id !== classId) {
+        return jsonResponse({ error: "Roster entry not found" }, 404);
+      }
+
+      const body = (await request.json().catch(() => ({}))) as { reason?: string };
+      await kvService.removeStudentFromRoster(subId, body.reason || "");
+
+      try {
+        await syncClassDataToSheets(env, kvService);
+      } catch (syncError) {
+        console.error("[SHEETS] Failed to sync after roster withdrawal:", syncError);
+      }
+
+      return jsonResponse({ success: true }, 200);
     }
 
     // GET /api/v1/classes/{classId}/pdf - 生成 PDF
@@ -462,7 +919,7 @@ async function handleClasses(
 
       // 驗證權限
       if (
-        tutionClass.teacher_id !== session.teacherId &&
+        tutionClass.teacher_id !== session.teacher_id &&
         session.permission !== "admin" &&
         session.permission !== "super_admin"
       ) {
@@ -484,9 +941,12 @@ async function handleClasses(
         ) {
           // 查詢所有課程
           const allClasses = await kvService.listAllClasses();
+          const hydratedClasses = await Promise.all(
+            allClasses.map((item) => buildClassResponse(env, kvService, item)),
+          );
           return jsonResponse({
             success: true,
-            data: allClasses,
+            data: hydratedClasses,
             timestamp: new Date().toISOString(),
           }, 200);
         }
@@ -499,9 +959,12 @@ async function handleClasses(
 
       // 查詢特定教師的課程
       const classes = await kvService.listClassesByTeacher(teacherId);
+      const hydratedClasses = await Promise.all(
+        classes.map((item) => buildClassResponse(env, kvService, item)),
+      );
       return jsonResponse({
         success: true,
-        data: classes,
+        data: hydratedClasses,
         timestamp: new Date().toISOString(),
       }, 200);
     }
@@ -509,6 +972,38 @@ async function handleClasses(
     return jsonResponse({ success: false, error: "Invalid endpoint" }, 400);
   } catch (error) {
     console.error("Classes handler error:", error);
+    return jsonResponse({ error: String(error) }, 500);
+  }
+}
+
+async function handleMyClasses(
+  request: Request,
+  env: Env,
+  session: any,
+): Promise<Response> {
+  if (request.method !== "GET") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+
+  const kvService = new TutionKVService(
+    env.TUTION_CLASS_KV,
+    env.TUTION_ROSTER_KV,
+    env.TUTION_ATTENDANCE_KV,
+  );
+
+  try {
+    const classes = await kvService.listClassesByTeacher(session.teacher_id);
+    const hydratedClasses = await Promise.all(
+      classes.map((item) => buildClassResponse(env, kvService, item)),
+    );
+
+    return jsonResponse({
+      success: true,
+      data: hydratedClasses,
+      timestamp: new Date().toISOString(),
+    }, 200);
+  } catch (error) {
+    console.error("My classes handler error:", error);
     return jsonResponse({ error: String(error) }, 500);
   }
 }
@@ -542,6 +1037,9 @@ async function handleSync(
     const sheetsSync = new TutionSheetsSync({
       apiKey: env.GOOGLE_SHEETS_API_KEY,
       spreadsheetId: env.GOOGLE_SHEETS_SPREADSHEET_ID,
+      serviceAccountEmail: env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
+      serviceAccountPrivateKey: env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
+      serviceAccountPrivateKeyId: env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID,
       sheetNames: {
         classes: env.GOOGLE_SHEETS_SHEET_CLASSES,
         roster: env.GOOGLE_SHEETS_SHEET_ROSTER,

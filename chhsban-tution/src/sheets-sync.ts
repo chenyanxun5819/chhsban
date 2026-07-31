@@ -1,13 +1,16 @@
 /**
  * Google Sheets API 同步模塊
- * 使用 API Key 進行認證
+ * 讀取可使用 API Key，寫入需使用 Service Account OAuth
  */
 
 import { TutionClass, TutionRoster, TutionAttendance } from "@chhsban/kv-utils";
 
 export interface SheetsConfig {
-  apiKey: string;
+  apiKey?: string;
   spreadsheetId: string;
+  serviceAccountEmail?: string;
+  serviceAccountPrivateKey?: string;
+  serviceAccountPrivateKeyId?: string;
   sheetNames: {
     classes: string;
     roster: string;
@@ -16,15 +19,26 @@ export interface SheetsConfig {
 }
 
 export class TutionSheetsSync {
-  private apiKey: string;
+  private apiKey?: string;
   private spreadsheetId: string;
+  private serviceAccountEmail?: string;
+  private serviceAccountPrivateKey?: string;
+  private serviceAccountPrivateKeyId?: string;
   private sheetNames: SheetsConfig["sheetNames"];
   private baseUrl = "https://sheets.googleapis.com/v4/spreadsheets";
+  private tokenCache: { accessToken: string; expiresAt: number } | null = null;
 
   constructor(config: SheetsConfig) {
     this.apiKey = config.apiKey;
     this.spreadsheetId = config.spreadsheetId;
+    this.serviceAccountEmail = config.serviceAccountEmail;
+    this.serviceAccountPrivateKey = config.serviceAccountPrivateKey;
+    this.serviceAccountPrivateKeyId = config.serviceAccountPrivateKeyId;
     this.sheetNames = config.sheetNames;
+  }
+
+  hasWriteCredentials(): boolean {
+    return Boolean(this.serviceAccountEmail && this.serviceAccountPrivateKey);
   }
 
   /**
@@ -72,6 +86,7 @@ export class TutionSheetsSync {
     const rows = [
       [
         "Class ID",
+        "Application No",
         "Teacher ID",
         "Teacher Name",
         "Form",
@@ -88,6 +103,7 @@ export class TutionSheetsSync {
       ],
       ...classes.map((c) => [
         c.class_id,
+        (c as any).application_no || "",
         c.teacher_id,
         c.teacher_name_cn || "",
         c.form,
@@ -116,9 +132,11 @@ export class TutionSheetsSync {
         "Roster ID",
         "Class ID",
         "Student ID",
+        "Student No",
         "Student Name (CN)",
         "Student Name (EN)",
         "Student Class",
+        "Gender/Boarding",
         "Enrollment Date",
         "Withdrawal Date",
         "Withdrawal Reason",
@@ -130,9 +148,11 @@ export class TutionSheetsSync {
         r.roster_id,
         r.class_id,
         r.student_id,
+        (r as any).student_no || "",
         r.student_name_cn,
         r.student_name_en,
         r.student_class,
+        (r as any).gender_boarding || "",
         r.enrollment_date,
         r.withdrawal_date || "",
         r.withdrawal_reason || "",
@@ -267,38 +287,67 @@ export class TutionSheetsSync {
   // ===== 私有方法 =====
 
   private async getSpreadsheet(): Promise<any> {
-    const url = `${this.baseUrl}/${this.spreadsheetId}?key=${this.apiKey}`;
-    const response = await fetch(url);
+    const response = await this.authorizedFetch(
+      `${this.baseUrl}/${this.spreadsheetId}`,
+      {},
+      "read",
+    );
     if (!response.ok) throw new Error(`Failed to get spreadsheet: ${response.statusText}`);
     return response.json();
   }
 
   private async getSheetValues(sheetName: string): Promise<any[][]> {
     const range = `${sheetName}!A:Z`;
-    const url = `${this.baseUrl}/${this.spreadsheetId}/values/${encodeURIComponent(range)}?key=${this.apiKey}`;
-    const response = await fetch(url);
+    const response = await this.authorizedFetch(
+      `${this.baseUrl}/${this.spreadsheetId}/values/${encodeURIComponent(range)}`,
+      {},
+      "read",
+    );
     if (!response.ok) return [];
     const data = await response.json();
     return data.values || [];
   }
 
-  private async updateSheetValues(sheetName: string, range: string, values: any[][]): Promise<void> {
-    const fullRange = `${sheetName}!${range}`;
-    const url = `${this.baseUrl}/${this.spreadsheetId}/values/${encodeURIComponent(fullRange)}?key=${this.apiKey}&valueInputOption=RAW`;
+  private async clearSheetValues(sheetName: string): Promise<void> {
+    if (!this.hasWriteCredentials()) {
+      throw new Error("Google Sheets write credentials are missing. Configure service account secrets.");
+    }
 
-    const response = await fetch(url, {
+    // 清空整張工作表（不含表頭以外的殘留舊資料），避免每次同步筆數變少時
+    // values.update 只覆蓋新資料涵蓋的範圍、留下舊的多餘列
+    const fullRange = `${sheetName}!A1:ZZ10000`;
+    const response = await this.authorizedFetch(
+      `${this.baseUrl}/${this.spreadsheetId}/values/${encodeURIComponent(fullRange)}:clear`,
+      { method: "POST" },
+      "write",
+    );
+
+    if (!response.ok) throw new Error(`Failed to clear sheet: ${response.statusText}`);
+  }
+
+  private async updateSheetValues(sheetName: string, range: string, values: any[][]): Promise<void> {
+    if (!this.hasWriteCredentials()) {
+      throw new Error("Google Sheets write credentials are missing. Configure service account secrets.");
+    }
+
+    await this.clearSheetValues(sheetName);
+
+    const fullRange = `${sheetName}!${range}`;
+    const response = await this.authorizedFetch(`${this.baseUrl}/${this.spreadsheetId}/values/${encodeURIComponent(fullRange)}?valueInputOption=RAW`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ values }),
-    });
+    }, "write");
 
     if (!response.ok) throw new Error(`Failed to update sheet: ${response.statusText}`);
   }
 
   private async addSheet(sheetName: string): Promise<void> {
-    const url = `${this.baseUrl}/${this.spreadsheetId}:batchUpdate?key=${this.apiKey}`;
+    if (!this.hasWriteCredentials()) {
+      throw new Error("Google Sheets write credentials are missing. Configure service account secrets.");
+    }
 
-    const response = await fetch(url, {
+    const response = await this.authorizedFetch(`${this.baseUrl}/${this.spreadsheetId}:batchUpdate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -310,15 +359,17 @@ export class TutionSheetsSync {
           },
         ],
       }),
-    });
+    }, "write");
 
     if (!response.ok) throw new Error(`Failed to add sheet: ${response.statusText}`);
   }
 
   private async deleteSheet(sheetId: number): Promise<void> {
-    const url = `${this.baseUrl}/${this.spreadsheetId}:batchUpdate?key=${this.apiKey}`;
+    if (!this.hasWriteCredentials()) {
+      throw new Error("Google Sheets write credentials are missing. Configure service account secrets.");
+    }
 
-    const response = await fetch(url, {
+    const response = await this.authorizedFetch(`${this.baseUrl}/${this.spreadsheetId}:batchUpdate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -328,15 +379,17 @@ export class TutionSheetsSync {
           },
         ],
       }),
-    });
+    }, "write");
 
     if (!response.ok) throw new Error(`Failed to delete sheet: ${response.statusText}`);
   }
 
   private async renameSheet(sheetId: number, newTitle: string): Promise<void> {
-    const url = `${this.baseUrl}/${this.spreadsheetId}:batchUpdate?key=${this.apiKey}`;
+    if (!this.hasWriteCredentials()) {
+      throw new Error("Google Sheets write credentials are missing. Configure service account secrets.");
+    }
 
-    const response = await fetch(url, {
+    const response = await this.authorizedFetch(`${this.baseUrl}/${this.spreadsheetId}:batchUpdate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -352,9 +405,160 @@ export class TutionSheetsSync {
           },
         ],
       }),
-    });
+    }, "write");
 
     if (!response.ok) throw new Error(`Failed to rename sheet: ${response.statusText}`);
+  }
+
+  private async authorizedFetch(
+    url: string,
+    init: RequestInit,
+    mode: "read" | "write",
+  ): Promise<Response> {
+    if (mode === "write") {
+      const accessToken = await this.getAccessToken();
+      return fetch(url, {
+        ...init,
+        headers: {
+          ...(init.headers || {}),
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+    }
+
+    if (this.hasWriteCredentials()) {
+      const accessToken = await this.getAccessToken();
+      return fetch(url, {
+        ...init,
+        headers: {
+          ...(init.headers || {}),
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+    }
+
+    if (!this.apiKey) {
+      throw new Error("Google Sheets read credentials are missing. Configure API key or service account secrets.");
+    }
+
+    const separator = url.includes("?") ? "&" : "?";
+    return fetch(`${url}${separator}key=${this.apiKey}`, init);
+  }
+
+  private async getAccessToken(): Promise<string> {
+    if (!this.serviceAccountEmail || !this.serviceAccountPrivateKey) {
+      throw new Error("Service account credentials are missing.");
+    }
+
+    if (this.tokenCache && this.tokenCache.expiresAt > Date.now() + 60_000) {
+      return this.tokenCache.accessToken;
+    }
+
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const jwt = await this.createSignedJwt(nowSeconds);
+    const response = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: new URLSearchParams({
+        grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
+        assertion: jwt,
+      }).toString(),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Failed to obtain Google access token: ${response.status} ${errorText}`);
+    }
+
+    const payload = await response.json() as {
+      access_token: string;
+      expires_in: number;
+    };
+
+    this.tokenCache = {
+      accessToken: payload.access_token,
+      expiresAt: Date.now() + payload.expires_in * 1000,
+    };
+
+    return payload.access_token;
+  }
+
+  private async createSignedJwt(nowSeconds: number): Promise<string> {
+    const header = {
+      alg: "RS256",
+      typ: "JWT",
+      kid: this.serviceAccountPrivateKeyId,
+    };
+    const payload = {
+      iss: this.serviceAccountEmail,
+      sub: this.serviceAccountEmail,
+      aud: "https://oauth2.googleapis.com/token",
+      scope: "https://www.googleapis.com/auth/spreadsheets",
+      iat: nowSeconds,
+      exp: nowSeconds + 3600,
+    };
+
+    const encodedHeader = this.base64UrlEncode(JSON.stringify(header));
+    const encodedPayload = this.base64UrlEncode(JSON.stringify(payload));
+    const unsignedToken = `${encodedHeader}.${encodedPayload}`;
+    const signature = await this.signJwt(unsignedToken);
+
+    return `${unsignedToken}.${signature}`;
+  }
+
+  private async signJwt(unsignedToken: string): Promise<string> {
+    const pem = (this.serviceAccountPrivateKey || "").replace(/\\n/g, "\n");
+    const binaryKey = this.pemToArrayBuffer(pem);
+    const cryptoKey = await crypto.subtle.importKey(
+      "pkcs8",
+      binaryKey,
+      {
+        name: "RSASSA-PKCS1-v1_5",
+        hash: "SHA-256",
+      },
+      false,
+      ["sign"],
+    );
+
+    const signature = await crypto.subtle.sign(
+      "RSASSA-PKCS1-v1_5",
+      cryptoKey,
+      new TextEncoder().encode(unsignedToken),
+    );
+
+    return this.base64UrlEncode(signature);
+  }
+
+  private pemToArrayBuffer(pem: string): ArrayBuffer {
+    const base64 = pem
+      .replace("-----BEGIN PRIVATE KEY-----", "")
+      .replace("-----END PRIVATE KEY-----", "")
+      .replace(/\s+/g, "");
+
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+    return bytes.buffer;
+  }
+
+  private base64UrlEncode(value: string | ArrayBuffer): string {
+    const bytes = typeof value === "string"
+      ? new TextEncoder().encode(value)
+      : new Uint8Array(value);
+
+    let binary = "";
+    for (const byte of bytes) {
+      binary += String.fromCharCode(byte);
+    }
+
+    return btoa(binary)
+      .replace(/\+/g, "-")
+      .replace(/\//g, "_")
+      .replace(/=+$/g, "");
   }
 
   private async writeClassesHeader(): Promise<void> {

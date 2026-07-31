@@ -86,3 +86,7 @@ GOOGLE_SHEETS_SHEET_ATTENDANCE = "Attendance"
 # 執行以下命令設置 Google Sheets API Key:
 # wrangler secret put GOOGLE_SHEETS_API_KEY --env production
 # 輸入: AIzaSyBin2EW-i294Q7GvzZimZYddx3Y33yR7_A
+# 如需可寫入 Google Sheets，請改用 Service Account secrets:
+# wrangler secret put GOOGLE_SERVICE_ACCOUNT_EMAIL --env production
+# wrangler secret put GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY --env production
+# wrangler secret put GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID --env production

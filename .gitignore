@@ -88,3 +88,9 @@ download_student/*.log
 .env.production
 students-bulk-import.json
 test-index.json
+
+# Secrets / credentials
+*service-account*.json
+chhsban-acadoc-*.json
+*.pem
+*.key

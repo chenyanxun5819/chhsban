@@ -18,7 +18,7 @@ interface PageState {
 }
 
 const AttendanceStatsPage: React.FC = () => {
-  const { classId } = useParams<{ classId: string }>();
+  const { id: classId } = useParams<{ id: string }>();
   const [state, setState] = React.useState<PageState>({
     attendance: [],
     roster: [],

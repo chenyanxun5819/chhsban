@@ -26,6 +26,20 @@
   gap: 8px;
 }
 
+.add-student-row input {
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  min-width: 200px;
+}
+
+.add-student-row input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
 .table-toolbar .btn {
   padding: 8px 16px;
   font-size: 14px;
@@ -195,6 +209,20 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
 }
 
+.roster-row--withdrawn {
+  border-left-color: #dc3545;
+  opacity: 0.75;
+}
+
+.student-dates {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  color: #999;
+  white-space: nowrap;
+}
+
 .row-content {
   flex: 1;
   display: flex;
@@ -353,238 +381,23 @@
   color: #333;
 }
 
-/* ==================== Roster Form ==================== */
-
-.roster-form {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.form-group {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.form-group label {
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
-}
-
-.form-group input {
-  padding: 10px 12px;
-  font-size: 14px;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  transition: all 0.3s ease;
-}
-
-.form-group input:focus {
-  outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
-}
-
-.form-group input.is-invalid {
-  border-color: #dc3545;
-}
-
-.form-error {
-  font-size: 12px;
-  color: #dc3545;
-}
-
-.form-actions {
-  display: flex;
-  gap: 12px;
-  justify-content: flex-end;
-  margin-top: 12px;
-}
-
-.form-actions .btn {
-  padding: 10px 20px;
-  font-size: 14px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-/* ==================== Import Modal ==================== */
-
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-}
-
-.modal-content {
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
-  max-width: 600px;
-  width: 90%;
-  max-height: 90vh;
-  overflow-y: auto;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 20px 24px;
-  border-bottom: 1px solid #e0e0e0;
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: 18px;
-  color: #333;
-}
-
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 24px;
-  color: #999;
-  cursor: pointer;
-  padding: 0;
-  width: 30px;
-  height: 30px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: color 0.2s;
-}
-
-.close-btn:hover:not(:disabled) {
-  color: #333;
-}
-
-.close-btn:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.modal-body {
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-.file-upload {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.file-upload label {
-  font-size: 14px;
-  font-weight: 500;
-  color: #333;
-}
-
-.file-input {
-  padding: 12px;
-  border: 2px dashed #ddd;
-  border-radius: 6px;
-  background: #f9f9f9;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.file-input:hover {
-  border-color: #007bff;
-  background: #f0f6ff;
-}
-
-.help-text {
-  font-size: 12px;
-  color: #999;
-}
-
-.preview {
-  background: #f9f9f9;
-  padding: 16px;
-  border-radius: 6px;
-  overflow-x: auto;
-}
-
-.preview h4 {
-  margin: 0 0 12px 0;
-  font-size: 14px;
-  color: #333;
-}
-
-.preview-table {
-  width: 100%;
-  font-size: 12px;
-  border-collapse: collapse;
-}
-
-.preview-table td {
-  padding: 8px;
-  border: 1px solid #e0e0e0;
-  text-align: left;
-}
-
-.preview-table tr:nth-child(odd) {
-  background: white;
-}
-
-.preview-table tr:nth-child(even) {
-  background: #fafafa;
-}
-
-.file-info {
-  background: #f0f6ff;
-  padding: 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: #0056b3;
-}
-
-.file-info p {
-  margin: 4px 0;
-}
-
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 20px 24px;
-  border-top: 1px solid #e0e0e0;
-}
-
-.modal-footer .btn {
-  padding: 10px 20px;
-  font-size: 14px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
 /* ==================== Roster Stats ==================== */
+
+.roster-stats-section {
+  margin: 24px 0;
+}
 
 .roster-stats {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   gap: 16px;
-  margin: 24px 0;
 }
 
-.stat-card {
+.roster-stats--gender {
+  margin-top: 12px;
+}
+
+.roster-stat-card {
   padding: 16px;
   background: white;
   border: 1px solid #e0e0e0;
@@ -593,24 +406,24 @@
   transition: all 0.3s ease;
 }
 
-.stat-card:hover {
+.roster-stat-card:hover {
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
   transform: translateY(-2px);
 }
 
-.stat-card.success {
+.roster-stat-card.success {
   border-left: 4px solid #28a745;
 }
 
-.stat-card.warning {
+.roster-stat-card.warning {
   border-left: 4px solid #ffc107;
 }
 
-.stat-card.danger {
+.roster-stat-card.danger {
   border-left: 4px solid #dc3545;
 }
 
-.stat-card.info {
+.roster-stat-card.info {
   border-left: 4px solid #17a2b8;
 }
 
@@ -808,7 +621,7 @@
     gap: 12px;
   }
 
-  .stat-card {
+  .roster-stat-card {
     padding: 12px;
   }
 
@@ -829,45 +642,6 @@
 
   .page-info {
     font-size: 12px;
-  }
-
-  .modal-content {
-    width: 95%;
-    max-height: 95vh;
-  }
-
-  .modal-header {
-    padding: 16px;
-  }
-
-  .modal-body {
-    padding: 16px;
-  }
-
-  .modal-footer {
-    padding: 16px;
-    gap: 8px;
-  }
-
-  .modal-footer .btn {
-    flex: 1;
-    font-size: 13px;
-  }
-
-  .form-actions {
-    flex-direction: column;
-  }
-
-  .form-actions .btn {
-    width: 100%;
-  }
-
-  .preview-table {
-    font-size: 11px;
-  }
-
-  .preview-table td {
-    padding: 6px;
   }
 }
 

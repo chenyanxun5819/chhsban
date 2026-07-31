@@ -2,16 +2,37 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
-import {
-  ResponsiveCard,
-  ResponsiveGrid,
-} from "@/components/common/ResponsiveCard";
+import { ResponsiveCard } from "@/components/common/ResponsiveCard";
 import { TutionClass, TutionStatus } from "@/types";
 import apiClient from "@/utils/api";
 import "./welcome.css";
 
+interface ApplicationRowProps {
+  app: TutionClass;
+  statusBadge: string;
+  actions: React.ReactNode;
+}
+
+const ApplicationRow: React.FC<ApplicationRowProps> = ({ app, statusBadge, actions }) => (
+  <div className="app-row">
+    <div className="app-row__main">
+      <span className="app-row__title">
+        {app.subject} ({app.form})
+      </span>
+      <span className="app-row__badge">{statusBadge}</span>
+    </div>
+    <div className="app-row__meta">
+      <span>📅 {new Date(app.start_date).toLocaleDateString("zh-TW")}</span>
+      <span>📍 {app.venue || "-"}</span>
+      <span>💰 RM {app.fees}</span>
+    </div>
+    <div className="app-row__actions">{actions}</div>
+  </div>
+);
+
 interface ApplicationStats {
   pending: number;
+  reviewing: number;
   approved: number;
   total: number;
 }
@@ -21,6 +42,7 @@ const Welcome: React.FC = () => {
   const { user } = useAuth();
   const [stats, setStats] = useState<ApplicationStats>({
     pending: 0,
+    reviewing: 0,
     approved: 0,
     total: 0,
   });
@@ -45,12 +67,16 @@ const Welcome: React.FC = () => {
         const pending = classes.filter(
           (c) => c.approval_status === "pending"
         ).length;
+        const reviewing = classes.filter(
+          (c) => c.approval_status === "reviewing"
+        ).length;
         const approved = classes.filter(
           (c) => c.approval_status === "approved" || c.approval_status === "active"
         ).length;
 
         setStats({
           pending,
+          reviewing,
           approved,
           total: classes.length,
         });
@@ -65,6 +91,7 @@ const Welcome: React.FC = () => {
   const getStatusBadge = (status: TutionStatus) => {
     const statusMap: Record<TutionStatus, string> = {
       pending: "⏳ 待審批",
+      reviewing: "🔍 審核中",
       approved: "✅ 已批准",
       rejected: "❌ 已拒絕",
       active: "🚀 進行中",
@@ -82,36 +109,19 @@ const Welcome: React.FC = () => {
           <p>補習班系統 - 教師管理平台</p>
         </div>
 
-        {/* 統計卡片 (響應式網格) */}
-        <ResponsiveGrid columns="3" gap="lg">
-          <div className="stat-card">
-            <div className="stat-card__value">{stats.pending}</div>
-            <div className="stat-card__label">待審批申請</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-card__value">{stats.approved}</div>
-            <div className="stat-card__label">已批准課程</div>
-          </div>
-          <div className="stat-card">
-            <div className="stat-card__value">{stats.total}</div>
-            <div className="stat-card__label">總申請數</div>
-          </div>
-        </ResponsiveGrid>
-
         {/* 待審批申請 */}
         {stats.pending > 0 && (
           <section className="welcome-section">
             <h2 className="section-title">📋 待審批申請</h2>
-            <ResponsiveGrid columns="auto" gap="md">
+            <div className="app-list">
               {applications
                 .filter((app) => app.approval_status === "pending")
                 .map((app) => (
-                  <ResponsiveCard
+                  <ApplicationRow
                     key={app.class_id}
-                    title={`${app.subject} - ${app.form}`}
-                    subtitle={getStatusBadge(app.approval_status)}
-                    variant="status-pending"
-                    action={
+                    app={app}
+                    statusBadge={getStatusBadge(app.approval_status)}
+                    actions={
                       <button
                         className="btn btn-small"
                         onClick={() => navigate(`/applications/${app.class_id}`)}
@@ -119,15 +129,35 @@ const Welcome: React.FC = () => {
                         查看
                       </button>
                     }
-                  >
-                    <p className="card-info">
-                      📅 {new Date(app.start_date).toLocaleDateString("zh-TW")}
-                    </p>
-                    <p className="card-info">💰 RM {app.fees}</p>
-                    <p className="card-info">📍 {app.venue}</p>
-                  </ResponsiveCard>
+                  />
                 ))}
-            </ResponsiveGrid>
+            </div>
+          </section>
+        )}
+
+        {/* 審核中 */}
+        {stats.reviewing > 0 && (
+          <section className="welcome-section">
+            <h2 className="section-title">🔍 審核中</h2>
+            <div className="app-list">
+              {applications
+                .filter((app) => app.approval_status === "reviewing")
+                .map((app) => (
+                  <ApplicationRow
+                    key={app.class_id}
+                    app={app}
+                    statusBadge={getStatusBadge(app.approval_status)}
+                    actions={
+                      <button
+                        className="btn btn-small"
+                        onClick={() => navigate(`/applications/${app.class_id}`)}
+                      >
+                        查看
+                      </button>
+                    }
+                  />
+                ))}
+            </div>
           </section>
         )}
 
@@ -135,47 +165,42 @@ const Welcome: React.FC = () => {
         {stats.approved > 0 && (
           <section className="welcome-section">
             <h2 className="section-title">✅ 已批准課程</h2>
-            <ResponsiveGrid columns="auto" gap="md">
+            <div className="app-list">
               {applications
                 .filter(
                   (app) =>
                     app.approval_status === "approved" || app.approval_status === "active"
                 )
                 .map((app) => (
-                  <ResponsiveCard
+                  <ApplicationRow
                     key={app.class_id}
-                    title={`${app.subject} (${app.form})`}
-                    subtitle={getStatusBadge(app.approval_status)}
-                    variant="status-approved"
-                  >
-                    <p className="card-info">
-                      📅 {app.day_of_week} {app.time_start}-{app.time_end}
-                    </p>
-                    <p className="card-info">📍 {app.venue}</p>
-                    <p className="card-info">👥 {app.initial_roster?.length || 0} 名學生</p>
-                    <div className="card-actions">
-                      <button
-                        className="btn btn-small"
-                        onClick={() => navigate(`/classes/${app.class_id}/roster`)}
-                      >
-                        👥 管理學生
-                      </button>
-                      <button
-                        className="btn btn-small"
-                        onClick={() => navigate(`/classes/${app.class_id}/schedule`)}
-                      >
-                        📅 開課記錄
-                      </button>
-                      <button
-                        className="btn btn-small"
-                        onClick={() => navigate(`/classes/${app.class_id}/attendance`)}
-                      >
-                        ✓ 點名
-                      </button>
-                    </div>
-                  </ResponsiveCard>
+                    app={app}
+                    statusBadge={getStatusBadge(app.approval_status)}
+                    actions={
+                      <>
+                        <button
+                          className="btn btn-small"
+                          onClick={() => navigate(`/classes/${app.class_id}/roster`)}
+                        >
+                          👥 管理學生
+                        </button>
+                        <button
+                          className="btn btn-small"
+                          onClick={() => navigate(`/classes/${app.class_id}/schedule`)}
+                        >
+                          📅 開課記錄
+                        </button>
+                        <button
+                          className="btn btn-small"
+                          onClick={() => navigate(`/classes/${app.class_id}/attendance`)}
+                        >
+                          ✓ 點名
+                        </button>
+                      </>
+                    }
+                  />
                 ))}
-            </ResponsiveGrid>
+            </div>
           </section>
         )}
 
