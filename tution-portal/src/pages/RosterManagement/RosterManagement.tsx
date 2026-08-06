@@ -122,13 +122,7 @@ const RosterManagement: React.FC = () => {
             marginBottom: "24px",
           }}
         >
-          <button
-            className="btn btn-outline-secondary"
-            onClick={() => navigate(-1)}
-            style={{ marginBottom: 0 }}
-          >
-            ← 返回
-          </button>
+
           <div>
             <h1 style={{ margin: "0 0 4px 0", fontSize: "24px" }}>
               {classNameDisplay} - 學生名單管理

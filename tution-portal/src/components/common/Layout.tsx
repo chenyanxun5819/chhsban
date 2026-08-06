@@ -26,7 +26,7 @@ export const Header: React.FC<HeaderProps> = ({ title, onMenuToggle, menuOpen })
           </button>
         )}
         <button className="header__title header__title--link" onClick={() => navigate("/")}>
-          {title || "補習班系統"}
+          {title || "返回首页"}
         </button>
       </div>
       <div className="header__right">

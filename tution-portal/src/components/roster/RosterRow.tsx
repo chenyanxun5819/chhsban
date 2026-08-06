@@ -1,6 +1,5 @@
 import React from "react";
 import { ClassRosterEntry } from "@/types";
-import { getGenderBoardingLabel } from "@/services/rosterService";
 
 interface RosterRowProps {
   student: ClassRosterEntry;
@@ -27,39 +26,39 @@ const RosterRow: React.FC<RosterRowProps> = ({ student, onWithdraw, loading = fa
   return (
     <div className={`roster-row ${!student.is_active ? "roster-row--withdrawn" : ""}`}>
       <div className="row-content">
-        <div className="student-info">
-          <div className="student-no">{student.student_no}</div>
-          <div className="student-names">
-            <span className="name-cn">{student.name_cn}</span>
-            <span className="name-en">{student.name_en}</span>
-          </div>
+        <div className="student-line-1">
+          <span className="student-no">{student.student_no}</span>
+          <span className="separator-tab"></span>
+          <span className="name-cn">{student.name_cn}</span>
+          <span className="separator-tab"></span>
+          <span className="name-en">{student.name_en}</span>
         </div>
 
-        <div className="student-meta">
+        <div className="student-line-2">
           <span className="class-name">{student.real_class_name}</span>
-          <span className="status-badge info">{getGenderBoardingLabel(student.gender_boarding)}</span>
+          <span className="separator-tab"></span>
+          <span className="gender-code">{student.gender_boarding}</span>
+          <span className="separator-tab"></span>
           <span className={`status-badge ${student.is_active ? "success" : "danger"}`}>
             {student.is_active ? "在讀" : "已退出"}
           </span>
+          {student.is_active && (
+            <button
+              className="btn btn-outline-danger btn-withdraw"
+              onClick={handleWithdraw}
+              disabled={loading || withdrawing}
+              aria-label={`讓 ${student.name_cn} 退出`}
+            >
+              {withdrawing ? "處理中..." : "退出"}
+            </button>
+          )}
         </div>
 
-        <div className="student-dates">
-          <span>加入: {student.enrollment_date}</span>
-          {student.withdrawal_date && <span>退出: {student.withdrawal_date}</span>}
+        <div className="student-line-3">
+          <span className="date-info">
+            {student.is_active ? `加入: ${student.enrollment_date}` : `退出: ${student.withdrawal_date}`}
+          </span>
         </div>
-      </div>
-
-      <div className="row-actions">
-        {student.is_active && (
-          <button
-            className="btn btn-outline-danger"
-            onClick={handleWithdraw}
-            disabled={loading || withdrawing}
-            aria-label={`讓 ${student.name_cn} 退出`}
-          >
-            {withdrawing ? "處理中..." : "退出"}
-          </button>
-        )}
       </div>
     </div>
   );

@@ -214,57 +214,105 @@
   opacity: 0.75;
 }
 
-.student-dates {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 12px;
-  color: #999;
-  white-space: nowrap;
-}
-
 .row-content {
   flex: 1;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 20px;
+  flex-direction: column;
+  gap: 3px;
 }
 
-.student-info {
+.student-line-1 {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 0;
+  font-size: 13px;
+  color: #333;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.separator-tab {
+  display: inline-block;
+  width: 2em;
+  height: 0;
 }
 
 .student-no {
   font-size: 12px;
-  color: #999;
+  color: #666;
   font-weight: 600;
-  min-width: 50px;
-}
-
-.student-names {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  flex-shrink: 0;
 }
 
 .name-cn {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: #333;
+  flex-shrink: 0;
 }
 
 .name-en {
   font-size: 12px;
   color: #666;
+  flex-shrink: 0;
 }
 
-.student-meta {
+.student-line-2 {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.btn-withdraw {
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 3px 8px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: normal;
+  border: 1px solid #dc3545 !important;
+  background: transparent !important;
+  color: #dc3545 !important;
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin-left: 6px;
+}
+
+.btn-withdraw:hover:not(:disabled) {
+  background: #dc3545 !important;
+  color: #fff !important;
+}
+
+.class-name {
+  font-size: 12px;
+  color: #666;
+  background: #e3f2fd;
+  padding: 3px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.gender-code {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.student-line-3 {
+  display: flex;
+  align-items: center;
+}
+
+.date-info {
+  font-size: 12px;
+  color: #999;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .class-name {
@@ -276,10 +324,12 @@
 }
 
 .status-badge {
-  font-size: 12px;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-weight: 500;
+  font-size: 12px !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  font-weight: 500 !important;
+  width: auto !important;
+  min-width: 0 !important;
 }
 
 .status-badge.success {
@@ -313,7 +363,7 @@
   font-size: 13px;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background-color 0.2s ease, color 0.2s ease;
   border: 1px solid;
 }
 
@@ -383,62 +433,61 @@
 
 /* ==================== Roster Stats ==================== */
 
-.roster-stats-section {
+.roster-stats-container {
+  padding: 1.25rem 0.65rem;
+  border-radius: 12px;
+  box-shadow: rgba(33, 150, 243, 0.3) 0px 4px 12px;
+  color: rgb(255, 255, 255);
+  background: linear-gradient(135deg, rgb(33, 150, 243) 0%, rgb(25, 118, 210) 100%);
   margin: 24px 0;
 }
 
-.roster-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 16px;
+.roster-stats-row {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: nowrap;
+  margin-bottom: 1.5rem;
 }
 
-.roster-stats--gender {
-  margin-top: 12px;
+.roster-stats-row:first-child {
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
 }
 
-.roster-stat-card {
-  padding: 16px;
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
+.roster-stats-row:last-child {
+  margin-bottom: 0;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 1 150px;
   text-align: center;
-  transition: all 0.3s ease;
+  gap: 0.25rem;
 }
 
-.roster-stat-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
+.stat-code {
+  font-size: 1.2rem;
+  font-weight: 600;
+  opacity: 1;
 }
 
-.roster-stat-card.success {
-  border-left: 4px solid #28a745;
-}
-
-.roster-stat-card.warning {
-  border-left: 4px solid #ffc107;
-}
-
-.roster-stat-card.danger {
-  border-left: 4px solid #dc3545;
-}
-
-.roster-stat-card.info {
-  border-left: 4px solid #17a2b8;
-}
-
-.stat-label {
-  font-size: 12px;
-  color: #666;
-  text-transform: uppercase;
+.stat-amount {
+  font-size: 0.9rem;
   font-weight: 500;
-  margin-bottom: 8px;
+  opacity: 0.9;
 }
 
-.stat-value {
-  font-size: 28px;
-  font-weight: 700;
-  color: #333;
+.stat-separator {
+  width: 2px;
+  background-color: rgba(255, 255, 255, 0.5);
+  min-height: 60px;
+  flex-shrink: 0;
+  border: none;
+  display: block !important;
 }
 
 /* ==================== Alert Messages ==================== */
@@ -489,7 +538,7 @@
   .row-content {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: 6px;
   }
 
   .student-meta {
@@ -512,8 +561,29 @@
     flex: 1;
   }
 
-  .roster-stats {
-    grid-template-columns: repeat(2, 1fr);
+  .roster-stats-row {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .stat-item {
+    flex: 1 1 120px;
+  }
+
+  .stat-separator {
+    display: block !important;
+    width: 2px;
+    background-color: rgba(255, 255, 255, 0.4);
+    min-height: 40px;
+  }
+
+  .stat-item:not(:last-child)::after {
+    content: "";
+    display: block;
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.2);
+    margin-top: 0.5rem;
   }
 
   .filter-tags {
@@ -585,15 +655,22 @@
     width: 100%;
     flex-direction: column;
     align-items: flex-start;
+    gap: 6px;
   }
 
-  .student-info {
+  .student-line-1 {
     width: 100%;
-    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
-  .student-names {
-    gap: 0;
+  .student-line-2 {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .student-line-3 {
+    width: 100%;
   }
 
   .name-en {
@@ -616,17 +693,24 @@
     padding: 8px 8px;
   }
 
-  .roster-stats {
-    grid-template-columns: 1fr;
-    gap: 12px;
+  .roster-stats-body {
+    flex-direction: column;
+    gap: 0.5rem;
   }
 
-  .roster-stat-card {
-    padding: 12px;
+  .stat-item {
+    flex: 1 1 auto;
   }
 
-  .stat-value {
-    font-size: 24px;
+  .stat-separator {
+    display: block !important;
+    width: 1px;
+    background-color: rgba(255, 255, 255, 0.3);
+    min-height: 30px;
+  }
+
+  .stat-amount {
+    font-size: 0.85rem;
   }
 
   .pagination {
