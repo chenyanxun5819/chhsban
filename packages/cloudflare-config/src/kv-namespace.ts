@@ -41,6 +41,11 @@ export const KV_NAMESPACES = {
     binding: "TUTION_ATTENDANCE_KV",
     id: "d16847622dd244bb9d1d235cdfce6d1c",
     description: "補習班系統 - 學生出勤紀錄（子表2）",
+  },
+  TUTION_SCHEDULE_KV: {
+    binding: "TUTION_SCHEDULE_KV",
+    id: "f95d69ef1fc347f29c9936605e9ccfde",
+    description: "補習班系統 - 排課例外記錄（無開課/調課，子表3）",
   }
 } as const;
 

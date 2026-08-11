@@ -25,7 +25,7 @@ export const WORKERS = {
   tution: {
     name: "tution-system",
     mainFile: "src/index.ts",
-    kvNamespaces: ["STUDENT_KV", "TEACHER_KV", "AUTH_KV", "TUTION_CLASS_KV", "TUTION_ROSTER_KV", "TUTION_ATTENDANCE_KV"] as string[],
+    kvNamespaces: ["STUDENT_KV", "TEACHER_KV", "AUTH_KV", "TUTION_CLASS_KV", "TUTION_ROSTER_KV", "TUTION_ATTENDANCE_KV", "TUTION_SCHEDULE_KV"] as string[],
     description: "補習班系統 - 開課點名管理 Worker",
     environmentVariables: {},
   },

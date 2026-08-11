@@ -18,7 +18,7 @@
  * - 建立記錄: 1 PUT 
  */
 
-import { createAuthKVManager, createTeacherKVManager, createStudentKVManager, TutionClassStatus } from "@chhsban/kv-utils";
+import { createAuthKVManager, createTeacherKVManager, createStudentKVManager, TutionClassStatus, AttendanceStatus, type TutionClass, type TutionSchedule } from "@chhsban/kv-utils";
 import { KV_NAMESPACES } from "@chhsban/cloudflare-config";
 import { TutionSheetsSync } from "./sheets-sync";
 import { TutionKVService } from "./tution-service";
@@ -31,6 +31,7 @@ interface Env {
   TUTION_CLASS_KV: KVNamespace;
   TUTION_ROSTER_KV: KVNamespace;
   TUTION_ATTENDANCE_KV: KVNamespace;
+  TUTION_SCHEDULE_KV: KVNamespace;
   GOOGLE_SHEETS_API_KEY?: string;
   GOOGLE_SHEETS_SPREADSHEET_ID: string;
   GOOGLE_SHEETS_SHEET_CLASSES: string;
@@ -344,7 +345,11 @@ export default {
         return handleClasses(request, env, session);
       }
 
-      if (pathname.startsWith("/api/attendance")) {
+      if (pathname.startsWith("/api/v1/schedules")) {
+        return handleSchedules(request, env, session);
+      }
+
+      if (pathname.startsWith("/api/v1/attendance")) {
         return handleAttendance(request, env, session);
       }
 
@@ -446,6 +451,7 @@ async function handleClasses(
     env.TUTION_CLASS_KV,
     env.TUTION_ROSTER_KV,
     env.TUTION_ATTENDANCE_KV,
+    env.TUTION_SCHEDULE_KV,
   );
 
   try {
@@ -989,6 +995,7 @@ async function handleMyClasses(
     env.TUTION_CLASS_KV,
     env.TUTION_ROSTER_KV,
     env.TUTION_ATTENDANCE_KV,
+    env.TUTION_SCHEDULE_KV,
   );
 
   try {
@@ -1008,13 +1015,302 @@ async function handleMyClasses(
   }
 }
 
+/**
+ * 點名（出勤紀錄）查詢與寫入
+ *
+ * GET  /api/v1/attendance?class={id}  - 查詢整班出勤紀錄（唯讀，排課表格/出勤統計頁使用）
+ * POST /api/v1/attendance/bulk        - 批次寫入（覆寫）某班某日期全體學生的點名結果，
+ *                                        不保留修改歷史；同一學生同一日期已有紀錄則直接覆寫。
+ */
 async function handleAttendance(
   request: Request,
   env: Env,
   session: any,
 ): Promise<Response> {
-  // TODO: 實現點名邏輯
-  return jsonResponse({ message: "Attendance endpoint" }, 200);
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split("/");
+  const subAction = pathParts[4]; // /api/v1/attendance/{bulk}
+
+  const kvService = new TutionKVService(
+    env.TUTION_CLASS_KV,
+    env.TUTION_ROSTER_KV,
+    env.TUTION_ATTENDANCE_KV,
+    env.TUTION_SCHEDULE_KV,
+  );
+
+  const canManageClass = (tutionClass: TutionClass) =>
+    tutionClass.teacher_id === session.teacher_id ||
+    session.permission === "admin" ||
+    session.permission === "super_admin";
+
+  try {
+    // GET /api/v1/attendance?class={id} - 查詢整班出勤紀錄
+    if (request.method === "GET" && !subAction) {
+      const classId = url.searchParams.get("class");
+      if (!classId) {
+        return jsonResponse({ error: "Missing required query param: class" }, 400);
+      }
+
+      const tutionClass = await kvService.getClass(classId);
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+      if (!canManageClass(tutionClass)) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const records = await kvService.listAttendanceByClass(classId);
+      return jsonResponse({ data: records }, 200);
+    }
+
+    // POST /api/v1/attendance/bulk - 批次寫入（覆寫）某班某日期的點名結果
+    if (request.method === "POST" && subAction === "bulk") {
+      const body = (await request.json()) as {
+        class_id?: string;
+        class_date?: string;
+        records?: Array<{
+          student_id: string;
+          status: AttendanceStatus;
+          absence_reason?: string;
+        }>;
+      };
+
+      if (!body.class_id || !body.class_date || !Array.isArray(body.records)) {
+        return jsonResponse(
+          { error: "Missing required fields: class_id, class_date, records" },
+          400,
+        );
+      }
+
+      const validStatuses = new Set<string>(Object.values(AttendanceStatus));
+      for (const record of body.records) {
+        if (!record.student_id || !validStatuses.has(record.status)) {
+          return jsonResponse({ error: `Invalid record: ${JSON.stringify(record)}` }, 400);
+        }
+        if (record.status === AttendanceStatus.EXCUSE && !record.absence_reason) {
+          return jsonResponse(
+            {
+              error: `absence_reason is required when status is 'excuse' (student ${record.student_id})`,
+            },
+            400,
+          );
+        }
+      }
+
+      const tutionClass = await kvService.getClass(body.class_id);
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+      if (!canManageClass(tutionClass)) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      // 停課日期不可點名（「有開課」的日期不落地儲存，只需檢查是否被標記為停課）
+      const schedules = await kvService.listSchedulesByClass(body.class_id);
+      const isCancelled = schedules.some(
+        (s) => s.scheduled_date === body.class_date && s.status === "cancelled",
+      );
+      if (isCancelled) {
+        return jsonResponse({ error: "This date is cancelled and cannot be marked" }, 400);
+      }
+
+      // 覆寫語意：同一班同一日期同一學生若已有紀錄，直接更新；否則新增
+      const existing = await kvService.listAttendanceByClass(body.class_id);
+      const existingByStudent = new Map(
+        existing
+          .filter((r) => r.class_date === body.class_date)
+          .map((r) => [r.student_id, r] as const),
+      );
+
+      const now = Date.now();
+      const classId = body.class_id;
+      const classDate = body.class_date;
+      const saved = await Promise.all(
+        body.records.map((record) => {
+          const absenceReason =
+            record.status === AttendanceStatus.EXCUSE ? record.absence_reason : undefined;
+          const found = existingByStudent.get(record.student_id);
+          if (found) {
+            return kvService.updateAttendanceRecord(found.attendance_id, {
+              status: record.status,
+              absence_reason: absenceReason,
+              recorded_at: now,
+              recorded_by: session.teacher_id,
+            });
+          }
+          return kvService.recordAttendance({
+            class_id: classId,
+            student_id: record.student_id,
+            class_date: classDate,
+            status: record.status,
+            absence_reason: absenceReason,
+            recorded_at: now,
+            recorded_by: session.teacher_id,
+          });
+        }),
+      );
+
+      return jsonResponse({ data: saved }, 200);
+    }
+
+    return jsonResponse({ error: "Not found" }, 404);
+  } catch (error) {
+    console.error("Attendance handler error:", error);
+    return jsonResponse({ error: String(error) }, 500);
+  }
+}
+
+/**
+ * 排課例外記錄（無開課／調課）
+ *
+ * 只儲存例外：老師標記過的無開課/調課日期。「有開課」的日期不會出現在這裡，
+ * 由前端依 day_of_week + start_date 推算，不需要伺服器端記錄。
+ */
+async function handleSchedules(
+  request: Request,
+  env: Env,
+  session: any,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const method = request.method;
+  const pathParts = url.pathname.split("/");
+  const scheduleId = pathParts[4]; // /api/v1/schedules/{scheduleId}
+
+  const kvService = new TutionKVService(
+    env.TUTION_CLASS_KV,
+    env.TUTION_ROSTER_KV,
+    env.TUTION_ATTENDANCE_KV,
+    env.TUTION_SCHEDULE_KV,
+  );
+
+  const canManageClass = (tutionClass: TutionClass) =>
+    tutionClass.teacher_id === session.teacher_id ||
+    session.permission === "admin" ||
+    session.permission === "super_admin";
+
+  try {
+    // GET /api/v1/schedules?class={classId} - 列出該課程的所有例外記錄
+    if (method === "GET" && !scheduleId) {
+      const classId = url.searchParams.get("class");
+      if (!classId) {
+        return jsonResponse({ error: "Missing required query param: class" }, 400);
+      }
+
+      const tutionClass = await kvService.getClass(classId);
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+      if (!canManageClass(tutionClass)) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const schedules = await kvService.listSchedulesByClass(classId);
+      return jsonResponse({ data: schedules }, 200);
+    }
+
+    // POST /api/v1/schedules - 建立例外記錄（無開課／調課）
+    if (method === "POST" && !scheduleId) {
+      const data = (await request.json()) as Partial<TutionSchedule>;
+
+      if (!data.class_id || !data.scheduled_date || !data.status) {
+        return jsonResponse(
+          { error: "Missing required fields: class_id, scheduled_date, status" },
+          400,
+        );
+      }
+      if (data.status !== "cancelled" && data.status !== "rescheduled") {
+        return jsonResponse(
+          { error: "status must be 'cancelled' or 'rescheduled'" },
+          400,
+        );
+      }
+      if (data.status === "cancelled" && !data.cancellation_reason) {
+        return jsonResponse({ error: "cancellation_reason is required" }, 400);
+      }
+      if (
+        data.status === "rescheduled" &&
+        (!data.rescheduled_to || !data.rescheduled_venue || !data.reschedule_reason)
+      ) {
+        return jsonResponse(
+          { error: "rescheduled_to, rescheduled_venue and reschedule_reason are required" },
+          400,
+        );
+      }
+
+      const tutionClass = await kvService.getClass(data.class_id);
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+      if (!canManageClass(tutionClass)) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      // 同一課程同一天只能有一筆例外記錄：若已存在則直接更新，避免重複
+      const existing = await kvService.listSchedulesByClass(data.class_id);
+      const duplicate = existing.find((s) => s.scheduled_date === data.scheduled_date);
+      if (duplicate) {
+        const updated = await kvService.updateSchedule(duplicate.schedule_id, data);
+        return jsonResponse({ data: updated }, 200);
+      }
+
+      const created = await kvService.createSchedule(
+        data as Omit<TutionSchedule, "schedule_id" | "created_at" | "updated_at">,
+      );
+      return jsonResponse({ data: created }, 201);
+    }
+
+    // PUT /api/v1/schedules/{scheduleId} - 更新例外記錄
+    if (method === "PUT" && scheduleId) {
+      const existing = await kvService.getSchedule(scheduleId);
+      if (!existing) {
+        return jsonResponse({ error: "Schedule not found" }, 404);
+      }
+
+      const tutionClass = await kvService.getClass(existing.class_id);
+      if (!tutionClass || !canManageClass(tutionClass)) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const updates = (await request.json()) as Partial<TutionSchedule>;
+      if (updates.status === "cancelled" && !updates.cancellation_reason && !existing.cancellation_reason) {
+        return jsonResponse({ error: "cancellation_reason is required" }, 400);
+      }
+      if (
+        updates.status === "rescheduled" &&
+        !(updates.rescheduled_to || existing.rescheduled_to) &&
+        !(updates.rescheduled_venue || existing.rescheduled_venue)
+      ) {
+        return jsonResponse(
+          { error: "rescheduled_to and rescheduled_venue are required" },
+          400,
+        );
+      }
+
+      const updated = await kvService.updateSchedule(scheduleId, updates);
+      return jsonResponse({ data: updated }, 200);
+    }
+
+    // DELETE /api/v1/schedules/{scheduleId} - 移除例外記錄（改回「有開課」）
+    if (method === "DELETE" && scheduleId) {
+      const existing = await kvService.getSchedule(scheduleId);
+      if (!existing) {
+        return jsonResponse({ error: "Schedule not found" }, 404);
+      }
+
+      const tutionClass = await kvService.getClass(existing.class_id);
+      if (!tutionClass || !canManageClass(tutionClass)) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      await kvService.deleteSchedule(scheduleId);
+      return new Response(null, { status: 204, headers: getCorsHeaders() });
+    }
+
+    return jsonResponse({ error: "Not found" }, 404);
+  } catch (error) {
+    console.error("Schedules handler error:", error);
+    return jsonResponse({ error: String(error) }, 500);
+  }
 }
 
 /**
@@ -1051,6 +1347,7 @@ async function handleSync(
       env.TUTION_CLASS_KV,
       env.TUTION_ROSTER_KV,
       env.TUTION_ATTENDANCE_KV,
+      env.TUTION_SCHEDULE_KV,
     );
 
     if (action === "init") {

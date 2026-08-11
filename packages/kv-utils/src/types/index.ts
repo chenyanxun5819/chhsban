@@ -83,6 +83,7 @@ export const KV_CONFIG = {
   TUTION_CLASS_PREFIX: "tution_class:",
   TUTION_ROSTER_PREFIX: "tution_roster:",
   TUTION_ATTENDANCE_PREFIX: "tution_attendance:",
+  TUTION_SCHEDULE_PREFIX: "tution_schedule:",
 } as const;
 
 /**
@@ -118,6 +119,7 @@ export interface TutionClass {
   fees: number;                                          // 補習收費（RM）
   venue: string;                                         // 使用地點（教室編號）
   approval_status: TutionClassStatus;                   // 審批狀態
+  end_date?: string;                                     // YYYY-MM-DD，課程結束日期（管理員設定，未設定則視為尚未訂結束日）
   created_at: number;                                    // Unix 時間戳（毫秒）
   updated_at: number;                                    // Unix 時間戳（毫秒）
 }
@@ -136,6 +138,34 @@ export interface TutionRoster {
   withdrawal_date?: string;                              // YYYY-MM-DD 退出日期（可選）
   withdrawal_reason?: string;                            // 退出原因（可選）
   is_active: boolean;                                    // 動態計算：無 withdrawal_date = true
+  created_at: number;                                    // Unix 時間戳（毫秒）
+  updated_at: number;                                    // Unix 時間戳（毫秒）
+}
+
+/**
+ * 排課狀態枚舉
+ */
+export enum ScheduleStatus {
+  HELD = "held",                                         // 有開課（預設值，不會實際寫入 KV）
+  CANCELLED = "cancelled",                               // 無開課（停課）
+  RESCHEDULED = "rescheduled",                           // 調課
+}
+
+/**
+ * 補習班排課例外記錄（子表3）
+ *
+ * 只儲存「例外」：老師主動標記過無開課／調課的日期。
+ * 沒有例外記錄的上課日一律視為「有開課」（由 day_of_week + start_date 推算，不寫入 KV）。
+ */
+export interface TutionSchedule {
+  schedule_id: string;                                   // 系統自動生成
+  class_id: string;                                      // FK -> TutionClass
+  scheduled_date: string;                                // YYYY-MM-DD，這堂課「原本」該上課的日期
+  status: ScheduleStatus.CANCELLED | ScheduleStatus.RESCHEDULED; // 例外記錄只會是 cancelled 或 rescheduled
+  cancellation_reason?: string;                          // status=cancelled 時必填
+  rescheduled_to?: string;                               // YYYY-MM-DD，status=rescheduled 時必填：新日期
+  rescheduled_venue?: string;                             // status=rescheduled 時必填：新地點
+  reschedule_reason?: string;                            // status=rescheduled 時必填：調課原因
   created_at: number;                                    // Unix 時間戳（毫秒）
   updated_at: number;                                    // Unix 時間戳（毫秒）
 }
@@ -230,8 +260,16 @@ export interface TutionKVManager {
   recordAttendance(attendanceData: Omit<TutionAttendance, "attendance_id">): Promise<TutionAttendance>;
   getAttendanceRecord(attendanceId: string): Promise<TutionAttendance | null>;
   listAttendanceByStudent(studentId: string, classId: string): Promise<TutionAttendance[]>;
+  listAttendanceByClass(classId: string): Promise<TutionAttendance[]>;
   updateAttendanceRecord(attendanceId: string, updates: Partial<TutionAttendance>): Promise<TutionAttendance>;
   getAttendanceStats(studentId: string, classId: string): Promise<AttendanceStats>;
+
+  // ===== 排課例外記錄操作 =====
+  createSchedule(scheduleData: Omit<TutionSchedule, "schedule_id" | "created_at" | "updated_at">): Promise<TutionSchedule>;
+  getSchedule(scheduleId: string): Promise<TutionSchedule | null>;
+  listSchedulesByClass(classId: string): Promise<TutionSchedule[]>;
+  updateSchedule(scheduleId: string, updates: Partial<TutionSchedule>): Promise<TutionSchedule>;
+  deleteSchedule(scheduleId: string): Promise<void>;
 
   // ===== PDF 欄位映射操作 =====
   getPDFFieldMaps(): Promise<TutionPDFFieldMap[]>;

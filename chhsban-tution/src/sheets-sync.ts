@@ -100,6 +100,7 @@ export class TutionSheetsSync {
         "Approval Status",
         "Created At",
         "Updated At",
+        "End Date",
       ],
       ...classes.map((c) => [
         c.class_id,
@@ -117,6 +118,7 @@ export class TutionSheetsSync {
         c.approval_status,
         new Date(c.created_at).toISOString(),
         new Date(c.updated_at).toISOString(),
+        (c as any).end_date || "",
       ]),
     ];
 
@@ -222,7 +224,8 @@ export class TutionSheetsSync {
         approval_status: row[11] as any,
         created_at: new Date(row[12]).getTime(),
         updated_at: new Date(row[13]).getTime(),
-      });
+        end_date: row[15] || undefined,
+      } as TutionClass);
     }
 
     return classes;

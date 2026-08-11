@@ -149,6 +149,21 @@
   gap: 8px;
 }
 
+.course-row__end-date {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.course-row__end-date-input {
+  padding: 6px 10px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
 /* 老師管理 */
 .teacher-management-card {
   padding: 24px;

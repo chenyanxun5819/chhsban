@@ -1,5 +1,4 @@
-export { default as ScheduleCard } from "./ScheduleCard";
-export { default as ScheduleList } from "./ScheduleList";
-export { default as ScheduleForm } from "./ScheduleForm";
+export { default as ScheduleTable } from "./ScheduleTable";
 export { default as RescheduleModal } from "./RescheduleModal";
+export { default as CancelModal } from "./CancelModal";
 export { default as ScheduleStats } from "./ScheduleStats";

@@ -1,455 +1,466 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Layout } from "@/components/common/Layout";
 import apiClient from "@/utils/api";
+import { getClassRoster } from "@/services/rosterService";
+import { scheduleService } from "@/services/scheduleService";
 import {
-  AttendanceRecord,
-  AttendanceStats,
-  TutionRoster,
-  TutionScheduleExtended,
-  AttendanceRecordStatus,
-} from "@/types/index";
+  attendanceQueryService,
+  ATTENDANCE_STATUS_META,
+  EXCUSE_REASON_OPTIONS,
+  type AttendanceQueryRecord,
+  type AttendanceStatusCode,
+} from "@/services/attendanceQueryService";
+import { generateScheduleRows } from "@/utils/scheduleGenerator";
+import type { ClassRosterEntry, TutionClass, TutionSchedule } from "@/types";
 import "./attendance-sheet.css";
+
+interface DraftEntry {
+  status: AttendanceStatusCode;
+  /** 僅 status = "excuse" 時有意義：選中的理由選項（"其他" 時要另外看 reasonOther） */
+  reasonPreset: string;
+  reasonOther: string;
+}
+
+function todayStr(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
+    .toISOString()
+    .slice(0, 10);
+}
+
+function formatDateWithWeekday(dateStr: string): string {
+  const WEEKDAY_CN = ["日", "一", "二", "三", "四", "五", "六"];
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return `${dateStr}（${WEEKDAY_CN[date.getUTCDay()]}）`;
+}
+
+function emptyDraftEntry(): DraftEntry {
+  return { status: "present", reasonPreset: EXCUSE_REASON_OPTIONS[0], reasonOther: "" };
+}
+
+/** 把既有紀錄的 absence_reason 拆回「預設選項 / 其他文字」，供編輯既有點名結果時預填。 */
+function decomposeReason(reason?: string): { reasonPreset: string; reasonOther: string } {
+  if (reason && EXCUSE_REASON_OPTIONS.includes(reason) && reason !== "其他") {
+    return { reasonPreset: reason, reasonOther: "" };
+  }
+  return { reasonPreset: "其他", reasonOther: reason || "" };
+}
+
+function composeReason(entry: DraftEntry): string {
+  return entry.reasonPreset === "其他" ? entry.reasonOther.trim() : entry.reasonPreset;
+}
 
 export const AttendanceSheet: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
 
-  const [students, setStudents] = useState<TutionRoster[]>([]);
-  const [schedules, setSchedules] = useState<TutionScheduleExtended[]>([]);
-  const [attendance, setAttendance] = useState<AttendanceRecord[]>([]);
-  const [stats, setStats] = useState<Map<string, AttendanceStats>>(new Map());
+  const [classInfo, setClassInfo] = useState<TutionClass | null>(null);
+  const [roster, setRoster] = useState<ClassRosterEntry[]>([]);
+  const [exceptions, setExceptions] = useState<TutionSchedule[]>([]);
+  const [attendanceRecords, setAttendanceRecords] = useState<AttendanceQueryRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [dateRange, setDateRange] = useState({
-    from: "",
-    to: "",
-  });
-  const [changes, setChanges] = useState<Map<string, AttendanceRecordStatus>>(
-    new Map()
-  );
-  const [editMode, setEditMode] = useState(false);
 
-  const statusOptions: AttendanceRecordStatus[] = [
-    "present",
-    "absent",
-    "late",
-    "early",
-    "not_attended",
-  ];
+  const [selectedDate, setSelectedDate] = useState("");
+  const [draft, setDraft] = useState<Map<string, DraftEntry>>(new Map());
+  const [showOverview, setShowOverview] = useState(false);
 
-  const getStatusLabel = (status: AttendanceRecordStatus) => {
-    const labels: Record<AttendanceRecordStatus, string> = {
-      present: "✓ 出席",
-      absent: "✗ 缺席",
-      late: "/ 遲到",
-      early: "~ 提早",
-      not_attended: "- 未上",
-    };
-    return labels[status];
-  };
+  const loadStaticData = useCallback(async () => {
+    if (!classId) {
+      setError("課程 ID 未找到");
+      setLoading(false);
+      return;
+    }
 
-  const getStatusColor = (status: AttendanceRecordStatus) => {
-    const colors: Record<AttendanceRecordStatus, string> = {
-      present: "status-present",
-      absent: "status-absent",
-      late: "status-late",
-      early: "status-early",
-      not_attended: "status-not-attended",
-    };
-    return colors[status];
-  };
-
-  useEffect(() => {
-    fetchAttendanceData();
-  }, [classId, dateRange]);
-
-  const fetchAttendanceData = async () => {
-    if (!classId) return;
+    setLoading(true);
+    setError(null);
 
     try {
-      setLoading(true);
+      const [classRes, rosterList, scheduleList, attendanceList] = await Promise.all([
+        apiClient.get(`/v1/classes/${classId}`),
+        getClassRoster(classId),
+        scheduleService.getSchedules(classId),
+        attendanceQueryService.listByClass(classId),
+      ]);
 
-      const [studentRes, scheduleRes, attendanceRes, statsRes] =
-        await Promise.all([
-          apiClient.get<TutionRoster[]>(`/v1/classes/${classId}/roster`),
-          apiClient.get<TutionScheduleExtended[]>(
-            `/v1/classes/${classId}/schedule`
-          ),
-          apiClient.get<AttendanceRecord[]>(
-            `/v1/classes/${classId}/attendance`
-          ),
-          apiClient.get<Record<string, AttendanceStats>>(
-            `/v1/classes/${classId}/attendance/stats`
-          ),
-        ]);
-
-      if (studentRes.data) {
-        setStudents(studentRes.data);
-      }
-
-      if (scheduleRes.data) {
-        setSchedules(
-          scheduleRes.data.filter((s) =>
-            dateRange.from && dateRange.to
-              ? s.date >= dateRange.from && s.date <= dateRange.to
-              : true
-          )
-        );
-      }
-
-      if (attendanceRes.data) {
-        setAttendance(attendanceRes.data);
-      }
-
-      if (statsRes.data) {
-        const statsMap = new Map(
-          Object.entries(statsRes.data).map(([key, value]) => [key, value])
-        );
-        setStats(statsMap);
-      }
+      setClassInfo(classRes.data?.data || null);
+      setRoster(rosterList);
+      setExceptions(scheduleList);
+      setAttendanceRecords(attendanceList);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "載入出席數據失敗");
-      console.error("Attendance data fetch error:", err);
+      setError(err instanceof Error ? err.message : "載入點名資料失敗");
     } finally {
       setLoading(false);
     }
-  };
+  }, [classId]);
 
-  const getAttendanceRecord = (
-    studentId: string,
-    scheduleId: string
-  ): AttendanceRecord | undefined => {
-    return attendance.find(
-      (a) => a.student_id === studentId && a.schedule_id === scheduleId
-    );
-  };
+  useEffect(() => {
+    loadStaticData();
+  }, [loadStaticData]);
 
-  const getCellStatus = (
-    studentId: string,
-    scheduleId: string
-  ): AttendanceRecordStatus | null => {
-    const changeKey = `${studentId}-${scheduleId}`;
-    if (changes.has(changeKey)) {
-      return changes.get(changeKey) || null;
-    }
+  const refreshAttendance = useCallback(async () => {
+    if (!classId) return;
+    const list = await attendanceQueryService.listByClass(classId);
+    setAttendanceRecords(list);
+  }, [classId]);
 
-    const record = getAttendanceRecord(studentId, scheduleId);
-    return record?.status || null;
-  };
+  const activeRoster = useMemo(() => roster.filter((r) => r.is_active), [roster]);
 
-  const handleCellClick = (studentId: string, scheduleId: string) => {
-    if (!editMode) return;
-
-    const changeKey = `${studentId}-${scheduleId}`;
-    const currentStatus = getCellStatus(studentId, scheduleId);
-    const currentIndex = statusOptions.indexOf(
-      currentStatus || "not_attended"
-    );
-    const nextIndex = (currentIndex + 1) % statusOptions.length;
-    const nextStatus = statusOptions[nextIndex];
-
-    const newChanges = new Map(changes);
-    newChanges.set(changeKey, nextStatus);
-    setChanges(newChanges);
-  };
-
-  const handleBulkAction = (action: string) => {
-    const newChanges = new Map(changes);
-
-    schedules.forEach((schedule) => {
-      students.forEach((student) => {
-        const key = `${student.student_id}-${schedule.schedule_id}`;
-
-        switch (action) {
-          case "all-present":
-            newChanges.set(key, "present");
-            break;
-          case "all-absent":
-            newChanges.set(key, "absent");
-            break;
-          case "clear-all":
-            newChanges.delete(key);
-            break;
-        }
-      });
+  const rows = useMemo(() => {
+    if (!classInfo) return [];
+    return generateScheduleRows({
+      dayOfWeek: classInfo.day_of_week,
+      startDate: classInfo.start_date,
+      endDate: classInfo.end_date,
+      exceptions,
     });
+  }, [classInfo, exceptions]);
 
-    setChanges(newChanges);
+  const today = todayStr();
+
+  // 只有「有開課」（非停課）且已到期的日期才需要點名；由新到舊排序（generateScheduleRows 本身即為新到舊）。
+  const markableRows = useMemo(
+    () => rows.filter((row) => row.status !== "cancelled" && row.actual_date <= today),
+    [rows, today]
+  );
+
+  const attendedDateSet = useMemo(
+    () => new Set(attendanceRecords.map((r) => r.class_date)),
+    [attendanceRecords]
+  );
+
+  const recordsByKey = useMemo(() => {
+    const map = new Map<string, AttendanceQueryRecord>();
+    attendanceRecords.forEach((r) => map.set(`${r.student_id}|${r.class_date}`, r));
+    return map;
+  }, [attendanceRecords]);
+
+  // 預設選中最新一個「未點名」的日期；若全部已點名，選最新一個日期（可修改後重新儲存）。
+  useEffect(() => {
+    if (selectedDate || markableRows.length === 0) return;
+    const firstUnattended = markableRows.find((row) => !attendedDateSet.has(row.actual_date));
+    setSelectedDate(firstUnattended ? firstUnattended.actual_date : markableRows[0].actual_date);
+  }, [markableRows, attendedDateSet, selectedDate]);
+
+  // 依選定日期＋現有紀錄，重建每位學生的草稿（既有紀錄則預填，支援事後修改）。
+  useEffect(() => {
+    if (!selectedDate) {
+      setDraft(new Map());
+      return;
+    }
+    const next = new Map<string, DraftEntry>();
+    activeRoster.forEach((student) => {
+      const existing = recordsByKey.get(`${student.student_id}|${selectedDate}`);
+      if (!existing) {
+        next.set(student.student_id, emptyDraftEntry());
+        return;
+      }
+      if (existing.status === "excuse") {
+        next.set(student.student_id, {
+          status: "excuse",
+          ...decomposeReason(existing.absence_reason),
+        });
+      } else {
+        next.set(student.student_id, {
+          status: existing.status,
+          reasonPreset: EXCUSE_REASON_OPTIONS[0],
+          reasonOther: "",
+        });
+      }
+    });
+    setDraft(next);
+  }, [selectedDate, activeRoster, recordsByKey]);
+
+  const updateDraft = (studentId: string, patch: Partial<DraftEntry>) => {
+    setDraft((prev) => {
+      const next = new Map(prev);
+      const current = next.get(studentId) || emptyDraftEntry();
+      next.set(studentId, { ...current, ...patch });
+      return next;
+    });
   };
 
-  const handleSaveChanges = async () => {
-    if (!classId || changes.size === 0) return;
+  const handleMarkAllPresent = () => {
+    setDraft((prev) => {
+      const next = new Map(prev);
+      activeRoster.forEach((student) => next.set(student.student_id, emptyDraftEntry()));
+      return next;
+    });
+  };
 
+  const handleSave = async () => {
+    if (!classId || !selectedDate) return;
+
+    for (const student of activeRoster) {
+      const entry = draft.get(student.student_id);
+      if (entry?.status === "excuse" && !composeReason(entry)) {
+        setError(`「${student.name_cn}」的請假原因尚未填寫`);
+        return;
+      }
+    }
+
+    setSaving(true);
+    setError(null);
     try {
-      const payload = Array.from(changes.entries()).map(
-        ([key, status]) => {
-          const [studentId, scheduleId] = key.split("-");
-          return {
-            student_id: studentId,
-            schedule_id: scheduleId,
-            status,
-          };
-        }
-      );
-
-      await apiClient.post(`/v1/classes/${classId}/attendance/bulk`, {
-        records: payload,
+      const records = activeRoster.map((student) => {
+        const entry = draft.get(student.student_id) || emptyDraftEntry();
+        return {
+          student_id: student.student_id,
+          status: entry.status,
+          absence_reason: entry.status === "excuse" ? composeReason(entry) : undefined,
+        };
       });
 
-      await fetchAttendanceData();
-      setChanges(new Map());
-      setEditMode(false);
+      await attendanceQueryService.saveBulk(classId, selectedDate, records);
+      await refreshAttendance();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "保存出席記錄失敗");
-      console.error("Save attendance error:", err);
+      setError(err instanceof Error ? err.message : "儲存點名失敗");
+    } finally {
+      setSaving(false);
     }
-  };
-
-  const calculateAttendanceRate = (studentId: string): number => {
-    const studentStats = stats.get(studentId);
-    return studentStats
-      ? Math.round(
-          (studentStats.presentCount / studentStats.totalSessions) * 100 || 0
-        )
-      : 0;
   };
 
   if (loading) {
     return (
-      <Layout title="出席表">
+      <Layout title="點名">
         <div className="attendance-sheet">
-          <div className="loading-spinner">載入中...</div>
+          <div className="attendance-empty">正在載入點名資料...</div>
+        </div>
+      </Layout>
+    );
+  }
+
+  if (!classInfo) {
+    return (
+      <Layout title="點名">
+        <div className="attendance-sheet">
+          <div className="alert alert-danger">{error || "找不到課程"}</div>
         </div>
       </Layout>
     );
   }
 
   return (
-    <Layout title="出席表">
+    <Layout title="點名">
       <div className="attendance-sheet">
-        {/* Header */}
-        <div className="attendance-header">
-          <h2>出席表</h2>
-          <div className="header-controls">
-            <div className="date-range">
-              <input
-                type="date"
-                value={dateRange.from}
-                onChange={(e) =>
-                  setDateRange({ ...dateRange, from: e.target.value })
-                }
-                placeholder="開始日期"
-              />
-              <span>至</span>
-              <input
-                type="date"
-                value={dateRange.to}
-                onChange={(e) =>
-                  setDateRange({ ...dateRange, to: e.target.value })
-                }
-                placeholder="結束日期"
-              />
-            </div>
-
-            <div className="header-actions">
-              {editMode && (
-                <>
-                  <button
-                    className="bulk-action-btn"
-                    onClick={() => handleBulkAction("all-present")}
-                  >
-                    ✓ 全選出席
-                  </button>
-                  <button
-                    className="bulk-action-btn"
-                    onClick={() => handleBulkAction("all-absent")}
-                  >
-                    ✗ 全選缺席
-                  </button>
-                  <button
-                    className="bulk-action-btn"
-                    onClick={() => handleBulkAction("clear-all")}
-                  >
-                    清除全部
-                  </button>
-                </>
-              )}
-
-              <button
-                className={`edit-btn ${editMode ? "active" : ""}`}
-                onClick={() => setEditMode(!editMode)}
-              >
-                {editMode ? "✓ 完成編輯" : "✎ 編輯"}
-              </button>
-
-              {editMode && (
-                <button className="save-btn" onClick={handleSaveChanges}>
-                  💾 保存
-                </button>
-              )}
-            </div>
+        <div className="attendance-page-header">
+          <div>
+            <h2>
+              {classInfo.subject}（{classInfo.form}）
+            </h2>
+            <p className="attendance-subtitle">
+              每{classInfo.day_of_week} {classInfo.time_start}-{classInfo.time_end} ・{" "}
+              {classInfo.venue}
+            </p>
           </div>
-        </div>
-
-        {/* Grid */}
-        <div className="grid-container">
-          <table className="attendance-grid">
-            <thead>
-              <tr>
-                <th className="student-col">
-                  <div className="th-content">
-                    <div>學生</div>
-                    <div className="rate">出席率</div>
-                  </div>
-                </th>
-                {schedules.map((schedule) => (
-                  <th key={schedule.schedule_id} className="date-col">
-                    <div className="th-content">
-                      <div className="date">
-                        {new Date(schedule.date).toLocaleDateString("zh-TW", {
-                          month: "2-digit",
-                          day: "2-digit",
-                        })}
-                      </div>
-                      <div className="day">
-                        {new Date(schedule.date).toLocaleDateString("zh-TW", {
-                          weekday: "short",
-                        })}
-                      </div>
-                      <div className="time">{schedule.start_time}</div>
-                    </div>
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {students.map((student) => (
-                <tr key={student.student_id} className="student-row">
-                  <td className="student-col">
-                    <div className="student-info">
-                      <div className="student-name">{student.name_cn}</div>
-                      <div className="student-id">{student.student_no}</div>
-                      <div className="attendance-rate">
-                        {calculateAttendanceRate(student.student_id)}%
-                      </div>
-                    </div>
-                  </td>
-
-                  {schedules.map((schedule) => {
-                    const status = getCellStatus(
-                      student.student_id,
-                      schedule.schedule_id
-                    );
-                    const isChanged =
-                      changes.has(
-                        `${student.student_id}-${schedule.schedule_id}`
-                      );
-
-                    return (
-                      <td
-                        key={`${student.student_id}-${schedule.schedule_id}`}
-                        className={`attendance-cell ${
-                          status ? getStatusColor(status) : "status-empty"
-                        } ${isChanged ? "changed" : ""} ${
-                          editMode ? "editable" : ""
-                        }`}
-                        onClick={() =>
-                          handleCellClick(
-                            student.student_id,
-                            schedule.schedule_id
-                          )
-                        }
-                        title={status ? getStatusLabel(status) : "未記錄"}
-                      >
-                        <div className="cell-content">
-                          {status ? (
-                            <span className="status-symbol">
-                              {status === "present" && "✓"}
-                              {status === "absent" && "✗"}
-                              {status === "late" && "/"}
-                              {status === "early" && "~"}
-                              {status === "not_attended" && "-"}
-                            </span>
-                          ) : (
-                            <span className="status-empty-symbol">·</span>
-                          )}
-                        </div>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Statistics */}
-        <div className="statistics-section">
-          <h3>出席統計</h3>
-          <div className="stats-grid">
-            {Array.from(stats.values())
-              .slice(0, 5)
-              .map((stat) => (
-                <div key={stat.studentId} className="stat-card">
-                  <div className="stat-name">{stat.studentName}</div>
-                  <div className="stat-content">
-                    <div className="stat-item">
-                      <span className="label">出席</span>
-                      <span className="value present">
-                        {stat.presentCount}
-                      </span>
-                    </div>
-                    <div className="stat-item">
-                      <span className="label">缺席</span>
-                      <span className="value absent">{stat.absentCount}</span>
-                    </div>
-                    <div className="stat-item">
-                      <span className="label">遲到</span>
-                      <span className="value late">{stat.lateCount}</span>
-                    </div>
-                  </div>
-                  <div className="stat-rate">
-                    出席率: {Math.round(stat.attendanceRate)}%
-                  </div>
-                </div>
-              ))}
-          </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setShowOverview((v) => !v)}
+          >
+            {showOverview ? "返回點名" : "查看總覽表格"}
+          </button>
         </div>
 
         {error && (
-          <div className="error-banner">
-            <span>⚠️ {error}</span>
+          <div className="alert alert-danger">
+            {error}
+            <button type="button" className="alert-close" onClick={() => setError(null)}>
+              ✕
+            </button>
           </div>
         )}
 
-        {/* Legend */}
-        <div className="legend">
-          <div className="legend-title">狀態說明：</div>
-          <div className="legend-items">
-            <div className="legend-item">
-              <span className="legend-symbol present">✓</span>
-              <span>出席</span>
+        {markableRows.length === 0 ? (
+          <div className="attendance-empty">目前沒有可點名的上課日期（尚未開課或全部已停課）</div>
+        ) : showOverview ? (
+          <AttendanceOverview
+            rows={markableRows}
+            roster={activeRoster}
+            recordsByKey={recordsByKey}
+          />
+        ) : (
+          <>
+            <div className="attendance-toolbar">
+              <label className="attendance-date-picker">
+                <span>點名日期</span>
+                <select
+                  className="form-control"
+                  value={selectedDate}
+                  onChange={(e) => setSelectedDate(e.target.value)}
+                >
+                  {markableRows.map((row) => (
+                    <option key={row.actual_date} value={row.actual_date}>
+                      {formatDateWithWeekday(row.actual_date)}
+                      {attendedDateSet.has(row.actual_date) ? "（已點名）" : "（未點名）"}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button type="button" className="btn btn-secondary" onClick={handleMarkAllPresent}>
+                全部到課
+              </button>
             </div>
-            <div className="legend-item">
-              <span className="legend-symbol absent">✗</span>
-              <span>缺席</span>
+
+            {activeRoster.length === 0 ? (
+              <div className="attendance-empty">此班目前沒有在讀學生</div>
+            ) : (
+              <div className="attendance-list">
+                {activeRoster.map((student) => {
+                  const entry = draft.get(student.student_id) || emptyDraftEntry();
+                  return (
+                    <div className="attendance-row" key={student.student_id}>
+                      <div className="attendance-row-info">
+                        <span className="attendance-row-name">{student.name_cn}</span>
+                        <span className="attendance-row-no">{student.student_no}</span>
+                      </div>
+
+                      <select
+                        className="form-control attendance-status-select"
+                        value={entry.status}
+                        onChange={(e) =>
+                          updateDraft(student.student_id, {
+                            status: e.target.value as AttendanceStatusCode,
+                          })
+                        }
+                      >
+                        {(Object.keys(ATTENDANCE_STATUS_META) as AttendanceStatusCode[]).map(
+                          (status) => (
+                            <option key={status} value={status}>
+                              {ATTENDANCE_STATUS_META[status].label} (
+                              {ATTENDANCE_STATUS_META[status].code})
+                            </option>
+                          )
+                        )}
+                      </select>
+
+                      {entry.status === "excuse" && (
+                        <div className="attendance-reason">
+                          <select
+                            className="form-control"
+                            value={entry.reasonPreset}
+                            onChange={(e) =>
+                              updateDraft(student.student_id, { reasonPreset: e.target.value })
+                            }
+                          >
+                            {EXCUSE_REASON_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                          {entry.reasonPreset === "其他" && (
+                            <input
+                              type="text"
+                              className="form-control"
+                              placeholder="請填寫具體原因"
+                              value={entry.reasonOther}
+                              onChange={(e) =>
+                                updateDraft(student.student_id, { reasonOther: e.target.value })
+                              }
+                            />
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            <div className="attendance-save-bar">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={saving || activeRoster.length === 0}
+                onClick={handleSave}
+              >
+                {saving ? "儲存中..." : "儲存點名"}
+              </button>
             </div>
-            <div className="legend-item">
-              <span className="legend-symbol late">/</span>
-              <span>遲到</span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-symbol early">~</span>
-              <span>提早離開</span>
-            </div>
-            <div className="legend-item">
-              <span className="legend-symbol not-attended">-</span>
-              <span>未上課</span>
-            </div>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </Layout>
+  );
+};
+
+interface AttendanceOverviewProps {
+  rows: ReturnType<typeof generateScheduleRows>;
+  roster: ClassRosterEntry[];
+  recordsByKey: Map<string, AttendanceQueryRecord>;
+}
+
+/** 「學生 × 日期」矩陣總覽，唯讀，僅供快速檢視整期出勤概況（例如管理員查核）；不在此處編輯。 */
+const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, recordsByKey }) => {
+  const chronological = useMemo(() => [...rows].reverse(), [rows]);
+
+  if (roster.length === 0) {
+    return <div className="attendance-empty">此班目前沒有在讀學生</div>;
+  }
+
+  return (
+    <div className="attendance-overview">
+      <div className="attendance-overview-scroll">
+        <table className="attendance-matrix">
+          <thead>
+            <tr>
+              <th className="attendance-matrix-student-col">學生</th>
+              {chronological.map((row) => (
+                <th key={row.actual_date} title={row.actual_date}>
+                  {row.actual_date.slice(5)}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {roster.map((student) => (
+              <tr key={student.student_id}>
+                <td className="attendance-matrix-student-col">{student.name_cn}</td>
+                {chronological.map((row) => {
+                  const record = recordsByKey.get(`${student.student_id}|${row.actual_date}`);
+                  const meta = record ? ATTENDANCE_STATUS_META[record.status] : null;
+                  const title = meta
+                    ? `${row.actual_date} ${meta.label}${
+                        record?.absence_reason ? `：${record.absence_reason}` : ""
+                      }`
+                    : `${row.actual_date} 尚未點名`;
+                  return (
+                    <td
+                      key={row.actual_date}
+                      className="attendance-matrix-cell"
+                      title={title}
+                      style={{
+                        background: meta ? meta.color : "#eee",
+                        color: meta ? "#fff" : "#999",
+                      }}
+                    >
+                      {meta ? meta.code : "·"}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="attendance-legend">
+        {(Object.keys(ATTENDANCE_STATUS_META) as AttendanceStatusCode[]).map((status) => (
+          <span className="attendance-legend-item" key={status}>
+            <span
+              className="attendance-legend-swatch"
+              style={{ background: ATTENDANCE_STATUS_META[status].color }}
+            >
+              {ATTENDANCE_STATUS_META[status].code}
+            </span>
+            {ATTENDANCE_STATUS_META[status].label}
+          </span>
+        ))}
+      </div>
+    </div>
   );
 };
 

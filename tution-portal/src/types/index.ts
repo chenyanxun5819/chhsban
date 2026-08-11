@@ -1,3 +1,5 @@
+import type { TutionSchedule as TutionScheduleKV } from "@chhsban/kv-utils/types";
+
 export type Permission = "teacher" | "viewer" | "admin" | "super_admin";
 
 export interface AuthUser {
@@ -59,6 +61,7 @@ export interface TutionClass {
   approved_at?: number;
   rejection_reason?: string;
   initial_roster?: TutionRosterSnapshot[];
+  end_date?: string; // YYYY-MM-DD，課程結束日期，管理員設定；未設定則視為尚未訂結束日
   created_at: number;
   updated_at: number;
 }
@@ -107,17 +110,11 @@ export interface TutionRoster {
   updated_at: number;
 }
 
-export interface TutionSchedule {
-  schedule_id: string;
-  class_id: string;
-  scheduled_date: string;
-  status: ScheduleStatus;
-  cancellation_reason?: string;
-  rescheduled_to?: string;
-  reschedule_reason?: string;
-  created_at: number;
-  updated_at: number;
-}
+// 排課例外記錄：統一從 @chhsban/kv-utils 引入，避免前後端各自維護一份不一致的定義
+// （schedule_id / class_id / scheduled_date / status(cancelled|rescheduled) /
+//   cancellation_reason / rescheduled_to / rescheduled_venue / reschedule_reason /
+//   created_at / updated_at）
+export type TutionSchedule = TutionScheduleKV;
 
 export interface TutionAttendance {
   attendance_id: string;

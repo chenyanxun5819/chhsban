@@ -1,282 +1,131 @@
-/* ========== Schedule List Styles ========== */
-.schedule-list {
-  padding: 1rem;
-}
-
-.schedule-list.loading {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  font-size: 1.1rem;
-  color: #666;
-}
-
-.schedule-list.empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 300px;
-  background: #f5f5f5;
-  border-radius: 8px;
-  color: #999;
-}
-
-/* Filter Bar */
-.schedule-filter-bar {
+/* ========== Schedule Table (清單，非卡片，中間用隔線分隔) ========== */
+.schedule-table {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  padding: 1rem;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-}
-
-.filter-search {
-  flex: 1;
-}
-
-.filter-input {
-  width: 100%;
-  padding: 0.75rem;
-  border: 1px solid #ddd;
-  border-radius: 6px;
-  font-size: 1rem;
-  transition: border-color 0.2s;
-}
-
-.filter-input:focus {
-  outline: none;
-  border-color: #007bff;
-  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
-}
-
-.filter-status-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.filter-tab {
-  padding: 0.5rem 1rem;
-  border: 1px solid #ddd;
-  border-radius: 20px;
-  background: white;
-  cursor: pointer;
-  font-size: 0.95rem;
-  transition: all 0.2s;
-}
-
-.filter-tab:hover {
-  border-color: #007bff;
-  color: #007bff;
-}
-
-.filter-tab.active {
-  background: #007bff;
-  color: white;
-  border-color: #007bff;
-}
-
-.filter-count {
-  font-size: 0.85rem;
-  opacity: 0.8;
-  margin-left: 0.25rem;
-}
-
-/* Result Count */
-.schedule-result-count {
-  margin-bottom: 1rem;
-  padding: 0.5rem 1rem;
-  font-size: 0.95rem;
-  color: #666;
-}
-
-.schedule-result-count strong {
-  color: #007bff;
-  font-weight: 600;
-}
-
-/* Empty Filter Result */
-.schedule-list-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  background: #f9f9f9;
-  border-radius: 8px;
-  color: #999;
-}
-
-/* Schedule Group */
-.schedule-group {
-  margin-bottom: 2rem;
-}
-
-.schedule-group-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 1rem;
-  padding-bottom: 0.75rem;
-  border-bottom: 2px solid #e0e0e0;
-}
-
-.group-title {
-  margin: 0;
-  font-size: 1.2rem;
-  font-weight: 600;
-  color: #333;
-}
-
-.group-count {
-  font-size: 0.9rem;
-  color: #999;
-  background: #f5f5f5;
-  padding: 0.25rem 0.75rem;
-  border-radius: 12px;
-}
-
-/* Schedule Cards Container */
-.schedule-cards-container {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-  gap: 1rem;
-}
-
-/* ========== Schedule Card Styles ========== */
-.schedule-card {
   background: white;
   border: 1px solid #e0e0e0;
   border-radius: 8px;
   overflow: hidden;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s;
-  display: flex;
-  flex-direction: column;
+  margin-bottom: 1.5rem;
 }
 
-.schedule-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  border-color: #007bff;
+.schedule-table-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  color: #999;
 }
 
-.schedule-card-header {
+.schedule-row {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.schedule-row:last-child {
+  border-bottom: none;
+}
+
+.schedule-row.status-cancelled {
+  border-left: 4px solid #dc3545;
+}
+
+.schedule-row.status-rescheduled {
+  border-left: 4px solid #ffc107;
+}
+
+.schedule-row.status-held {
+  border-left: 4px solid #28a745;
+}
+
+/* 第一行：日期 + 點名情況 */
+.schedule-row-line1 {
   display: flex;
+  align-items: baseline;
   justify-content: space-between;
-  align-items: flex-start;
-  padding: 1rem;
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  border-bottom: 1px solid #e0e0e0;
+  gap: 1rem;
+  margin-bottom: 0.35rem;
 }
 
-.schedule-date-time {
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-}
-
-.schedule-date {
-  font-size: 1.1rem;
+.schedule-row-date {
   font-weight: 600;
   color: #333;
 }
 
-.schedule-time {
-  font-size: 0.9rem;
+.schedule-row-attendance {
+  font-size: 0.85rem;
+}
+
+.attendance-ok {
+  color: #28a745;
+  font-weight: 600;
+}
+
+.attendance-warn {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+/* 第二行：狀態徽章 + 調課資訊 + 原因 + 操作按鈕 */
+.schedule-row-line2 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.schedule-row-detail {
+  font-size: 0.85rem;
   color: #666;
 }
 
+.schedule-row-reason {
+  font-size: 0.9rem;
+  color: #666;
+  word-break: break-word;
+}
+
+.schedule-row-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+/* 明確覆寫寬度，避免其他頁面（如 pdf-download.css）未加範圍的全域 .btn
+   規則（@media max-width:1023px 時 min-width:200px）滲透進來把按鈕撐爆 */
+.schedule-row-actions .btn {
+  width: auto;
+  min-width: 0;
+}
+
+/* Status badge (沿用同一組色碼) */
 .schedule-badge {
   display: inline-block;
-  padding: 0.4rem 0.8rem;
+  padding: 0.35rem 0.7rem;
   border-radius: 20px;
   font-size: 0.8rem;
   font-weight: 600;
-  text-transform: uppercase;
   white-space: nowrap;
 }
 
-.status-success {
+.schedule-badge.status-held {
   background: #d4edda;
   color: #155724;
 }
 
-.status-danger {
+.schedule-badge.status-cancelled {
   background: #f8d7da;
   color: #721c24;
 }
 
-.status-warning {
+.schedule-badge.status-rescheduled {
   background: #fff3cd;
   color: #856404;
 }
 
-.status-info {
-  background: #d1ecf1;
-  color: #0c5460;
-}
-
-.status-secondary {
-  background: #e2e3e5;
-  color: #383d41;
-}
-
-.schedule-card-body {
-  padding: 1rem;
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 0.75rem;
-}
-
-.schedule-info-item {
-  display: flex;
-  gap: 0.5rem;
-  font-size: 0.95rem;
-}
-
-.schedule-info-item .label {
-  font-weight: 600;
-  color: #666;
-  min-width: 50px;
-}
-
-.schedule-info-item .value {
-  color: #333;
-  word-break: break-word;
-  flex: 1;
-}
-
-.schedule-info-item.remarks .label {
-  vertical-align: top;
-  margin-top: 0.15rem;
-}
-
-.schedule-info-item.remarks .value {
-  line-height: 1.5;
-  color: #555;
-  font-size: 0.9rem;
-}
-
-.schedule-card-footer {
-  display: flex;
-  gap: 0.5rem;
-  padding: 1rem;
-  background: #f9f9f9;
-  border-top: 1px solid #e0e0e0;
-}
-
-/* ========== Schedule Form Styles ========== */
-.schedule-form {
-  background: white;
-  padding: 1.5rem;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
+/* ========== Form Styles (CancelModal / RescheduleModal 共用) ========== */
 .form-group {
   margin-bottom: 1.5rem;
   display: flex;
@@ -310,16 +159,6 @@
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
 }
 
-.form-control.is-valid {
-  border-color: #28a745;
-  background-color: #f0fdf4;
-}
-
-.form-control.is-invalid {
-  border-color: #dc3545;
-  background-color: #fef2f2;
-}
-
 .form-control:disabled {
   background-color: #e9ecef;
   color: #6c757d;
@@ -329,16 +168,6 @@
 textarea.form-control {
   resize: vertical;
   min-height: 80px;
-}
-
-select.form-control {
-  cursor: pointer;
-}
-
-.form-actions {
-  display: flex;
-  gap: 1rem;
-  margin-top: 2rem;
 }
 
 /* ========== Button Styles ========== */
@@ -369,7 +198,6 @@ select.form-control {
 
 .btn-primary:hover:not(:disabled) {
   background: #0056b3;
-  box-shadow: 0 4px 8px rgba(0, 123, 255, 0.3);
 }
 
 .btn-secondary {
@@ -379,15 +207,6 @@ select.form-control {
 
 .btn-secondary:hover:not(:disabled) {
   background: #545b62;
-}
-
-.btn-success {
-  background: #28a745;
-  color: white;
-}
-
-.btn-success:hover:not(:disabled) {
-  background: #1e7e34;
 }
 
 .btn-danger {
@@ -408,21 +227,13 @@ select.form-control {
   background: #e0a800;
 }
 
-.btn-info {
-  background: #17a2b8;
-  color: white;
-}
-
-.btn-info:hover:not(:disabled) {
-  background: #117a8b;
-}
-
 .btn-sm {
   padding: 0.4rem 0.8rem;
   font-size: 0.85rem;
+  min-height: 44px;
 }
 
-/* ========== Modal Styles ========== */
+/* ========== Modal Styles (CancelModal / RescheduleModal) ========== */
 .modal-overlay {
   position: fixed;
   top: 0;
@@ -434,16 +245,6 @@ select.form-control {
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  animation: fadeIn 0.2s ease-in-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 .modal-dialog {
@@ -454,18 +255,6 @@ select.form-control {
   width: 90%;
   max-height: 90vh;
   overflow-y: auto;
-  animation: slideUp 0.3s ease-out;
-}
-
-@keyframes slideUp {
-  from {
-    transform: translateY(30px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
 }
 
 .modal-header {
@@ -491,16 +280,11 @@ select.form-control {
   color: white;
   cursor: pointer;
   padding: 0;
-  width: 30px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.2s;
-}
-
-.modal-close-btn:hover:not(:disabled) {
-  transform: scale(1.1);
 }
 
 .modal-close-btn:disabled {
@@ -538,233 +322,160 @@ select.form-control {
   color: #721c24;
 }
 
-.alert-success {
-  background: #d4edda;
-  border: 1px solid #c3e6cb;
-  color: #155724;
-}
-
 .alert-warning {
   background: #fff3cd;
   border: 1px solid #ffeaa7;
   color: #856404;
-}
-
-.alert-info {
-  background: #d1ecf1;
-  border: 1px solid #bee5eb;
-  color: #0c5460;
-}
-
-/* ========== Schedule Stats Styles ========== */
-.schedule-stats {
-  padding: 1.5rem;
-}
-
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 1rem;
-  margin-bottom: 2rem;
-}
-
-.stat-card {
-  background: white;
-  border: 1px solid #e0e0e0;
-  border-radius: 8px;
-  padding: 1.5rem;
-  text-align: center;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
-  transition: all 0.3s;
-}
-
-.stat-card:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  transform: translateY(-2px);
-}
-
-.stat-card.success {
-  border-color: #28a745;
-  background: #f0fdf4;
-}
-
-.stat-card.danger {
-  border-color: #dc3545;
-  background: #fef2f2;
-}
-
-.stat-card.warning {
-  border-color: #ffc107;
-  background: #fffbf0;
-}
-
-.stat-card.info {
-  border-color: #17a2b8;
-  background: #f0f8f9;
-}
-
-.stat-value {
-  font-size: 2rem;
-  font-weight: 700;
-  color: #007bff;
-  margin-bottom: 0.5rem;
-}
-
-.stat-card.success .stat-value {
-  color: #28a745;
-}
-
-.stat-card.danger .stat-value {
-  color: #dc3545;
-}
-
-.stat-card.warning .stat-value {
-  color: #ffc107;
-}
-
-.stat-card.info .stat-value {
-  color: #17a2b8;
-}
-
-.stat-label {
-  font-size: 0.95rem;
-  color: #666;
-  font-weight: 500;
-}
-
-.stats-chart {
-  background: white;
-  border-radius: 8px;
-  padding: 1.5rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.chart-title {
-  margin: 0 0 1.5rem 0;
-  font-size: 1.1rem;
   font-weight: 600;
-  color: #333;
 }
 
-.bar-chart {
+/* ========== 未點名警示區塊（獨立白底區塊，放在統計條上方） ========== */
+.schedule-unconfirmed-banner {
   display: flex;
-  flex-direction: column;
+  align-items: baseline;
   gap: 1.5rem;
+  text-align: center;
+  
+  border-radius: 12px;
+  padding: 0.25rem 0.25rem;
+  margin-bottom: 1rem;
 }
 
-.bar-item {
+.schedule-unconfirmed-label {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #ff5252;
+}
+
+.schedule-unconfirmed-count {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #ff5252;
+}
+
+/* ========== Schedule Stats（沿用 RosterStats 的漸層條狀樣式，非卡片） ========== */
+.schedule-stats-container {
+  padding: 1.25rem 0.65rem;
+  border-radius: 12px;
+  box-shadow: rgba(33, 150, 243, 0.3) 0px 4px 12px;
+  color: rgb(255, 255, 255);
+  background: linear-gradient(135deg, rgb(33, 150, 243) 0%, rgb(25, 118, 210) 100%);
+  margin-bottom: 1.5rem;
+}
+
+.schedule-stats-row {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: nowrap;
+}
+
+.stat-item {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  align-items: center;
+  flex: 1 1 150px;
+  text-align: center;
+  gap: 0.25rem;
 }
 
-.bar-label {
+.stat-code {
+  font-size: 1.2rem;
+  font-weight: 600;
+  opacity: 1;
+}
+
+.stat-amount {
   font-size: 0.9rem;
-  font-weight: 600;
-  color: #333;
+  font-weight: 500;
+  opacity: 0.9;
 }
 
-.bar-container {
-  height: 40px;
-  background: #f5f5f5;
-  border-radius: 6px;
-  overflow: hidden;
-  position: relative;
-}
-
-.bar-fill {
-  height: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  padding-right: 1rem;
-  color: white;
-  font-weight: 600;
-  font-size: 0.85rem;
-  transition: width 0.3s ease;
-  min-width: auto;
-}
-
-.bar-fill.bar-success {
-  background: linear-gradient(90deg, #28a745, #20c997);
-}
-
-.bar-fill.bar-danger {
-  background: linear-gradient(90deg, #dc3545, #fd7e14);
-}
-
-.bar-fill.bar-warning {
-  background: linear-gradient(90deg, #ffc107, #fd7e14);
-}
-
-.bar-value {
-  display: inline-block;
-}
-
-.stats-empty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 200px;
-  background: #f9f9f9;
-  border-radius: 8px;
-  color: #999;
-  font-size: 1rem;
+.stat-separator {
+  width: 2px;
+  background-color: rgba(255, 255, 255, 0.5);
+  min-height: 60px;
+  flex-shrink: 0;
+  border: none;
+  display: block !important;
 }
 
 /* ========== Responsive Design ========== */
-@media (max-width: 768px) {
-  .schedule-filter-bar {
-    flex-direction: column;
-  }
 
-  .filter-status-tabs {
-    gap: 0.25rem;
+/* 平板 (768px - 1023px) */
+@media (max-width: 1023px) {
+  .schedule-stats-row {
     flex-wrap: wrap;
-  }
-
-  .filter-tab {
-    padding: 0.4rem 0.8rem;
-    font-size: 0.85rem;
-  }
-
-  .schedule-cards-container {
-    grid-template-columns: 1fr;
-  }
-
-  .schedule-group-header {
-    flex-direction: column;
-    align-items: flex-start;
     gap: 0.5rem;
   }
 
-  .stats-grid {
-    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  .stat-item {
+    flex: 1 1 120px;
   }
 
-  .stat-card {
-    padding: 1rem;
+  .stat-separator {
+    min-height: 40px;
+  }
+}
+
+/* 手機 (<768px) */
+@media (max-width: 767px) {
+  .schedule-row-line1 {
+    flex-wrap: wrap;
   }
 
-  .stat-value {
-    font-size: 1.5rem;
+  .schedule-row-line2 {
+    flex-wrap: nowrap;
+    gap: 0.4rem;
   }
 
-  .stat-label {
+  .schedule-row-detail,
+  .schedule-row-reason {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .schedule-row-actions {
+    margin-left: auto;
+    flex-shrink: 0;
+    gap: 0.35rem;
+  }
+
+  .schedule-row-actions .btn {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.78rem;
+    min-height: 36px;
+    white-space: nowrap;
+  }
+
+  .schedule-stats-row {
+    flex-wrap: wrap;
+  }
+
+  .stat-item {
+    flex: 1 1 auto;
+  }
+
+  .stat-separator {
+    min-height: 30px;
+  }
+
+  .stat-amount {
     font-size: 0.85rem;
   }
 
   .modal-dialog {
     width: 95%;
-    max-width: 100%;
   }
 
-  .form-actions {
-    flex-direction: column;
-  }
-
-  .btn {
-    width: 100%;
+  .modal-header,
+  .modal-body,
+  .modal-footer {
+    padding: 1rem;
   }
 
   .modal-footer {
@@ -774,81 +485,8 @@ select.form-control {
   .modal-footer .btn {
     width: 100%;
   }
-}
-
-@media (max-width: 480px) {
-  .schedule-filter-bar {
-    padding: 0.75rem;
-  }
-
-  .filter-input {
-    padding: 0.6rem;
-    font-size: 16px; /* Prevent zoom on iOS */
-  }
-
-  .filter-tab {
-    padding: 0.35rem 0.6rem;
-    font-size: 0.8rem;
-  }
-
-  .schedule-card-header {
-    padding: 0.75rem;
-  }
-
-  .schedule-date {
-    font-size: 1rem;
-  }
-
-  .schedule-card-body {
-    padding: 0.75rem;
-    gap: 0.5rem;
-  }
-
-  .schedule-info-item {
-    font-size: 0.9rem;
-  }
-
-  .schedule-card-footer {
-    flex-direction: column;
-    padding: 0.75rem;
-    gap: 0.25rem;
-  }
-
-  .btn-sm {
-    padding: 0.35rem 0.6rem;
-    font-size: 0.8rem;
-    width: 100%;
-  }
-
-  .stats-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .bar-fill {
-    padding-right: 0.5rem;
-    font-size: 0.75rem;
-  }
-
-  .modal-header,
-  .modal-body,
-  .modal-footer {
-    padding: 1rem;
-  }
-
-  .modal-title {
-    font-size: 1.1rem;
-  }
-
-  .form-group {
-    margin-bottom: 1rem;
-  }
-
-  .form-label {
-    font-size: 0.9rem;
-  }
 
   .form-control {
-    padding: 0.6rem;
-    font-size: 16px; /* Prevent zoom on iOS */
+    font-size: 16px; /* 避免 iOS 自動縮放 */
   }
 }

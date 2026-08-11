@@ -1,317 +1,186 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
 import { Layout } from "@/components/common/Layout";
-import { useClasses } from "@/hooks/useClasses";
-import { useAuth } from "@/context/AuthContext";
+import apiClient from "@/utils/api";
+import { scheduleService } from "@/services/scheduleService";
+import { attendanceQueryService } from "@/services/attendanceQueryService";
 import {
-  ScheduleList,
-  ScheduleForm,
+  generateScheduleRows,
+  summarizeSchedule,
+  GeneratedScheduleRow,
+} from "@/utils/scheduleGenerator";
+import {
+  ScheduleTable,
   RescheduleModal,
+  CancelModal,
   ScheduleStats,
 } from "@/components/schedule";
-import { TutionSchedule } from "@/types";
-import apiClient from "@/utils/api";
+import type { TutionClass, TutionSchedule } from "@/types";
 import "@/components/schedule/schedule.css";
 import "./schedule-management.css";
 
-type TabType = "list" | "form" | "stats";
-
 export const ScheduleManagement: React.FC = () => {
-  const { user } = useAuth();
-  const { classes, loading: classesLoading } = useClasses({
-    teacherId: user?.teacherId,
-    autoFetch: true,
-  });
+  const { id: classId } = useParams<{ id: string }>();
 
-  // State Management
-  const [currentTab, setCurrentTab] = useState<TabType>("list");
-  const [selectedClassId, setSelectedClassId] = useState<string | undefined>();
-  const [schedules, setSchedules] = useState<TutionSchedule[]>([]);
+  const [classInfo, setClassInfo] = useState<TutionClass | null>(null);
+  const [exceptions, setExceptions] = useState<TutionSchedule[]>([]);
+  const [attendedDates, setAttendedDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-  const [selectedSchedule, setSelectedSchedule] = useState<TutionSchedule | null>(null);
-  const [rescheduleLoading, setRescheduleLoading] = useState(false);
-  const [formLoading, setFormLoading] = useState(false);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // Fetch schedules when selected class changes
-  // (Note: fetchClasses is not needed as classes are auto-fetched)
-  useEffect(() => {
-    if (selectedClassId) {
-      fetchSchedules(selectedClassId);
+  const [cancelTarget, setCancelTarget] = useState<GeneratedScheduleRow | null>(null);
+  const [rescheduleTarget, setRescheduleTarget] = useState<GeneratedScheduleRow | null>(null);
+
+  const loadData = useCallback(async () => {
+    if (!classId) {
+      setError("課程 ID 未找到");
+      setLoading(false);
+      return;
     }
-  }, [selectedClassId]);
 
-  const fetchSchedules = async (classId: string) => {
+    setLoading(true);
+    setError(null);
+
     try {
-      setLoading(true);
-      setError(null);
-      const response = await apiClient.get<TutionSchedule[]>(
-        `/api/v1/schedules?class=${classId}`
-      );
-      setSchedules(response.data || []);
+      const [classRes, scheduleList, attendanceList] = await Promise.all([
+        apiClient.get(`/v1/classes/${classId}`),
+        scheduleService.getSchedules(classId),
+        attendanceQueryService.listByClass(classId),
+      ]);
+
+      setClassInfo(classRes.data?.data || null);
+      setExceptions(scheduleList);
+      setAttendedDates(new Set(attendanceList.map((a) => a.class_date)));
     } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "載入排期失敗";
+      const message = err instanceof Error ? err.message : "載入排課資料失敗";
       setError(message);
-      console.error("fetchSchedules error:", message);
     } finally {
       setLoading(false);
     }
-  };
+  }, [classId]);
 
-  // Get selected class info
-  const selectedClass = useMemo(
-    () => classes.find((c) => c.class_id === selectedClassId),
-    [classes, selectedClassId]
-  );
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-  // Handlers
-  const handleClassChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    setSelectedClassId(e.target.value || undefined);
-  };
+  const rows = useMemo(() => {
+    if (!classInfo) return [];
+    return generateScheduleRows({
+      dayOfWeek: classInfo.day_of_week,
+      startDate: classInfo.start_date,
+      endDate: classInfo.end_date,
+      exceptions,
+    });
+  }, [classInfo, exceptions]);
 
-  const handleCreateSchedule = async (data: {
-    class_id: string;
-    schedule_date: string;
-    status: "held" | "cancelled" | "rescheduled";
-    remarks?: string;
-    rescheduled_to?: string;
-  }) => {
+  const stats = useMemo(() => summarizeSchedule(rows, attendedDates), [rows, attendedDates]);
+
+  const handleCancelConfirm = async (reason: string) => {
+    if (!cancelTarget || !classId) return;
+    setActionLoading(true);
     try {
-      setFormLoading(true);
-      setError(null);
-
-      const response = await apiClient.post("/api/v1/schedules", data);
-      
-      if (response.data) {
-        setSchedules([...schedules, response.data]);
-        alert("排期已成功新增！");
-      }
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "新增排期失敗";
-      setError(message);
-      throw err;
+      await scheduleService.markAsCancelled(classId, cancelTarget.scheduled_date, reason);
+      await loadData();
     } finally {
-      setFormLoading(false);
+      setActionLoading(false);
     }
   };
 
-  const handleReschedule = (schedule: TutionSchedule) => {
-    setSelectedSchedule(schedule);
-    setShowRescheduleModal(true);
-  };
-
-  const handleRescheduleSubmit = async (newDate: string, reason: string) => {
-    if (!selectedSchedule) return;
-
+  const handleRescheduleConfirm = async (
+    newDate: string,
+    newVenue: string,
+    reason: string
+  ) => {
+    if (!rescheduleTarget || !classId) return;
+    setActionLoading(true);
     try {
-      setRescheduleLoading(true);
-      setError(null);
-
-      await apiClient.put(
-        `/api/v1/schedules/${selectedSchedule.schedule_id}`,
-        {
-          status: "rescheduled",
-          rescheduled_to: newDate,
-          remarks: reason,
-        }
+      await scheduleService.markAsRescheduled(
+        classId,
+        rescheduleTarget.scheduled_date,
+        newDate,
+        newVenue,
+        reason
       );
-
-      setSchedules(
-        schedules.map((s) =>
-          s.schedule_id === selectedSchedule.schedule_id
-            ? {
-                ...s,
-                status: "rescheduled" as const,
-                rescheduled_to: newDate,
-                remarks: reason,
-              }
-            : s
-        )
-      );
-
-      setShowRescheduleModal(false);
-      setSelectedSchedule(null);
-      alert("排期已成功改期！");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "改期失敗";
-      setError(message);
-      throw err;
+      await loadData();
     } finally {
-      setRescheduleLoading(false);
+      setActionLoading(false);
     }
   };
 
-  const handleCancelSchedule = async (scheduleId: string) => {
-    if (!window.confirm("確定要取消此排期嗎？")) return;
-
-    try {
-      setError(null);
-      await apiClient.put(`/api/v1/schedules/${scheduleId}`, {
-        status: "cancelled",
-      });
-
-      setSchedules(
-        schedules.map((s) =>
-          s.schedule_id === scheduleId ? { ...s, status: "cancelled" as const } : s
-        )
-      );
-
-      alert("排期已成功取消！");
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "取消排期失敗";
-      setError(message);
-    }
-  };
-
-  const handleViewAttendance = (schedule: TutionSchedule) => {
-    console.log("View attendance for schedule:", schedule.schedule_id);
-    // This will be implemented in Phase 3.3
-    alert("出席記錄功能將在下一版本推出");
-  };
-
-  // Render
-  if (classesLoading && classes.length === 0) {
+  if (loading) {
     return (
-      <Layout title="排期管理">
-        <div className="schedule-management loading">
-          <div className="schedule-empty">
-            <p>正在加載課堂信息...</p>
-          </div>
+      <Layout title="排課管理">
+        <div className="schedule-management">
+          <div className="schedule-table-empty">正在載入排課資料...</div>
         </div>
       </Layout>
     );
   }
 
-  if (classes.length === 0) {
+  if (!classInfo) {
     return (
-      <Layout title="排期管理">
+      <Layout title="排課管理">
         <div className="schedule-management">
-          <div className="schedule-empty">
-            <h3>暫無課堂</h3>
-            <p>您尚未建立任何補習課堂，請先創建課堂後再進行排期。</p>
-          </div>
+          <div className="alert alert-danger">{error || "找不到課程"}</div>
         </div>
       </Layout>
     );
   }
 
   return (
-    <Layout title="排期管理">
+    <Layout title="排課管理">
       <div className="schedule-management">
-        {/* Header */}
         <div className="schedule-header">
           <div className="header-title">
-            <h2>排期管理</h2>
-            <p className="subtitle">管理補習課程的排期記錄</p>
-          </div>
-
-          {/* Class Selector */}
-          <div className="class-selector">
-            <label className="selector-label">選擇課堂:</label>
-            <select
-              value={selectedClassId || ""}
-              onChange={handleClassChange}
-              className="selector-input"
-            >
-              <option value="">-- 選擇課堂 --</option>
-              {classes.map((c) => (
-                <option key={c.class_id} value={c.class_id}>
-                  {c.subject} - {c.form} ({c.day_of_week} {c.time_start})
-                </option>
-              ))}
-            </select>
+            <h2>
+              {classInfo.subject}（{classInfo.form}）
+            </h2>
+            <p className="subtitle">
+              每{classInfo.day_of_week} {classInfo.time_start}-{classInfo.time_end} ・{" "}
+              {classInfo.venue}
+              {classInfo.end_date ? ` ・ 結束日期 ${classInfo.end_date}` : ""}
+            </p>
           </div>
         </div>
 
-        {/* Error Alert */}
         {error && (
           <div className="alert alert-danger">
-            <strong>錯誤:</strong> {error}
-            <button
-              className="alert-close"
-              onClick={() => setError(null)}
-            >
+            {error}
+            <button className="alert-close" onClick={() => setError(null)}>
               ✕
             </button>
           </div>
         )}
 
-        {/* Tab Navigation */}
-        {selectedClass && (
-          <>
-            <div className="schedule-tabs">
-              <button
-                className={`tab-btn ${currentTab === "list" ? "active" : ""}`}
-                onClick={() => setCurrentTab("list")}
-              >
-                排期列表
-              </button>
-              <button
-                className={`tab-btn ${currentTab === "form" ? "active" : ""}`}
-                onClick={() => setCurrentTab("form")}
-              >
-                新增排期
-              </button>
-              <button
-                className={`tab-btn ${currentTab === "stats" ? "active" : ""}`}
-                onClick={() => setCurrentTab("stats")}
-              >
-                統計分析
-              </button>
-            </div>
+        <ScheduleStats stats={stats} />
 
-            {/* Tab Content */}
-            <div className="schedule-content">
-              {/* List Tab */}
-              {currentTab === "list" && (
-                <ScheduleList
-                  schedules={schedules}
-                  classes={classes}
-                  loading={loading}
-                  onReschedule={handleReschedule}
-                  onCancel={handleCancelSchedule}
-                  onViewAttendance={handleViewAttendance}
-                />
-              )}
+        <ScheduleTable
+          rows={rows}
+          attendedDates={attendedDates}
+          onCancel={(row) => setCancelTarget(row)}
+          onReschedule={(row) => setRescheduleTarget(row)}
+        />
 
-              {/* Form Tab */}
-              {currentTab === "form" && (
-                <ScheduleForm
-                  selectedClass={selectedClass}
-                  loading={formLoading}
-                  onSubmit={handleCreateSchedule}
-                  onCancel={() => setCurrentTab("list")}
-                />
-              )}
-
-              {/* Stats Tab */}
-              {currentTab === "stats" && (
-                <ScheduleStats schedules={schedules} />
-              )}
-            </div>
-
-            {/* Reschedule Modal */}
-            {selectedSchedule && (
-              <RescheduleModal
-                schedule={selectedSchedule}
-                open={showRescheduleModal}
-                loading={rescheduleLoading}
-                onConfirm={handleRescheduleSubmit}
-                onClose={() => {
-                  setShowRescheduleModal(false);
-                  setSelectedSchedule(null);
-                }}
-              />
-            )}
-          </>
+        {cancelTarget && (
+          <CancelModal
+            row={cancelTarget}
+            open={!!cancelTarget}
+            loading={actionLoading}
+            onConfirm={handleCancelConfirm}
+            onClose={() => setCancelTarget(null)}
+          />
         )}
 
-        {/* No Class Selected */}
-        {!selectedClass && (
-          <div className="schedule-empty">
-            <p>請選擇一個課堂以查看或管理排期</p>
-          </div>
+        {rescheduleTarget && (
+          <RescheduleModal
+            row={rescheduleTarget}
+            open={!!rescheduleTarget}
+            loading={actionLoading}
+            defaultVenue={classInfo.venue}
+            onConfirm={handleRescheduleConfirm}
+            onClose={() => setRescheduleTarget(null)}
+          />
         )}
       </div>
     </Layout>

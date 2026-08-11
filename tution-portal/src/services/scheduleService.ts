@@ -1,32 +1,32 @@
 import apiClient from "@/utils/api";
 import type { TutionSchedule } from "@/types/index";
 
-export interface CreateSchedulePayload {
+/**
+ * 排課例外記錄的建立/更新內容。
+ *
+ * 後端只儲存「例外」（無開課／調課），「有開課」是預設值、不會實際寫入 KV，
+ * 所以這裡的 status 只會是 cancelled 或 rescheduled，不接受 held。
+ */
+export interface ScheduleExceptionPayload {
   class_id: string;
   scheduled_date: string; // YYYY-MM-DD
-  status?: "held" | "cancelled" | "rescheduled";
+  status: "cancelled" | "rescheduled";
   cancellation_reason?: string;
   rescheduled_to?: string;
-  reschedule_reason?: string;
-}
-
-export interface UpdateSchedulePayload {
-  status: "held" | "cancelled" | "rescheduled";
-  cancellation_reason?: string;
-  rescheduled_to?: string;
+  rescheduled_venue?: string;
   reschedule_reason?: string;
 }
 
 export const scheduleService = {
   /**
-   * 取得指定課程的所有開課記錄
+   * 取得指定課程的所有排課例外記錄（無開課/調課）
    */
   async getSchedules(classId: string): Promise<TutionSchedule[]> {
     try {
-      const response = await apiClient.get<TutionSchedule[]>(
+      const response = await apiClient.get<{ data: TutionSchedule[] }>(
         `/v1/schedules?class=${classId}`
       );
-      return response.data || [];
+      return response.data?.data || [];
     } catch (error) {
       console.error("Failed to fetch schedules:", error);
       throw error;
@@ -34,105 +34,55 @@ export const scheduleService = {
   },
 
   /**
-   * 建立新的開課記錄 (標記為已上課)
+   * 建立（或更新，若當天已有例外記錄）一筆排課例外
    */
-  async createSchedule(
-    classId: string,
-    scheduledDate: string
-  ): Promise<TutionSchedule> {
+  async createException(payload: ScheduleExceptionPayload): Promise<TutionSchedule> {
     try {
-      const payload: CreateSchedulePayload = {
-        class_id: classId,
-        scheduled_date: scheduledDate,
-        status: "held",
-      };
-      const response = await apiClient.post<TutionSchedule>(
+      const response = await apiClient.post<{ data: TutionSchedule }>(
         `/v1/schedules`,
         payload
       );
-      return response.data!;
+      return response.data.data;
     } catch (error) {
-      console.error("Failed to create schedule:", error);
+      console.error("Failed to create schedule exception:", error);
       throw error;
     }
   },
 
   /**
-   * 標記開課記錄為已上課
-   */
-  async markAsHeld(scheduleId: string): Promise<TutionSchedule> {
-    try {
-      const payload: UpdateSchedulePayload = {
-        status: "held",
-      };
-      const response = await apiClient.put<TutionSchedule>(
-        `/v1/schedules/${scheduleId}`,
-        payload
-      );
-      return response.data!;
-    } catch (error) {
-      console.error("Failed to mark schedule as held:", error);
-      throw error;
-    }
-  },
-
-  /**
-   * 停課 (需填寫停課原因)
+   * 標記某天無開課（停課）
    */
   async markAsCancelled(
-    scheduleId: string,
+    classId: string,
+    scheduledDate: string,
     reason: string
   ): Promise<TutionSchedule> {
-    try {
-      const payload: UpdateSchedulePayload = {
-        status: "cancelled",
-        cancellation_reason: reason,
-      };
-      const response = await apiClient.put<TutionSchedule>(
-        `/v1/schedules/${scheduleId}`,
-        payload
-      );
-      return response.data!;
-    } catch (error) {
-      console.error("Failed to cancel schedule:", error);
-      throw error;
-    }
+    return this.createException({
+      class_id: classId,
+      scheduled_date: scheduledDate,
+      status: "cancelled",
+      cancellation_reason: reason,
+    });
   },
 
   /**
-   * 調課 (選擇新日期並填寫原因)
+   * 標記某天調課（新日期＋新地點）
    */
   async markAsRescheduled(
-    scheduleId: string,
+    classId: string,
+    scheduledDate: string,
     newDate: string,
+    newVenue: string,
     reason: string
   ): Promise<TutionSchedule> {
-    try {
-      const payload: UpdateSchedulePayload = {
-        status: "rescheduled",
-        rescheduled_to: newDate,
-        reschedule_reason: reason,
-      };
-      const response = await apiClient.put<TutionSchedule>(
-        `/v1/schedules/${scheduleId}`,
-        payload
-      );
-      return response.data!;
-    } catch (error) {
-      console.error("Failed to reschedule:", error);
-      throw error;
-    }
+    return this.createException({
+      class_id: classId,
+      scheduled_date: scheduledDate,
+      status: "rescheduled",
+      rescheduled_to: newDate,
+      rescheduled_venue: newVenue,
+      reschedule_reason: reason,
+    });
   },
 
-  /**
-   * 刪除開課記錄
-   */
-  async deleteSchedule(scheduleId: string): Promise<void> {
-    try {
-      await apiClient.delete(`/v1/schedules/${scheduleId}`);
-    } catch (error) {
-      console.error("Failed to delete schedule:", error);
-      throw error;
-    }
-  },
 };

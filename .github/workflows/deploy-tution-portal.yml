@@ -25,13 +25,20 @@ jobs:
           cache: 'npm'
           cache-dependency-path: 'tution-portal/package-lock.json'
 
+      # tution-portal depends on @chhsban/kv-utils via a "file:" dependency; its dist/
+      # is gitignored, so it must be built here before tution-portal's npm ci copies it in.
+      # `|| true`: src/teacher-verify.ts has a pre-existing, unrelated KVNamespace type
+      # error (missing @cloudflare/workers-types ambient types) that makes tsc exit
+      # non-zero; tsc still emits dist/ output regardless (noEmitOnError is not set).
+      - name: Build @chhsban/kv-utils
+        working-directory: packages/kv-utils
+        run: |
+          npm install
+          npm run build || true
+
       - name: Install dependencies (tution-portal)
         working-directory: tution-portal
         run: npm ci
-
-      - name: Install dependencies (packages)
-        working-directory: packages
-        run: npm ci || true
 
       - name: Build tution-portal
         working-directory: tution-portal

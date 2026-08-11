@@ -37,6 +37,8 @@ export const AdminPanel: React.FC = () => {
   // 已開課相關狀態
   const [courses, setCourses] = useState<TutionClass[]>([]);
   const [coursesLoading, setCoursesLoading] = useState(false);
+  const [endDateDrafts, setEndDateDrafts] = useState<Record<string, string>>({});
+  const [savingEndDateId, setSavingEndDateId] = useState<string | null>(null);
 
   // 權限檢查：只有 super_admin 才能訪問此頁面
   useEffect(() => {
@@ -164,6 +166,31 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
+  // 設定課程結束日期（供 ScheduleManagement 排課生成範圍使用）
+  const handleSetEndDate = async (classId: string) => {
+    const value = endDateDrafts[classId];
+    if (!value) {
+      alert("請先選擇結束日期");
+      return;
+    }
+
+    setSavingEndDateId(classId);
+    try {
+      const response = await apiClient.put(`/v1/classes/${classId}`, { end_date: value });
+      const updated = response.data?.data;
+      setCourses((prev) =>
+        prev.map((c) => (c.class_id === classId ? { ...c, end_date: updated?.end_date ?? value } : c))
+      );
+      alert("✅ 結束日期已更新");
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "更新結束日期失敗";
+      alert(`❌ ${errMsg}`);
+      console.error("Set end date error:", err);
+    } finally {
+      setSavingEndDateId(null);
+    }
+  };
+
   // 打開拒絕彈窗
   const handleRejectClick = (classId: string) => {
     const app = applications.find((a) => a.class_id === classId);
@@ -283,6 +310,24 @@ export const AdminPanel: React.FC = () => {
                       <span>
                         📅 {course.day_of_week} {course.time_start}-{course.time_end}
                       </span>
+                      <span>🏁 結束日期：{course.end_date || "未設定"}</span>
+                    </div>
+                    <div className="course-row__end-date">
+                      <input
+                        type="date"
+                        className="course-row__end-date-input"
+                        value={endDateDrafts[course.class_id] ?? course.end_date ?? ""}
+                        onChange={(e) =>
+                          setEndDateDrafts((prev) => ({ ...prev, [course.class_id]: e.target.value }))
+                        }
+                      />
+                      <button
+                        className="btn btn-small"
+                        disabled={savingEndDateId === course.class_id}
+                        onClick={() => handleSetEndDate(course.class_id)}
+                      >
+                        {savingEndDateId === course.class_id ? "儲存中..." : "設定結束日期"}
+                      </button>
                     </div>
                     <div className="course-row__actions">
                       <button

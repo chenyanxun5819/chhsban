@@ -7,6 +7,7 @@ import {
   TutionClass,
   TutionRoster,
   TutionAttendance,
+  TutionSchedule,
   TutionPDFFieldMap,
   TutionClassStatus,
   AttendanceStatus,
@@ -24,15 +25,18 @@ export class TutionKVService implements TutionKVManager {
   private classKV: KVNamespace;
   private rosterKV: KVNamespace;
   private attendanceKV: KVNamespace;
+  private scheduleKV?: KVNamespace;
 
   constructor(
     classKV: KVNamespace,
     rosterKV: KVNamespace,
     attendanceKV: KVNamespace,
+    scheduleKV?: KVNamespace,
   ) {
     this.classKV = classKV;
     this.rosterKV = rosterKV;
     this.attendanceKV = attendanceKV;
+    this.scheduleKV = scheduleKV;
   }
 
   // ===== 補習班主表操作 =====
@@ -209,6 +213,21 @@ export class TutionKVService implements TutionKVManager {
     );
   }
 
+  async listAttendanceByClass(classId: string): Promise<TutionAttendance[]> {
+    const result = await this.attendanceKV.list({ prefix: "attendance_" });
+    const attendanceRecords = await Promise.all(
+      result.keys.map((item: any) => this.getAttendanceRecord(item.name)),
+    );
+    const records = attendanceRecords.filter(
+      (a: any): a is TutionAttendance => a !== null && a.class_id === classId,
+    );
+
+    return records.sort(
+      (a: TutionAttendance, b: TutionAttendance) =>
+        new Date(a.class_date).getTime() - new Date(b.class_date).getTime(),
+    );
+  }
+
   async updateAttendanceRecord(
     attendanceId: string,
     updates: Partial<TutionAttendance>,
@@ -260,6 +279,70 @@ export class TutionKVService implements TutionKVManager {
         : 0;
 
     return stats;
+  }
+
+  // ===== 排課例外記錄操作 =====
+  // 只存「例外」：老師標記過無開課/調課的日期。沒有例外記錄的上課日一律視為「有開課」
+  // （由前端依 day_of_week + start_date 推算，不寫入 KV）。
+
+  private requireScheduleKV(): KVNamespace {
+    if (!this.scheduleKV) {
+      throw new Error("TutionKVService: scheduleKV not configured");
+    }
+    return this.scheduleKV;
+  }
+
+  async createSchedule(
+    scheduleData: Omit<TutionSchedule, "schedule_id" | "created_at" | "updated_at">,
+  ): Promise<TutionSchedule> {
+    const scheduleId = `schedule_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const now = Date.now();
+
+    const schedule: TutionSchedule = {
+      ...scheduleData,
+      schedule_id: scheduleId,
+      created_at: now,
+      updated_at: now,
+    };
+
+    await this.requireScheduleKV().put(scheduleId, JSON.stringify(schedule));
+    return schedule;
+  }
+
+  async getSchedule(scheduleId: string): Promise<TutionSchedule | null> {
+    const data = await this.requireScheduleKV().get(scheduleId);
+    return data ? JSON.parse(data) : null;
+  }
+
+  async listSchedulesByClass(classId: string): Promise<TutionSchedule[]> {
+    const result = await this.requireScheduleKV().list({ prefix: "schedule_" });
+    const schedules = await Promise.all(
+      result.keys.map((item: any) => this.getSchedule(item.name)),
+    );
+    return schedules.filter(
+      (s: any): s is TutionSchedule => s !== null && s.class_id === classId,
+    );
+  }
+
+  async updateSchedule(
+    scheduleId: string,
+    updates: Partial<TutionSchedule>,
+  ): Promise<TutionSchedule> {
+    const existing = await this.getSchedule(scheduleId);
+    if (!existing) throw new Error(`Schedule ${scheduleId} not found`);
+
+    const updated = {
+      ...existing,
+      ...updates,
+      updated_at: Date.now(),
+    };
+
+    await this.requireScheduleKV().put(scheduleId, JSON.stringify(updated));
+    return updated;
+  }
+
+  async deleteSchedule(scheduleId: string): Promise<void> {
+    await this.requireScheduleKV().delete(scheduleId);
   }
 
   // ===== PDF 欄位映射操作 =====

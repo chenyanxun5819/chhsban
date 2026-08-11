@@ -1,4 +1,2 @@
-// Phase 3.3 Attendance Components
-export { default as AttendanceSheet } from "./AttendanceSheet";
-export { default as AttendanceRow } from "./AttendanceRow";
+// 出勤統計頁（AttendanceStats）用到的元件；點名頁（pages/AttendanceSheet/AttendanceSheet.tsx）自成一頁，不在此匯出。
 export { default as AttendanceStats } from "./AttendanceStats";
