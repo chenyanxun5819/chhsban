@@ -59,6 +59,18 @@
 - **驗證**：前端 `vite build` 成功、後端 `esbuild` 打包成功；`tution-portal` 的 `tsc --noEmit` 僅剩一筆與本次無關的既有警告（`RosterManagement.tsx` 未使用變數）。
 - 完整目錄結構與已知既有缺口（例如 `AttendanceStats.tsx` 疑似雙重 `/api` 前綴問題）記錄於 `PROJECT_STRUCTURE.md`。
 
+### D. 部署（2026-08-10）——修正多項與原報告不符的部署事實
+
+實際部署時發現，原報告「4.3 部署狀態」一節的多項描述與現況不符，一併修正：
+
+- **後端 Worker 網址錯誤**：原報告寫 `https://tution-system.workers.dev`，實際網址是 `https://tution-system.astcws.workers.dev`（`.workers.dev` 前必須帶帳號子網域 `astcws`）。已用 `wrangler deploy` 重新部署後端，`GET /api/health` 確認正常。
+- **前端 Pages 專案名稱錯誤／CI 從未真正成功過**：原報告聲稱「自動 CI/CD: 推送 master 分支自動部署」，但實際查詢 GitHub Actions API，`deploy-tution-portal.yml` 這條 workflow **至少從 2026-07-27 起，每一次執行都失敗**，從未真正自動部署成功過。根本原因有三個疊在一起：
+  1. 根目錄 `.gitignore` 排除了所有 `package-lock.json`，但 `tution-portal` 不屬於根目錄 npm workspace，需要自己的 lock file 才能跑 `npm ci`——導致 `Setup Node.js` 這一步直接失敗。已修正 `.gitignore`（改為排除規則 + 針對 `tution-portal/package-lock.json` 的例外）並補上該檔案。
+  2. workflow 部署目標寫的是 Cloudflare Pages 專案 `chhsban-tution`，但實際在服務正式流量的是另一個獨立專案 `tution-portal`（`tution-portal.pages.dev`）。已修正 workflow 的 `--project-name`。
+  3. workflow 建置時注入的 `VITE_API_BASE_URL` 也是前述錯誤的 Worker 網址，已一併修正為 `tution-system.astcws.workers.dev`。
+  - 目前 workflow 已可正常跑到「Deploy to Cloudflare Pages」這一步，但該步驟仍失敗，研判是 GitHub repo 的 `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` secrets 設定有問題；這需要 repo 管理權限才能檢視/修正，不在此次可處理範圍內，留待您自行確認 GitHub repo 的 Settings → Secrets。
+  - 在 CI 修好之前，本次已直接用本機 `wrangler pages deploy` 把本次排課＋點名的變更部署到 `tution-portal.pages.dev`（正式站台），已確認 HTTP 200。
+
 ---
 
 ## 📊 一、目前進度概覽
