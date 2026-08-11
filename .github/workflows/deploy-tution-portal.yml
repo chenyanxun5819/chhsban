@@ -44,7 +44,7 @@ jobs:
         working-directory: tution-portal
         run: npm run build
         env:
-          VITE_API_BASE_URL: https://tution-system.workers.dev/api
+          VITE_API_BASE_URL: https://tution-system.astcws.workers.dev/api
 
       - name: Deploy to Cloudflare Pages
         working-directory: tution-portal
@@ -53,7 +53,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
         run: |
           npm install -g wrangler
-          wrangler pages deploy dist --project-name=chhsban-tution --commit-dirty=true
+          wrangler pages deploy dist --project-name=tution-portal --commit-dirty=true
             CLOUDFLARE_API_TOKEN
 
       - name: Comment on commit
@@ -62,4 +62,4 @@ jobs:
         with:
           script: |
             const status = '${{ job.status }}' === 'success' ? '✅ Deploy succeeded' : '❌ Deploy failed';
-            console.log(`${status}: chhsban-tution.pages.dev`);
+            console.log(`${status}: tution-portal.pages.dev`);
