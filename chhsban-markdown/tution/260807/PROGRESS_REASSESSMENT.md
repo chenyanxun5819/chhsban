@@ -68,8 +68,9 @@
   1. 根目錄 `.gitignore` 排除了所有 `package-lock.json`，但 `tution-portal` 不屬於根目錄 npm workspace，需要自己的 lock file 才能跑 `npm ci`——導致 `Setup Node.js` 這一步直接失敗。已修正 `.gitignore`（改為排除規則 + 針對 `tution-portal/package-lock.json` 的例外）並補上該檔案。
   2. workflow 部署目標寫的是 Cloudflare Pages 專案 `chhsban-tution`，但實際在服務正式流量的是另一個獨立專案 `tution-portal`（`tution-portal.pages.dev`）。已修正 workflow 的 `--project-name`。
   3. workflow 建置時注入的 `VITE_API_BASE_URL` 也是前述錯誤的 Worker 網址，已一併修正為 `tution-system.astcws.workers.dev`。
-  - 目前 workflow 已可正常跑到「Deploy to Cloudflare Pages」這一步，但該步驟仍失敗，研判是 GitHub repo 的 `CLOUDFLARE_ACCOUNT_ID` / `CLOUDFLARE_API_TOKEN` secrets 設定有問題；這需要 repo 管理權限才能檢視/修正，不在此次可處理範圍內，留待您自行確認 GitHub repo 的 Settings → Secrets。
-  - 在 CI 修好之前，本次已直接用本機 `wrangler pages deploy` 把本次排課＋點名的變更部署到 `tution-portal.pages.dev`（正式站台），已確認 HTTP 200。
+  - 在 CI 修好之前，本次已先直接用本機 `wrangler pages deploy` 把本次排課＋點名的變更部署到 `tution-portal.pages.dev`（正式站台），已確認 HTTP 200。
+  - 後續使用者更新了 `CLOUDFLARE_API_TOKEN`（原本的權限不含 Cloudflare Pages: Edit），重新手動觸發 workflow 後，發現真正卡住的其實是另一個問題：`Deploy to Cloudflare Pages` 這步驟用 `npm install -g wrangler` 裝最新版 wrangler，但 workflow 的 `actions/setup-node` 設定的是 Node 18，最新版 wrangler 要求 Node ≥ 20，導致還沒驗證 Token 就先失敗。已將 workflow 的 `node-version` 改成 `'20'`，同時清掉一行殘留的 `CLOUDFLARE_API_TOKEN` 孤立指令（wrangler 指令下面多出來的一行，會在 Node 版本修好後變成下一個失敗點）。
+  - **修正後已重新驗證：`deploy-tution-portal.yml` 完整跑過全部步驟並成功**（commit `bab2c14`），`tution-portal.pages.dev` 確認 HTTP 200。「推送 master 分支自動部署」現在才是真正成立的狀態。
 
 ---
 
