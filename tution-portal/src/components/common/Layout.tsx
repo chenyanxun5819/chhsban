@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import houseIcon from "../../assets/house.svg";
+import logOutIcon from "../../assets/log-out.svg";
 import "../../styles/layout.css";
 
 interface HeaderProps {
@@ -26,13 +27,6 @@ export const Header: React.FC<HeaderProps> = ({ title, onMenuToggle, menuOpen })
             <span className={`menu-icon ${menuOpen ? "open" : ""}`}></span>
           </button>
         )}
-        <button
-          className="header__home"
-          onClick={() => navigate("/")}
-          aria-label="返回首頁"
-        >
-          <img src={houseIcon} alt="" className="header__home-icon" />
-        </button>
       </div>
       <div className="header__center">
         {title && <span className="header__title">{title}</span>}
@@ -42,11 +36,18 @@ export const Header: React.FC<HeaderProps> = ({ title, onMenuToggle, menuOpen })
           <span className="user-info__name">{user?.teacherName}</span>
         </div>
         <button
+          className="header__home"
+          onClick={() => navigate("/")}
+          aria-label="返回首頁"
+        >
+          <img src={houseIcon} alt="" className="header__home-icon" />
+        </button>
+        <button
           className="header__logout"
           onClick={logout}
-          aria-label="Logout"
+          aria-label="登出"
         >
-          登出
+          <img src={logOutIcon} alt="" className="header__logout-icon" />
         </button>
       </div>
     </header>
