@@ -111,7 +111,7 @@ const RosterManagement: React.FC = () => {
     : "課程";
 
   return (
-    <Layout>
+    <Layout title="學生管理">
       <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "24px" }}>
         {/* 頁面標題 */}
         <div
