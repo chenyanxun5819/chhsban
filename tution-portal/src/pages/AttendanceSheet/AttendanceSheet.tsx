@@ -40,6 +40,11 @@ function emptyDraftEntry(): DraftEntry {
   return { status: "present", reasonPreset: EXCUSE_REASON_OPTIONS[0], reasonOther: "" };
 }
 
+/** 學生的加入日期若晚於指定上課日，代表當天該生尚未加入班級，不應被點名。 */
+function isEnrolledByDate(student: ClassRosterEntry, dateStr: string): boolean {
+  return student.enrollment_date <= dateStr;
+}
+
 /** 把既有紀錄的 absence_reason 拆回「預設選項 / 其他文字」，供編輯既有點名結果時預填。 */
 function decomposeReason(reason?: string): { reasonPreset: string; reasonOther: string } {
   if (reason && EXCUSE_REASON_OPTIONS.includes(reason) && reason !== "其他") {
@@ -108,6 +113,15 @@ export const AttendanceSheet: React.FC = () => {
 
   const activeRoster = useMemo(() => roster.filter((r) => r.is_active), [roster]);
 
+  // 當前選定日期「已經加入班級」的在讀學生 —— 只有這些人才能被點名。
+  const enrolledRoster = useMemo(
+    () =>
+      selectedDate
+        ? activeRoster.filter((s) => isEnrolledByDate(s, selectedDate))
+        : activeRoster,
+    [activeRoster, selectedDate]
+  );
+
   const rows = useMemo(() => {
     if (!classInfo) return [];
     return generateScheduleRows({
@@ -151,7 +165,7 @@ export const AttendanceSheet: React.FC = () => {
       return;
     }
     const next = new Map<string, DraftEntry>();
-    activeRoster.forEach((student) => {
+    enrolledRoster.forEach((student) => {
       const existing = recordsByKey.get(`${student.student_id}|${selectedDate}`);
       if (!existing) {
         next.set(student.student_id, emptyDraftEntry());
@@ -171,7 +185,7 @@ export const AttendanceSheet: React.FC = () => {
       }
     });
     setDraft(next);
-  }, [selectedDate, activeRoster, recordsByKey]);
+  }, [selectedDate, enrolledRoster, recordsByKey]);
 
   const updateDraft = (studentId: string, patch: Partial<DraftEntry>) => {
     setDraft((prev) => {
@@ -185,7 +199,7 @@ export const AttendanceSheet: React.FC = () => {
   const handleMarkAllPresent = () => {
     setDraft((prev) => {
       const next = new Map(prev);
-      activeRoster.forEach((student) => next.set(student.student_id, emptyDraftEntry()));
+      enrolledRoster.forEach((student) => next.set(student.student_id, emptyDraftEntry()));
       return next;
     });
   };
@@ -193,7 +207,7 @@ export const AttendanceSheet: React.FC = () => {
   const handleSave = async () => {
     if (!classId || !selectedDate) return;
 
-    for (const student of activeRoster) {
+    for (const student of enrolledRoster) {
       const entry = draft.get(student.student_id);
       if (entry?.status === "excuse" && !composeReason(entry)) {
         setError(`「${student.name_cn}」的請假原因尚未填寫`);
@@ -204,7 +218,7 @@ export const AttendanceSheet: React.FC = () => {
     setSaving(true);
     setError(null);
     try {
-      const records = activeRoster.map((student) => {
+      const records = enrolledRoster.map((student) => {
         const entry = draft.get(student.student_id) || emptyDraftEntry();
         return {
           student_id: student.student_id,
@@ -309,6 +323,22 @@ export const AttendanceSheet: React.FC = () => {
             ) : (
               <div className="attendance-list">
                 {activeRoster.map((student) => {
+                  if (!isEnrolledByDate(student, selectedDate)) {
+                    return (
+                      <div className="attendance-row attendance-row-disabled" key={student.student_id}>
+                        <div className="attendance-row-main">
+                          <div className="attendance-row-info">
+                            <span className="attendance-row-name">{student.name_cn}</span>
+                            <span className="attendance-row-no">{student.student_no}</span>
+                          </div>
+                          <span className="attendance-not-joined-badge" title={`加入日期：${student.enrollment_date}`}>
+                            未加入
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
+
                   const entry = draft.get(student.student_id) || emptyDraftEntry();
                   return (
                     <div className="attendance-row" key={student.student_id}>
@@ -422,6 +452,18 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, r
               <tr key={student.student_id}>
                 <td className="attendance-matrix-student-col">{student.name_cn}</td>
                 {chronological.map((row) => {
+                  if (!isEnrolledByDate(student, row.actual_date)) {
+                    return (
+                      <td
+                        key={row.actual_date}
+                        className="attendance-matrix-cell attendance-matrix-cell-not-joined"
+                        title={`${row.actual_date} 尚未加入班級（加入日期：${student.enrollment_date}）`}
+                      >
+                        -
+                      </td>
+                    );
+                  }
+
                   const record = recordsByKey.get(`${student.student_id}|${row.actual_date}`);
                   const meta = record ? ATTENDANCE_STATUS_META[record.status] : null;
                   const title = meta

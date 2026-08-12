@@ -1,3 +1,4 @@
+import * as XLSX from "xlsx";
 import apiClient from "@/utils/api";
 import { ClassRosterEntry } from "@/types";
 
@@ -41,7 +42,7 @@ export function getGenderBoardingLabel(code: string): string {
   return GENDER_BOARDING_LABELS[code] || code || "-";
 }
 
-export function exportRosterToCSV(roster: ClassRosterEntry[], classId: string): void {
+export function exportRosterToXLSX(roster: ClassRosterEntry[], classId: string): void {
   const headers = ["學號", "中文姓名", "英文姓名", "班級", "性別/走宿", "加入日期", "退出日期", "狀態"];
   const rows = roster.map((s) => [
     s.student_no,
@@ -54,13 +55,8 @@ export function exportRosterToCSV(roster: ClassRosterEntry[], classId: string): 
     s.is_active ? "在讀" : "已退出",
   ]);
 
-  const csv = [headers, ...rows]
-    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-    .join("\n");
-
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `roster-${classId}-${Date.now()}.csv`;
-  link.click();
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "學生名單");
+  XLSX.writeFile(workbook, `roster-${classId}-${Date.now()}.xlsx`);
 }

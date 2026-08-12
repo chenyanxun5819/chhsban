@@ -118,6 +118,22 @@
   width: auto;
 }
 
+/* 加入日期晚於選定上課日的學生：整列反灰，不能點名 */
+.attendance-row-disabled {
+  opacity: 0.55;
+  background: #f5f5f5;
+}
+
+.attendance-not-joined-badge {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  color: #999;
+  background: #eee;
+  border-radius: 4px;
+  padding: 0.3rem 0.6rem;
+  white-space: nowrap;
+}
+
 .attendance-reason {
   display: flex;
   gap: 0.5rem;
@@ -170,6 +186,13 @@
 .attendance-matrix-cell {
   font-weight: 700;
   min-width: 36px;
+}
+
+/* 加入日期晚於該堂課日期的儲存格：反灰，不算「尚未點名」 */
+.attendance-matrix-cell-not-joined {
+  background: #f5f5f5;
+  color: #ccc;
+  font-weight: 400;
 }
 
 .attendance-legend {

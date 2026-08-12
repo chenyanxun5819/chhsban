@@ -97,7 +97,7 @@ const RosterTable: React.FC<RosterTableProps> = ({
 
         <div className="toolbar-right">
           <button className="btn btn-secondary" onClick={onExport} disabled={loading || roster.length === 0}>
-            📥 匯出
+            📥 匯出 Excel
           </button>
           <button className="btn btn-outline-secondary" onClick={onRefresh} disabled={loading}>
             {loading ? "重新加載中..." : "🔄 重新加載"}

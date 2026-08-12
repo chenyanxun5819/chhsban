@@ -6,7 +6,7 @@ import {
   getClassRoster,
   addRosterStudent,
   withdrawRosterStudent,
-  exportRosterToCSV,
+  exportRosterToXLSX,
 } from "@/services/rosterService";
 import { RosterTable, RosterStats } from "@/components/roster";
 import { Layout } from "@/components/common/Layout";
@@ -64,12 +64,19 @@ const RosterManagement: React.FC = () => {
   }, [fetchRoster]);
 
   // 新增學生
+  // 注意：新增後不能單純呼叫 fetchRoster() 重新整頁 —— 後端 roster 名單是用 Cloudflare KV
+  // 的 list() 撈的，這個操作是最終一致性的，剛 put() 進去的新項目常常要等數十秒才會出現在
+  // list() 結果裡，會讓使用者以為「新增後畫面沒更新」。這裡改成直接把後端回傳的新項目併入
+  // 現有名單（樂觀更新），不必等 list() 追上。
   const handleAddStudent = async (studentId: string) => {
     if (!classId) return;
     setState((prev) => ({ ...prev, saving: true, error: "" }));
     try {
-      await addRosterStudent(classId, studentId);
-      await fetchRoster();
+      const newEntry = await addRosterStudent(classId, studentId);
+      setState((prev) => ({
+        ...prev,
+        roster: [...prev.roster.filter((s) => s.roster_id !== newEntry.roster_id), newEntry],
+      }));
     } catch (err: any) {
       setState((prev) => ({
         ...prev,
@@ -101,9 +108,9 @@ const RosterManagement: React.FC = () => {
     }
   };
 
-  const handleExportCSV = () => {
+  const handleExport = () => {
     if (!classId) return;
-    exportRosterToCSV(state.roster, classId);
+    exportRosterToXLSX(state.roster, classId);
   };
 
   const classNameDisplay = state.classInfo
@@ -175,7 +182,7 @@ const RosterManagement: React.FC = () => {
             roster={state.roster}
             onAddStudent={handleAddStudent}
             onWithdraw={handleWithdraw}
-            onExport={handleExportCSV}
+            onExport={handleExport}
             onRefresh={fetchRoster}
             loading={state.saving}
           />
