@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
+import houseIcon from "../../assets/house.svg";
 import "../../styles/layout.css";
 
 interface HeaderProps {
@@ -25,9 +26,16 @@ export const Header: React.FC<HeaderProps> = ({ title, onMenuToggle, menuOpen })
             <span className={`menu-icon ${menuOpen ? "open" : ""}`}></span>
           </button>
         )}
-        <button className="header__title header__title--link" onClick={() => navigate("/")}>
-          {title || "返回首页"}
+        <button
+          className="header__home"
+          onClick={() => navigate("/")}
+          aria-label="返回首頁"
+        >
+          <img src={houseIcon} alt="" className="header__home-icon" />
         </button>
+      </div>
+      <div className="header__center">
+        {title && <span className="header__title">{title}</span>}
       </div>
       <div className="header__right">
         <div className="user-info">
