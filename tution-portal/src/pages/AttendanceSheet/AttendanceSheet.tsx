@@ -312,29 +312,31 @@ export const AttendanceSheet: React.FC = () => {
                   const entry = draft.get(student.student_id) || emptyDraftEntry();
                   return (
                     <div className="attendance-row" key={student.student_id}>
-                      <div className="attendance-row-info">
-                        <span className="attendance-row-name">{student.name_cn}</span>
-                        <span className="attendance-row-no">{student.student_no}</span>
-                      </div>
+                      <div className="attendance-row-main">
+                        <div className="attendance-row-info">
+                          <span className="attendance-row-name">{student.name_cn}</span>
+                          <span className="attendance-row-no">{student.student_no}</span>
+                        </div>
 
-                      <select
-                        className="form-control attendance-status-select"
-                        value={entry.status}
-                        onChange={(e) =>
-                          updateDraft(student.student_id, {
-                            status: e.target.value as AttendanceStatusCode,
-                          })
-                        }
-                      >
-                        {(Object.keys(ATTENDANCE_STATUS_META) as AttendanceStatusCode[]).map(
-                          (status) => (
-                            <option key={status} value={status}>
-                              {ATTENDANCE_STATUS_META[status].label} (
-                              {ATTENDANCE_STATUS_META[status].code})
-                            </option>
-                          )
-                        )}
-                      </select>
+                        <select
+                          className="form-control attendance-status-select"
+                          value={entry.status}
+                          onChange={(e) =>
+                            updateDraft(student.student_id, {
+                              status: e.target.value as AttendanceStatusCode,
+                            })
+                          }
+                        >
+                          {(Object.keys(ATTENDANCE_STATUS_META) as AttendanceStatusCode[]).map(
+                            (status) => (
+                              <option key={status} value={status}>
+                                {ATTENDANCE_STATUS_META[status].label} (
+                                {ATTENDANCE_STATUS_META[status].code})
+                              </option>
+                            )
+                          )}
+                        </select>
+                      </div>
 
                       {entry.status === "excuse" && (
                         <div className="attendance-reason">

@@ -70,9 +70,8 @@
 
 .attendance-row {
   display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 0.75rem;
+  flex-direction: column;
+  gap: 0.5rem;
   padding: 0.75rem 1rem;
   border-bottom: 1px solid #eee;
 }
@@ -81,33 +80,47 @@
   border-bottom: none;
 }
 
+/* 姓名、學號、狀態下拉選單固定排成一行，不換行；請假理由（若有）另起一行 */
+.attendance-row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: nowrap;
+}
+
 .attendance-row-info {
   display: flex;
-  flex-direction: column;
-  min-width: 110px;
-  flex: 1 1 110px;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
 }
 
 .attendance-row-name {
   font-weight: 600;
   color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .attendance-row-no {
   font-size: 0.8rem;
   color: #999;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .attendance-status-select {
   flex: 0 0 auto;
-  min-width: 140px;
+  min-width: 0;
+  width: auto;
 }
 
 .attendance-reason {
   display: flex;
   gap: 0.5rem;
-  flex: 1 1 260px;
-  min-width: 220px;
 }
 
 .attendance-reason .form-control {
@@ -280,13 +293,21 @@
     font-size: 18px;
   }
 
-  .attendance-row {
-    align-items: stretch;
+  .attendance-row-name {
+    font-size: 0.9rem;
   }
 
-  .attendance-status-select,
+  .attendance-row-no {
+    font-size: 0.72rem;
+  }
+
+  .attendance-status-select {
+    font-size: 0.82rem;
+    padding: 0.4rem 0.5rem;
+  }
+
   .attendance-reason {
-    flex: 1 1 100%;
+    flex-direction: column;
   }
 
   .attendance-toolbar {
