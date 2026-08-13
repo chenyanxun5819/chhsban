@@ -265,15 +265,15 @@
   margin-bottom: 0.75rem;
 }
 
+.attendance-matrix-pagination .btn {
+  flex-shrink: 0;
+}
+
 .attendance-matrix-page-info {
   font-size: 0.85rem;
   color: #555;
   font-weight: 600;
   white-space: nowrap;
-  flex-shrink: 0;
-}
-
-.attendance-matrix-pagination .btn {
   flex-shrink: 0;
 }
 
@@ -346,6 +346,14 @@
   align-items: center;
   justify-content: center;
   gap: 0.5rem;
+}
+
+/* 全站 CSS 會打包成同一份檔案，其他頁面（如 pdf-download.css）有一條沒加範圍的全域規則
+   .btn { @media max-width:1023px 時 min-width:200px }，光憑同一個 .btn 選擇器改不掉它
+   （cascade 順序不保證誰在後面）。這裡用雙層 class 拉高優先權，確保這頁的按鈕永遠不會被撐爆。 */
+.attendance-sheet .btn {
+  width: auto;
+  min-width: 0;
 }
 
 .btn:disabled {
