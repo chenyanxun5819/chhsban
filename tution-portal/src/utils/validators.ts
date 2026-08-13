@@ -130,5 +130,15 @@ export const DAYS_OF_WEEK = [
   { label: "星期日", value: "Sunday" },
 ];
 
+/**
+ * 依日期 (YYYY-MM-DD) 換算對應的星期幾 (與 DAYS_OF_WEEK.value 對應)
+ */
+export function getDayOfWeekFromDate(dateStr: string): string {
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return DAYS_OF_WEEK[(date.getUTCDay() + 6) % 7].value;
+}
+
 export const FIXED_TIME_START = "19:00";
 export const FIXED_TIME_END = "21:00";

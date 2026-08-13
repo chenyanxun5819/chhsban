@@ -222,16 +222,8 @@
 /* ========== 表單備註 ========== */
 
 .form-note {
-  background: rgba(24, 144, 255, 0.05);
-  border-left: 4px solid var(--primary-color);
-  padding: var(--spacing-md);
-  border-radius: 4px;
-  margin-top: var(--spacing-md);
+  margin: var(--spacing-md) 0 0;
   font-size: 14px;
-}
-
-.form-note p {
-  margin: 0;
   color: var(--text-secondary);
 }
 
@@ -260,6 +252,7 @@
 .button-group {
   display: flex;
   gap: var(--spacing-sm);
+  margin-top: var(--spacing-lg);
 }
 
 .button-group .btn {

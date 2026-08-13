@@ -10,6 +10,7 @@ import {
   FIXED_TIME_START,
   FIXED_TIME_END,
   getMinDate,
+  getDayOfWeekFromDate,
   parseCSV,
   parseXLSX,
 } from "@/utils/validators";
@@ -37,7 +38,7 @@ const ApplicationForm: React.FC = () => {
   const [formData, setFormData] = useState<FormData>({
     form: "",
     subject: "",
-    day_of_week: "",
+    day_of_week: getDayOfWeekFromDate(getMinDate()),
     start_date: getMinDate(),
     fees: 0,
   });
@@ -74,6 +75,13 @@ const ApplicationForm: React.FC = () => {
         ...prev,
         form: value,
         fees: newFees,
+      }));
+    } else if (name === "start_date") {
+      // 開課日期改變時，自動更新上課日期（星期幾）
+      setFormData((prev) => ({
+        ...prev,
+        start_date: value,
+        day_of_week: getDayOfWeekFromDate(value),
       }));
     } else {
       setFormData((prev) => ({
@@ -294,23 +302,6 @@ const ApplicationForm: React.FC = () => {
 
               <div className="form-row form-row--2col">
                 <div className="form-group">
-                  <label>上課日期 *</label>
-                  <select
-                    name="day_of_week"
-                    value={formData.day_of_week}
-                    onChange={handleFormChange}
-                    required
-                  >
-                    <option value="">選擇日期</option>
-                    {DAYS_OF_WEEK.map((d) => (
-                      <option key={d.value} value={d.value}>
-                        {d.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
                   <label>開課日期 *</label>
                   <input
                     type="date"
@@ -320,6 +311,16 @@ const ApplicationForm: React.FC = () => {
                     min={getMinDate()}
                     required
                   />
+                </div>
+
+                <div className="form-group">
+                  <label>上課日期</label>
+                  <div className="fee-display">
+                    <span className="fee-value">
+                      {DAYS_OF_WEEK.find((d) => d.value === formData.day_of_week)?.label || "-"}
+                    </span>
+                    <p className="fee-note">根據開課日期自動計算，無法修改</p>
+                  </div>
                 </div>
               </div>
 
@@ -333,9 +334,7 @@ const ApplicationForm: React.FC = () => {
                 </div>
               </div>
 
-              <div className="form-note">
-                <p>⏰ 上課時間: {FIXED_TIME_START} - {FIXED_TIME_END}</p>
-              </div>
+              <p className="form-note">⏰ 上課時間: {FIXED_TIME_START} - {FIXED_TIME_END}</p>
             </section>
 
             {/* 學生名單 */}
@@ -551,23 +550,6 @@ const ApplicationForm: React.FC = () => {
                 </div>
 
                 <div className="form-group">
-                  <label>上課日期 *</label>
-                  <select
-                    name="day_of_week"
-                    value={formData.day_of_week}
-                    onChange={handleFormChange}
-                    required
-                  >
-                    <option value="">選擇日期</option>
-                    {DAYS_OF_WEEK.map((d) => (
-                      <option key={d.value} value={d.value}>
-                        {d.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="form-group">
                   <label>開課日期 *</label>
                   <input
                     type="date"
@@ -580,6 +562,16 @@ const ApplicationForm: React.FC = () => {
                 </div>
 
                 <div className="form-group">
+                  <label>上課日期</label>
+                  <div className="fee-display">
+                    <span className="fee-value">
+                      {DAYS_OF_WEEK.find((d) => d.value === formData.day_of_week)?.label || "-"}
+                    </span>
+                    <p className="fee-note">根據開課日期自動計算，無法修改</p>
+                  </div>
+                </div>
+
+                <div className="form-group">
                   <label>學費 (RM) *</label>
                   <div className="fee-display">
                     <span className="fee-value">RM {formData.fees}</span>
@@ -587,9 +579,7 @@ const ApplicationForm: React.FC = () => {
                   </div>
                 </div>
 
-                <div className="form-note">
-                  <p>⏰ 上課時間: {FIXED_TIME_START} - {FIXED_TIME_END}</p>
-                </div>
+                <p className="form-note">⏰ 上課時間: {FIXED_TIME_START} - {FIXED_TIME_END}</p>
 
                 <button
                   className="btn btn-primary btn-block"
@@ -682,14 +672,16 @@ const ApplicationForm: React.FC = () => {
                 )}
 
                 {!validationResult && (
-                  <button
-                    type="button"
-                    className="btn btn-secondary btn-block"
-                    onClick={validateStudentList}
-                    disabled={validating || loading}
-                  >
-                    {validating ? "驗證中..." : "驗證名單"}
-                  </button>
+                  <div className="form-group">
+                    <button
+                      type="button"
+                      className="btn btn-secondary btn-block"
+                      onClick={validateStudentList}
+                      disabled={validating || loading}
+                    >
+                      {validating ? "驗證中..." : "驗證名單"}
+                    </button>
+                  </div>
                 )}
 
                 {validationResult && (
