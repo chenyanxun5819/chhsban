@@ -50,17 +50,29 @@ const MONTH_ABBR = [
   "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
 ];
 
+const MONTH_FULL = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 /** 總覽表格日期表頭用：拆成「月份英文縮寫」+「日」兩段，方便疊成兩行、縮窄欄寬。 */
 function formatMonthDayParts(dateStr: string): { month: string; day: string } {
   const [, m, d] = dateStr.split("-");
   return { month: MONTH_ABBR[Number(m) - 1] || m, day: d };
 }
 
+/** 總覽表格手機分頁用：每個月份的完整標籤（月份全拼 + 年），例如 "July 2026"。 */
+function formatMonthLabel(monthKey: string): string {
+  const [y, m] = monthKey.split("-").map(Number);
+  return `${MONTH_FULL[m - 1] || m} ${y}`;
+}
+
 /** 手機斷點與桌機共用（見 attendance-sheet.css 的 @media max-width: 767px）。 */
 const MOBILE_BREAKPOINT = 767;
 
-/** 總覽表格在手機模式下，每頁固定顯示的日期欄數 —— 依欄寬換算過，鎖死避免超出螢幕寬度需要橫向捲動。 */
-const MOBILE_MATRIX_PAGE_SIZE = 6;
+/** 總覽表格在手機模式下，每個月固定佔用的日期欄數下限——通常一個月 4～5 堂課，欄數不足時
+ * 補空白欄湊滿；若某月因為加課超過這個數字，照實際堂數顯示，不裁切資料。 */
+const MOBILE_MATRIX_MONTH_COLS = 6;
 
 function useIsMobile(): boolean {
   const [isMobile, setIsMobile] = useState(
@@ -458,25 +470,51 @@ interface AttendanceOverviewProps {
   recordsByKey: Map<string, AttendanceQueryRecord>;
 }
 
+interface MonthGroup {
+  key: string; // "YYYY-MM"
+  label: string; // 月份全拼 + 年，例如 "July 2026"
+  rows: ReturnType<typeof generateScheduleRows>;
+}
+
 /** 「學生 × 日期」矩陣總覽，唯讀，僅供快速檢視整期出勤概況（例如管理員查核）；不在此處編輯。 */
 const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, recordsByKey }) => {
   const chronological = useMemo(() => [...rows].reverse(), [rows]);
   const isMobile = useIsMobile();
 
-  // 手機模式：欄數鎖死在 MOBILE_MATRIX_PAGE_SIZE，用分頁切換，不靠橫向捲動；
-  // 桌機維持原本一次全部顯示、超出寬度就橫向拉 bar。
-  const pageSize = isMobile ? MOBILE_MATRIX_PAGE_SIZE : chronological.length || 1;
-  const totalPages = Math.max(1, Math.ceil(chronological.length / pageSize));
+  // 手機模式：以「月」分頁（上/下個月切換），每月欄數鎖死在 MOBILE_MATRIX_MONTH_COLS 以上，
+  // 不靠橫向捲動；桌機維持原本一次全部顯示、超出寬度就橫向拉 bar。
+  const monthGroups = useMemo<MonthGroup[]>(() => {
+    const map = new Map<string, ReturnType<typeof generateScheduleRows>>();
+    chronological.forEach((row) => {
+      const key = row.actual_date.slice(0, 7);
+      const bucket = map.get(key);
+      if (bucket) bucket.push(row);
+      else map.set(key, [row]);
+    });
+    return Array.from(map.entries()).map(([key, monthRows]) => ({
+      key,
+      label: formatMonthLabel(key),
+      rows: monthRows,
+    }));
+  }, [chronological]);
+
+  const totalPages = isMobile ? Math.max(1, monthGroups.length) : 1;
   const [pageIndex, setPageIndex] = useState<number | null>(null);
-  // 預設停在最後一頁（最新日期），沒手動翻頁前一律跟著資料筆數走。
+  // 預設停在最後一頁（最新月份），沒手動翻頁前一律跟著資料筆數走。
   const currentPageIndex = Math.min(pageIndex ?? totalPages - 1, totalPages - 1);
-  const visibleColumns = isMobile
-    ? chronological.slice(currentPageIndex * pageSize, currentPageIndex * pageSize + pageSize)
-    : chronological;
-  // 最後一頁日期數不滿一整頁時（例如只剩 1 天），補空白欄位讓表格維持跟滿版頁面一樣的欄數／寬度，
-  // 不會被瀏覽器拉伸成一欄超寬的畸形版面。
-  const padCount = isMobile ? Math.max(0, pageSize - visibleColumns.length) : 0;
+  const currentMonth = isMobile ? monthGroups[currentPageIndex] : undefined;
+  const visibleColumns = isMobile ? currentMonth?.rows ?? [] : chronological;
+  // 一個月不滿 MOBILE_MATRIX_MONTH_COLS 欄時（多數月份只有 4～5 堂課），補空白欄湊滿，
+  // 讓每個月的表格寬度都一致；若某月加課超過這個欄數，照實際堂數顯示，不裁切資料。
+  const totalCols = isMobile ? Math.max(MOBILE_MATRIX_MONTH_COLS, visibleColumns.length) : visibleColumns.length;
+  const padCount = isMobile ? Math.max(0, totalCols - visibleColumns.length) : 0;
   const padKeys = Array.from({ length: padCount }, (_, i) => `pad-${i}`);
+
+  // 手機模式下欄寬用百分比算，讓表格永遠佈滿卡片寬度（名字欄加寬，日期欄平分剩餘空間）；
+  // 桌機沿用 CSS 裡的固定 px 欄寬，欄數一多就交給外層橫向捲動，不用百分比硬擠。
+  const NAME_COL_PERCENT = 26;
+  const studentColStyle = isMobile ? { width: `${NAME_COL_PERCENT}%` } : undefined;
+  const dateColStyle = isMobile ? { width: `${(100 - NAME_COL_PERCENT) / totalCols}%` } : undefined;
 
   if (roster.length === 0) {
     return <div className="attendance-empty">此班目前沒有在讀學生</div>;
@@ -492,31 +530,36 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, r
             onClick={() => setPageIndex(Math.max(0, currentPageIndex - 1))}
             disabled={currentPageIndex === 0}
           >
-            ← 較早
+            ← 上個月
           </button>
-          <span className="attendance-matrix-page-info">
-            {currentPageIndex + 1} / {totalPages}
-          </span>
+          <span className="attendance-matrix-page-info">{currentMonth?.label}</span>
           <button
             type="button"
             className="btn btn-outline-secondary"
             onClick={() => setPageIndex(Math.min(totalPages - 1, currentPageIndex + 1))}
             disabled={currentPageIndex === totalPages - 1}
           >
-            較近 →
+            下個月 →
           </button>
         </div>
       )}
 
       <div className="attendance-overview-scroll">
-        <table className="attendance-matrix">
+        <table className={isMobile ? "attendance-matrix attendance-matrix--fill" : "attendance-matrix"}>
           <thead>
             <tr>
-              <th className="attendance-matrix-student-col">學生</th>
+              <th className="attendance-matrix-student-col" style={studentColStyle}>
+                學生
+              </th>
               {visibleColumns.map((row) => {
                 const { month, day } = formatMonthDayParts(row.actual_date);
                 return (
-                  <th key={row.actual_date} title={row.actual_date} className="attendance-matrix-date-col">
+                  <th
+                    key={row.actual_date}
+                    title={row.actual_date}
+                    className="attendance-matrix-date-col"
+                    style={dateColStyle}
+                  >
                     <span className="attendance-date-chip">
                       <span className="attendance-date-month">{month}</span>
                       <span className="attendance-date-day">{day}</span>
@@ -525,14 +568,18 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, r
                 );
               })}
               {padKeys.map((key) => (
-                <th key={key} className="attendance-matrix-date-col attendance-matrix-date-col-empty" />
+                <th
+                  key={key}
+                  className="attendance-matrix-date-col attendance-matrix-date-col-empty"
+                  style={dateColStyle}
+                />
               ))}
             </tr>
           </thead>
           <tbody>
             {roster.map((student) => (
               <tr key={student.student_id}>
-                <td className="attendance-matrix-student-col">
+                <td className="attendance-matrix-student-col" style={studentColStyle}>
                   <div className="attendance-matrix-student-name">{student.name_cn}</div>
                   <div className="attendance-matrix-student-meta">
                     <span className="attendance-matrix-student-no">{student.student_no}</span>
@@ -546,6 +593,7 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, r
                         key={row.actual_date}
                         className="attendance-matrix-cell attendance-matrix-cell-not-joined"
                         title={`${row.actual_date} 尚未加入班級（加入日期：${student.enrollment_date}）`}
+                        style={dateColStyle}
                       >
                         -
                       </td>
@@ -567,6 +615,7 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, r
                       style={{
                         background: meta ? meta.color : "#eee",
                         color: meta ? "#fff" : "#999",
+                        ...dateColStyle,
                       }}
                     >
                       {meta ? meta.code : "·"}
@@ -574,7 +623,11 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, r
                   );
                 })}
                 {padKeys.map((key) => (
-                  <td key={key} className="attendance-matrix-cell attendance-matrix-cell-empty" />
+                  <td
+                    key={key}
+                    className="attendance-matrix-cell attendance-matrix-cell-empty"
+                    style={dateColStyle}
+                  />
                 ))}
               </tr>
             ))}

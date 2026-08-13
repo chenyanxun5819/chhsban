@@ -162,9 +162,15 @@
 
 .attendance-matrix {
   border-collapse: collapse;
-  /* 固定表格排版＋不設 width:100% —— 欄寬完全依各欄自己宣告的寬度，日期欄少（例如分頁最後一頁
-     只剩 1 天）也不會被瀏覽器拉伸撐開成畸形寬欄；欄數多超出容器寬度時交給外層 overflow-x 捲動。 */
+  /* 固定表格排版＋不設 width:100% —— 欄寬完全依各欄自己宣告的寬度，日期欄少時也不會被瀏覽器拉伸
+     撐開成畸形寬欄；欄數多超出容器寬度時交給外層 overflow-x 捲動（桌機預設走這條路）。 */
   table-layout: fixed;
+}
+
+/* 手機模式：改用 JS 算好的百分比欄寬（見 AttendanceOverview 的 studentColStyle/dateColStyle），
+   這裡才需要 width:100% 讓表格確實撐滿卡片寬度，不會在欄位右側留白。 */
+.attendance-matrix--fill {
+  width: 100%;
 }
 
 .attendance-matrix th,
@@ -183,9 +189,9 @@
   background: white;
   text-align: left !important;
   font-weight: 600;
+  /* 桌機預設寬度；手機模式改由 inline style 覆寫成百分比（見 studentColStyle）。
+     table-layout:fixed 只認 width，故意不設 min/max-width，避免夾住 inline 覆寫的值。 */
   width: 76px;
-  min-width: 76px;
-  max-width: 76px;
   padding: 0.3rem 0.4rem;
 }
 
@@ -218,11 +224,10 @@
   flex-shrink: 0;
 }
 
-/* 日期表頭欄：欄寬鎖死，儘量窄，讓手機一頁能放下更多欄 */
+/* 日期表頭欄：桌機預設寬度，儘量窄；手機模式改由 inline style 覆寫成百分比（見 dateColStyle）。
+   同樣故意不設 min/max-width，理由同學生欄。 */
 .attendance-matrix-date-col {
   width: 28px;
-  min-width: 28px;
-  max-width: 28px;
   padding: 0.2rem 0.1rem;
 }
 
@@ -252,8 +257,6 @@
 .attendance-matrix-cell {
   font-weight: 700;
   width: 28px;
-  min-width: 28px;
-  max-width: 28px;
 }
 
 /* ========== 總覽矩陣分頁（僅手機模式，欄數鎖死不橫向捲動） ========== */
