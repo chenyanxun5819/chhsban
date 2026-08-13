@@ -67,6 +67,13 @@ function formatMonthLabel(monthKey: string): string {
   return `${MONTH_FULL[m - 1] || m} ${y}`;
 }
 
+/** 排課狀態條列：依 row.status 組成一行文字，例如「2026-07-14 上課」「2026-07-29 調至 2026-07-30」。 */
+function formatScheduleStatusLine(row: ReturnType<typeof generateScheduleRows>[number]): string {
+  if (row.status === "cancelled") return `${row.scheduled_date} 停課`;
+  if (row.status === "rescheduled") return `${row.scheduled_date} 調至 ${row.rescheduled_to}`;
+  return `${row.scheduled_date} 上課`;
+}
+
 /** 手機斷點與桌機共用（見 attendance-sheet.css 的 @media max-width: 767px）。 */
 const MOBILE_BREAKPOINT = 767;
 
@@ -337,6 +344,7 @@ export const AttendanceSheet: React.FC = () => {
         ) : showOverview ? (
           <AttendanceOverview
             rows={markableRows}
+            allRows={rows}
             roster={activeRoster}
             recordsByKey={recordsByKey}
           />
@@ -466,6 +474,8 @@ export const AttendanceSheet: React.FC = () => {
 
 interface AttendanceOverviewProps {
   rows: ReturnType<typeof generateScheduleRows>;
+  /** 完整排課列表（含停課、未來場次），只用於下方「本月排課紀錄」條列，矩陣本身仍只用 rows。 */
+  allRows: ReturnType<typeof generateScheduleRows>;
   roster: ClassRosterEntry[];
   recordsByKey: Map<string, AttendanceQueryRecord>;
 }
@@ -477,7 +487,12 @@ interface MonthGroup {
 }
 
 /** 「學生 × 日期」矩陣總覽，唯讀，僅供快速檢視整期出勤概況（例如管理員查核）；不在此處編輯。 */
-const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, recordsByKey }) => {
+const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
+  rows,
+  allRows,
+  roster,
+  recordsByKey,
+}) => {
   const chronological = useMemo(() => [...rows].reverse(), [rows]);
   const isMobile = useIsMobile();
 
@@ -504,6 +519,29 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, r
   const currentPageIndex = Math.min(pageIndex ?? totalPages - 1, totalPages - 1);
   const currentMonth = isMobile ? monthGroups[currentPageIndex] : undefined;
   const visibleColumns = isMobile ? currentMonth?.rows ?? [] : chronological;
+
+  // 表格下方的「本月排課紀錄」條列：用完整排課列表（含停課），依「原訂日期」分月分組，
+  // 手機模式只顯示當前分頁那個月，桌機因為矩陣本身不分月，改為每個月各自列出。
+  const scheduleMonthGroups = useMemo<MonthGroup[]>(() => {
+    const map = new Map<string, ReturnType<typeof generateScheduleRows>>();
+    allRows.forEach((row) => {
+      const key = row.scheduled_date.slice(0, 7);
+      const bucket = map.get(key);
+      if (bucket) bucket.push(row);
+      else map.set(key, [row]);
+    });
+    return Array.from(map.entries())
+      .map(([key, monthRows]) => ({
+        key,
+        label: formatMonthLabel(key),
+        rows: [...monthRows].sort((a, b) => (a.scheduled_date < b.scheduled_date ? -1 : 1)),
+      }))
+      .sort((a, b) => (a.key < b.key ? -1 : 1));
+  }, [allRows]);
+
+  const visibleScheduleGroups = isMobile
+    ? scheduleMonthGroups.filter((group) => group.key === currentMonth?.key)
+    : scheduleMonthGroups;
   // 一個月不滿 MOBILE_MATRIX_MONTH_COLS 欄時（多數月份只有 4～5 堂課），補空白欄湊滿，
   // 讓每個月的表格寬度都一致；若某月加課超過這個欄數，照實際堂數顯示，不裁切資料。
   const totalCols = isMobile ? Math.max(MOBILE_MATRIX_MONTH_COLS, visibleColumns.length) : visibleColumns.length;
@@ -634,6 +672,25 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, r
           </tbody>
         </table>
       </div>
+
+      {visibleScheduleGroups.map((group) => (
+        <div className="attendance-schedule-log" key={group.key}>
+          <h4 className="attendance-schedule-log-title">
+            {isMobile ? "本月排課紀錄" : `${group.label} 排課紀錄`}
+          </h4>
+          {group.rows.length === 0 ? (
+            <p className="attendance-schedule-log-empty">本月尚無排課紀錄</p>
+          ) : (
+            <ul className="attendance-schedule-log-list">
+              {group.rows.map((row) => (
+                <li key={row.scheduled_date} className={`attendance-schedule-log-item status-${row.status}`}>
+                  {formatScheduleStatusLine(row)}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ))}
 
       <div className="attendance-legend">
         {(Object.keys(ATTENDANCE_STATUS_META) as AttendanceStatusCode[]).map((status) => (

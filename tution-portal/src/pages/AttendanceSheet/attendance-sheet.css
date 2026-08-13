@@ -294,6 +294,52 @@
   background: #fafafa;
 }
 
+/* ========== 本月排課紀錄（總覽矩陣下方的文字條列） ========== */
+.attendance-schedule-log {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #eee;
+}
+
+.attendance-schedule-log-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #555;
+}
+
+.attendance-schedule-log-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #999;
+}
+
+.attendance-schedule-log-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.attendance-schedule-log-item {
+  font-size: 0.85rem;
+  color: #333;
+  padding-left: 0.75rem;
+  border-left: 3px solid #28a745;
+}
+
+.attendance-schedule-log-item.status-cancelled {
+  border-left-color: #dc3545;
+  color: #a12833;
+}
+
+.attendance-schedule-log-item.status-rescheduled {
+  border-left-color: #fd7e14;
+  color: #995612;
+}
+
 .attendance-legend {
   display: flex;
   flex-wrap: wrap;
