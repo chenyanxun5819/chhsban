@@ -45,6 +45,39 @@ function isEnrolledByDate(student: ClassRosterEntry, dateStr: string): boolean {
   return student.enrollment_date <= dateStr;
 }
 
+const MONTH_ABBR = [
+  "JAN", "FEB", "MAR", "APR", "MAY", "JUN",
+  "JUL", "AUG", "SEP", "OCT", "NOV", "DEC",
+];
+
+/** 總覽表格日期表頭用：拆成「月份英文縮寫」+「日」兩段，方便疊成兩行、縮窄欄寬。 */
+function formatMonthDayParts(dateStr: string): { month: string; day: string } {
+  const [, m, d] = dateStr.split("-");
+  return { month: MONTH_ABBR[Number(m) - 1] || m, day: d };
+}
+
+/** 手機斷點與桌機共用（見 attendance-sheet.css 的 @media max-width: 767px）。 */
+const MOBILE_BREAKPOINT = 767;
+
+/** 總覽表格在手機模式下，每頁固定顯示的日期欄數 —— 依欄寬換算過，鎖死避免超出螢幕寬度需要橫向捲動。 */
+const MOBILE_MATRIX_PAGE_SIZE = 6;
+
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState(
+    () => typeof window !== "undefined" && window.innerWidth <= MOBILE_BREAKPOINT
+  );
+
+  useEffect(() => {
+    const mql = window.matchMedia(`(max-width: ${MOBILE_BREAKPOINT}px)`);
+    const handler = () => setIsMobile(mql.matches);
+    handler();
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
+  return isMobile;
+}
+
 /** 把既有紀錄的 absence_reason 拆回「預設選項 / 其他文字」，供編輯既有點名結果時預填。 */
 function decomposeReason(reason?: string): { reasonPreset: string; reasonOther: string } {
   if (reason && EXCUSE_REASON_OPTIONS.includes(reason) && reason !== "其他") {
@@ -428,6 +461,18 @@ interface AttendanceOverviewProps {
 /** 「學生 × 日期」矩陣總覽，唯讀，僅供快速檢視整期出勤概況（例如管理員查核）；不在此處編輯。 */
 const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, recordsByKey }) => {
   const chronological = useMemo(() => [...rows].reverse(), [rows]);
+  const isMobile = useIsMobile();
+
+  // 手機模式：欄數鎖死在 MOBILE_MATRIX_PAGE_SIZE，用分頁切換，不靠橫向捲動；
+  // 桌機維持原本一次全部顯示、超出寬度就橫向拉 bar。
+  const pageSize = isMobile ? MOBILE_MATRIX_PAGE_SIZE : chronological.length || 1;
+  const totalPages = Math.max(1, Math.ceil(chronological.length / pageSize));
+  const [pageIndex, setPageIndex] = useState<number | null>(null);
+  // 預設停在最後一頁（最新日期），沒手動翻頁前一律跟著資料筆數走。
+  const currentPageIndex = Math.min(pageIndex ?? totalPages - 1, totalPages - 1);
+  const visibleColumns = isMobile
+    ? chronological.slice(currentPageIndex * pageSize, currentPageIndex * pageSize + pageSize)
+    : chronological;
 
   if (roster.length === 0) {
     return <div className="attendance-empty">此班目前沒有在讀學生</div>;
@@ -435,23 +480,59 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, r
 
   return (
     <div className="attendance-overview">
+      {isMobile && totalPages > 1 && (
+        <div className="attendance-matrix-pagination">
+          <button
+            type="button"
+            className="btn btn-outline-secondary"
+            onClick={() => setPageIndex(Math.max(0, currentPageIndex - 1))}
+            disabled={currentPageIndex === 0}
+          >
+            ← 較早
+          </button>
+          <span className="attendance-matrix-page-info">
+            {currentPageIndex + 1} / {totalPages}
+          </span>
+          <button
+            type="button"
+            className="btn btn-outline-secondary"
+            onClick={() => setPageIndex(Math.min(totalPages - 1, currentPageIndex + 1))}
+            disabled={currentPageIndex === totalPages - 1}
+          >
+            較近 →
+          </button>
+        </div>
+      )}
+
       <div className="attendance-overview-scroll">
         <table className="attendance-matrix">
           <thead>
             <tr>
               <th className="attendance-matrix-student-col">學生</th>
-              {chronological.map((row) => (
-                <th key={row.actual_date} title={row.actual_date}>
-                  {row.actual_date.slice(5)}
-                </th>
-              ))}
+              {visibleColumns.map((row) => {
+                const { month, day } = formatMonthDayParts(row.actual_date);
+                return (
+                  <th key={row.actual_date} title={row.actual_date} className="attendance-matrix-date-col">
+                    <span className="attendance-date-chip">
+                      <span className="attendance-date-month">{month}</span>
+                      <span className="attendance-date-day">{day}</span>
+                    </span>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
             {roster.map((student) => (
               <tr key={student.student_id}>
-                <td className="attendance-matrix-student-col">{student.name_cn}</td>
-                {chronological.map((row) => {
+                <td className="attendance-matrix-student-col">
+                  <div className="attendance-matrix-student-name">{student.name_cn}</div>
+                  <div className="attendance-matrix-student-meta">
+                    <span className="attendance-matrix-student-no">{student.student_no}</span>
+                    <span className="attendance-matrix-student-class">{student.real_class_name}</span>
+                  </div>
+                </td>
+                {visibleColumns.map((row) => {
                   if (!isEnrolledByDate(student, row.actual_date)) {
                     return (
                       <td
