@@ -473,6 +473,10 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, r
   const visibleColumns = isMobile
     ? chronological.slice(currentPageIndex * pageSize, currentPageIndex * pageSize + pageSize)
     : chronological;
+  // 最後一頁日期數不滿一整頁時（例如只剩 1 天），補空白欄位讓表格維持跟滿版頁面一樣的欄數／寬度，
+  // 不會被瀏覽器拉伸成一欄超寬的畸形版面。
+  const padCount = isMobile ? Math.max(0, pageSize - visibleColumns.length) : 0;
+  const padKeys = Array.from({ length: padCount }, (_, i) => `pad-${i}`);
 
   if (roster.length === 0) {
     return <div className="attendance-empty">此班目前沒有在讀學生</div>;
@@ -520,6 +524,9 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, r
                   </th>
                 );
               })}
+              {padKeys.map((key) => (
+                <th key={key} className="attendance-matrix-date-col attendance-matrix-date-col-empty" />
+              ))}
             </tr>
           </thead>
           <tbody>
@@ -566,6 +573,9 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ rows, roster, r
                     </td>
                   );
                 })}
+                {padKeys.map((key) => (
+                  <td key={key} className="attendance-matrix-cell attendance-matrix-cell-empty" />
+                ))}
               </tr>
             ))}
           </tbody>

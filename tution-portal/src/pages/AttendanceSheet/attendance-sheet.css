@@ -162,7 +162,9 @@
 
 .attendance-matrix {
   border-collapse: collapse;
-  width: 100%;
+  /* 固定表格排版＋不設 width:100% —— 欄寬完全依各欄自己宣告的寬度，日期欄少（例如分頁最後一頁
+     只剩 1 天）也不會被瀏覽器拉伸撐開成畸形寬欄；欄數多超出容器寬度時交給外層 overflow-x 捲動。 */
+  table-layout: fixed;
 }
 
 .attendance-matrix th,
@@ -267,6 +269,12 @@
   font-size: 0.85rem;
   color: #555;
   font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.attendance-matrix-pagination .btn {
+  flex-shrink: 0;
 }
 
 /* 加入日期晚於該堂課日期的儲存格：反灰，不算「尚未點名」 */
@@ -274,6 +282,13 @@
   background: #f5f5f5;
   color: #ccc;
   font-weight: 400;
+}
+
+/* 分頁湊數用的空白補位欄（例如最後一頁只剩 1 天）：維持跟正常欄一樣的格線與欄寬，只是不放內容，
+   讓整頁看起來仍是一個完整的 6 欄格子，不會因為日期不夠而被拉伸或看起來缺一角 */
+.attendance-matrix-date-col-empty,
+.attendance-matrix-cell-empty {
+  background: #fafafa;
 }
 
 .attendance-legend {
