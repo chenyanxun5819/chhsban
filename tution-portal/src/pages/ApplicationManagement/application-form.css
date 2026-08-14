@@ -3,6 +3,13 @@
 .form-container {
   max-width: 900px;
   margin: 0 auto;
+  padding: 0 var(--spacing-md);
+}
+
+@media (min-width: 1024px) {
+  .form-container {
+    padding: 0 var(--spacing-lg);
+  }
 }
 
 /* ========== 提示訊息 ========== */
