@@ -157,11 +157,13 @@
 }
 
 .student-input-row input {
-  flex: 1;
+  flex: 0 1 66.6667%;
+  min-width: 0;
 }
 
 .student-input-row .btn {
-  flex-shrink: 0;
+  flex: 0 0 33.3333%;
+  min-width: 96px;
 }
 
 /* ========== 學生列表 ========== */
