@@ -5,8 +5,7 @@ interface RescheduleModalProps {
   row: GeneratedScheduleRow;
   open: boolean;
   loading?: boolean;
-  defaultVenue?: string;
-  onConfirm: (newDate: string, newVenue: string, reason: string) => Promise<void>;
+  onConfirm: (newDate: string, reason: string) => Promise<void>;
   onClose: () => void;
 }
 
@@ -14,12 +13,11 @@ const RescheduleModal: React.FC<RescheduleModalProps> = ({
   row,
   open,
   loading = false,
-  defaultVenue = "",
   onConfirm,
   onClose,
 }) => {
-  const [newDate, setNewDate] = useState("");
-  const [newVenue, setNewVenue] = useState(defaultVenue);
+  // 預設帶入原本要調整的那堂課日期，而不是今天，方便老師從原日期附近挑新日期
+  const [newDate, setNewDate] = useState(row.scheduled_date);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -31,19 +29,14 @@ const RescheduleModal: React.FC<RescheduleModalProps> = ({
       setError("請選擇新的上課日期");
       return;
     }
-    if (!newVenue.trim()) {
-      setError("請輸入新的上課地點");
-      return;
-    }
     if (!reason.trim()) {
       setError("請輸入調課原因");
       return;
     }
 
     try {
-      await onConfirm(newDate, newVenue.trim(), reason.trim());
-      setNewDate("");
-      setNewVenue(defaultVenue);
+      await onConfirm(newDate, reason.trim());
+      setNewDate(row.scheduled_date);
       setReason("");
       onClose();
     } catch (err) {
@@ -94,21 +87,6 @@ const RescheduleModal: React.FC<RescheduleModalProps> = ({
               value={newDate}
               onChange={(e) => setNewDate(e.target.value)}
               className="form-control"
-              required
-              disabled={loading}
-            />
-          </div>
-
-          <div className="form-group">
-            <label className="form-label">
-              新上課地點 <span className="required">*</span>
-            </label>
-            <input
-              type="text"
-              value={newVenue}
-              onChange={(e) => setNewVenue(e.target.value)}
-              className="form-control"
-              placeholder="例如：教室 B203"
               required
               disabled={loading}
             />

@@ -1,0 +1,464 @@
+/* 教室管理頁面樣式 */
+
+.classroom-management {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.page-header h1 {
+  margin: 0;
+  font-size: 24px;
+  color: #333;
+}
+
+.header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* 錯誤訊息 */
+.error-message {
+  padding: 12px;
+  background-color: #fee;
+  color: #c33;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  border-left: 4px solid #c33;
+}
+
+/* 搜尋和過濾區域 */
+.filters {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.search-input {
+  flex: 1;
+  min-width: 250px;
+  padding: 10px 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
+}
+
+.filter-select {
+  padding: 10px 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: white;
+  cursor: pointer;
+}
+
+.filter-select:focus {
+  outline: none;
+  border-color: #4CAF50;
+}
+
+/* 批量更新區域 */
+.batch-update-section {
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border: 1px solid #dee2e6;
+}
+
+.batch-update-section h3 {
+  margin: 0 0 15px 0;
+  font-size: 18px;
+  color: #495057;
+}
+
+.batch-controls {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.batch-controls input[type="file"] {
+  flex: 1;
+  min-width: 250px;
+}
+
+.batch-result {
+  margin-top: 15px;
+  padding: 12px;
+  background-color: white;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+}
+
+.batch-result p {
+  margin: 0 0 10px 0;
+}
+
+.batch-result details {
+  margin-top: 10px;
+}
+
+.batch-result summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: #007bff;
+}
+
+.batch-result ul {
+  margin: 10px 0 0 0;
+  padding-left: 20px;
+}
+
+.batch-result li {
+  color: #c33;
+  margin: 5px 0;
+}
+
+/* 教室計數 */
+.classroom-count {
+  margin-bottom: 10px;
+  color: #666;
+  font-size: 14px;
+}
+
+/* 教室表格 */
+.classroom-table-container {
+  overflow-x: auto;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.classroom-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.classroom-table thead {
+  background-color: #f8f9fa;
+}
+
+.classroom-table th {
+  padding: 12px 15px;
+  text-align: left;
+  font-weight: 600;
+  color: #495057;
+  border-bottom: 2px solid #dee2e6;
+  white-space: nowrap;
+}
+
+.classroom-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #dee2e6;
+  color: #212529;
+}
+
+.classroom-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+.classroom-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.empty-message {
+  text-align: center;
+  color: #999;
+  padding: 40px 20px !important;
+}
+
+/* 切換按鈕 */
+.toggle-btn {
+  padding: 6px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background-color: #f8f9fa;
+  color: #495057;
+  cursor: pointer;
+  font-size: 13px;
+  transition: all 0.2s;
+}
+
+.toggle-btn:hover {
+  background-color: #e9ecef;
+}
+
+.toggle-btn.active {
+  background-color: #d4edda;
+  border-color: #28a745;
+  color: #155724;
+}
+
+/* 操作按鈕 */
+.action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* 按鈕樣式 */
+.btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.btn-primary {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+.btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background-color: #5a6268;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.btn-edit {
+  background-color: #007bff;
+  color: white;
+}
+
+.btn-edit:hover {
+  background-color: #0056b3;
+}
+
+.btn-delete {
+  background-color: #dc3545;
+  color: white;
+}
+
+.btn-delete:hover {
+  background-color: #c82333;
+}
+
+/* 模態框 */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-content {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #333;
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background-color: #f8f9fa;
+  color: #333;
+}
+
+/* 表單樣式 */
+.classroom-form {
+  padding: 20px;
+}
+
+.form-error {
+  padding: 12px;
+  background-color: #fee;
+  color: #c33;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  border-left: 4px solid #c33;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #495057;
+}
+
+.form-group .required {
+  color: #dc3545;
+}
+
+.form-group input[type="text"],
+.form-group input[type="number"] {
+  width: 100%;
+  padding: 10px 15px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.form-group input:focus {
+  outline: none;
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
+}
+
+.form-group input:disabled {
+  background-color: #e9ecef;
+  cursor: not-allowed;
+}
+
+.checkbox-group {
+  display: flex;
+  align-items: center;
+}
+
+.checkbox-group label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin: 0;
+}
+
+.checkbox-group input[type="checkbox"] {
+  margin-right: 8px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #dee2e6;
+}
+
+/* 載入狀態 */
+.loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+  .classroom-management {
+    padding: 15px;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+
+  .filters {
+    flex-direction: column;
+  }
+
+  .search-input,
+  .filter-select {
+    width: 100%;
+  }
+
+  .batch-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .batch-controls input[type="file"] {
+    width: 100%;
+  }
+
+  .classroom-table-container {
+    overflow-x: scroll;
+  }
+
+  .classroom-table {
+    min-width: 800px;
+  }
+
+  .action-buttons {
+    flex-direction: column;
+  }
+
+  .modal-content {
+    max-width: 100%;
+    margin: 0 10px;
+  }
+}

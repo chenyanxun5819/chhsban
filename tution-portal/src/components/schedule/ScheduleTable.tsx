@@ -86,7 +86,6 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
               {row.status === "rescheduled" && (
                 <span className="schedule-row-detail">
                   → {formatDateWithWeekday(row.rescheduled_to || "")}
-                  {row.rescheduled_venue ? `＠${row.rescheduled_venue}` : ""}
                   {"　"}
                   {hasHappened ? <AttendanceBadge attended={attended} /> : "—"}
                 </span>

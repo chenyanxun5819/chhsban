@@ -76,33 +76,43 @@ export const ScheduleManagement: React.FC = () => {
 
   const stats = useMemo(() => summarizeSchedule(rows, attendedDates), [rows, attendedDates]);
 
+  // 用 POST/PUT 回傳的最新資料直接合併進本地狀態，不要在寫入後馬上重新 GET —
+  // Cloudflare KV 在正式環境是最終一致性，寫入後立刻查詢有機率讀到舊資料，
+  // 畫面會看起來「沒有即時更新」，要離開頁面再回來、等傳播完成才會看到最新狀態。
+  // 用回應本身的資料更新，就不會受這個延遲影響。
+  const applyExceptionUpdate = (updated: TutionSchedule) => {
+    setExceptions((prev) => [
+      ...prev.filter((e) => e.scheduled_date !== updated.scheduled_date),
+      updated,
+    ]);
+  };
+
   const handleCancelConfirm = async (reason: string) => {
     if (!cancelTarget || !classId) return;
     setActionLoading(true);
     try {
-      await scheduleService.markAsCancelled(classId, cancelTarget.scheduled_date, reason);
-      await loadData();
+      const updated = await scheduleService.markAsCancelled(
+        classId,
+        cancelTarget.scheduled_date,
+        reason
+      );
+      applyExceptionUpdate(updated);
     } finally {
       setActionLoading(false);
     }
   };
 
-  const handleRescheduleConfirm = async (
-    newDate: string,
-    newVenue: string,
-    reason: string
-  ) => {
+  const handleRescheduleConfirm = async (newDate: string, reason: string) => {
     if (!rescheduleTarget || !classId) return;
     setActionLoading(true);
     try {
-      await scheduleService.markAsRescheduled(
+      const updated = await scheduleService.markAsRescheduled(
         classId,
         rescheduleTarget.scheduled_date,
         newDate,
-        newVenue,
         reason
       );
-      await loadData();
+      applyExceptionUpdate(updated);
     } finally {
       setActionLoading(false);
     }
@@ -177,7 +187,6 @@ export const ScheduleManagement: React.FC = () => {
             row={rescheduleTarget}
             open={!!rescheduleTarget}
             loading={actionLoading}
-            defaultVenue={classInfo.venue}
             onConfirm={handleRescheduleConfirm}
             onClose={() => setRescheduleTarget(null)}
           />

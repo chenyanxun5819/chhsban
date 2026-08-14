@@ -213,3 +213,14 @@ export interface AttendanceChange {
   oldStatus: AttendanceRecordStatus;
   newStatus: AttendanceRecordStatus;
 }
+
+// ========== 教室管理類型 ==========
+
+export interface ClassroomRecord {
+  classroom_id: string;           // 唯一識別 (e.g., "ROOM-001")
+  classroom_name: string;         // 教室名稱 (e.g., "演講廳A")
+  class_name: string;            // 班級名稱 (e.g., "中一A班")
+  number_of_desks: number;       // 桌數 (e.g., 40)
+  available_for_tution: boolean; // 是否可用於補習（管理員勾選）
+  last_updated: number;          // 最後更新時間戳（毫秒）
+}

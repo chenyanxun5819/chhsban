@@ -13,7 +13,6 @@ export interface ScheduleExceptionPayload {
   status: "cancelled" | "rescheduled";
   cancellation_reason?: string;
   rescheduled_to?: string;
-  rescheduled_venue?: string;
   reschedule_reason?: string;
 }
 
@@ -66,13 +65,12 @@ export const scheduleService = {
   },
 
   /**
-   * 標記某天調課（新日期＋新地點）
+   * 標記某天調課（新日期）
    */
   async markAsRescheduled(
     classId: string,
     scheduledDate: string,
     newDate: string,
-    newVenue: string,
     reason: string
   ): Promise<TutionSchedule> {
     return this.createException({
@@ -80,9 +78,7 @@ export const scheduleService = {
       scheduled_date: scheduledDate,
       status: "rescheduled",
       rescheduled_to: newDate,
-      rescheduled_venue: newVenue,
       reschedule_reason: reason,
     });
   },
-
 };

@@ -6,9 +6,10 @@ import { ApprovalList, RejectModal } from "@/components/admin";
 import { adminService } from "@/services/adminService";
 import apiClient from "@/utils/api";
 import type { TutionClass } from "@/types/index";
+import ClassroomManagement from "@/pages/ClassroomManagement/ClassroomManagement";
 import "./admin-panel.css";
 
-type TabType = "approvals" | "courses" | "teachers";
+type TabType = "approvals" | "courses" | "teachers" | "classrooms";
 
 const TEACHER_MANAGEMENT_URL = "https://master.teacher-management-portal.pages.dev/";
 
@@ -250,6 +251,12 @@ export const AdminPanel: React.FC = () => {
           >
             👨‍🏫 老師管理
           </button>
+          <button
+            className={`tab-button ${currentTab === "classrooms" ? "tab-button--active" : ""}`}
+            onClick={() => setCurrentTab("classrooms")}
+          >
+            🏫 教室管理
+          </button>
         </div>
 
         {/* 審批管理 */}
@@ -384,6 +391,13 @@ export const AdminPanel: React.FC = () => {
                 前往教師管理系統 ↗
               </button>
             </div>
+          </section>
+        )}
+
+        {/* 教室管理 */}
+        {currentTab === "classrooms" && (
+          <section className="admin-section">
+            <ClassroomManagement />
           </section>
         )}
 

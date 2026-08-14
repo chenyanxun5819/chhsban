@@ -12,6 +12,7 @@ import AttendanceSheet from "@/pages/AttendanceSheet/AttendanceSheet";
 import RosterManagementPage from "@/pages/RosterManagement/RosterManagement";
 import AttendanceStatsPage from "@/pages/AttendanceStats/AttendanceStats";
 import PDFDownloadPage from "@/pages/PDFDownload/PDFDownload";
+import ClassroomManagement from "@/pages/ClassroomManagement/ClassroomManagement";
 import { useEffect, useState } from "react";
 import { TutionClass } from "@/types";
 import apiClient from "@/utils/api";
@@ -194,6 +195,14 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <AdminPanel />
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/classrooms"
+        element={
+          <ProtectedRoute>
+            <ClassroomManagement />
           </ProtectedRoute>
         }
       />
