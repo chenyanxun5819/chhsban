@@ -3,6 +3,13 @@
 .welcome-container {
   max-width: 1200px;
   margin: 0 auto;
+  padding: 0 var(--spacing-md);
+}
+
+@media (min-width: 1024px) {
+  .welcome-container {
+    padding: 0 var(--spacing-lg);
+  }
 }
 
 /* ========== 歡迎標題 ========== */
