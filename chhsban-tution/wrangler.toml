@@ -37,6 +37,10 @@ id = "d16847622dd244bb9d1d235cdfce6d1c"
 binding = "TUTION_SCHEDULE_KV"
 id = "f95d69ef1fc347f29c9936605e9ccfde"
 
+[[kv_namespaces]]
+binding = "CLASSROOM_KV"
+id = "43882431a6344d929976a1281ffca873"
+
 # 環境變數（默認環境）
 [vars]
 GOOGLE_SHEETS_SPREADSHEET_ID = "18Fq3eWpf6Z1kx_-ihB0Hs38O3IomBzxJQne8QYHoYJI"

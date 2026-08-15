@@ -1,0 +1,36 @@
+{
+  "classrooms": [
+    {
+      "classroom_id": "ROOM-001",
+      "classroom_name": "演講廳 A",
+      "class_name": "中二A班",
+      "number_of_desks": 38,
+      "available_for_tution": true,
+      "last_updated": 1692000000000
+    },
+    {
+      "classroom_id": "ROOM-002",
+      "classroom_name": "演講廳 B",
+      "class_name": "中三B班",
+      "number_of_desks": 42,
+      "available_for_tution": true,
+      "last_updated": 1692000000000
+    },
+    {
+      "classroom_id": "ROOM-003",
+      "classroom_name": "小教室 C",
+      "class_name": "小五C班",
+      "number_of_desks": 20,
+      "available_for_tution": false,
+      "last_updated": 1692000000000
+    },
+    {
+      "classroom_id": "ROOM-004",
+      "classroom_name": "多功能室",
+      "class_name": "高中D班",
+      "number_of_desks": 50,
+      "available_for_tution": true,
+      "last_updated": 1692000000000
+    }
+  ]
+}

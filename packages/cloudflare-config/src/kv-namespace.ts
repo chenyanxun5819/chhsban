@@ -46,6 +46,11 @@ export const KV_NAMESPACES = {
     binding: "TUTION_SCHEDULE_KV",
     id: "f95d69ef1fc347f29c9936605e9ccfde",
     description: "補習班系統 - 排課例外記錄（無開課/調課，子表3）",
+  },
+  CLASSROOM_KV: {
+    binding: "CLASSROOM_KV",
+    id: "43882431a6344d929976a1281ffca873",
+    description: "教室管理系統 - 存放教室資料（編號、名稱、班級、桌數、補習選用狀態）",
   }
 } as const;
 

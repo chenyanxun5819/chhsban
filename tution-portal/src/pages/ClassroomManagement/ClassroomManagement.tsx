@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import * as XLSX from "xlsx";
 import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
 import apiClient from "@/utils/api";
@@ -7,6 +8,72 @@ import type { ClassroomRecord } from "@/types/index";
 import "./classroom-management.css";
 
 type ModalMode = "add" | "edit" | "batch";
+
+// Excel 範本欄位標題（需與 handleDownloadTemplate 產生的範本一致）
+const XLSX_HEADER_FIELD_MAP: Record<string, keyof ClassroomRecord> = {
+  教室編號: "classroom_id",
+  教室名稱: "classroom_name",
+  班級: "class_name",
+  桌數: "number_of_desks",
+  補習選用: "available_for_tution",
+};
+
+// 解析批量更新用的 Excel (.xlsx/.xls) 檔案
+async function parseClassroomXLSX(file: File): Promise<ClassroomRecord[]> {
+  const buffer = await file.arrayBuffer();
+  const workbook = XLSX.read(buffer, { type: "array" });
+  const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+
+  if (!worksheet) {
+    throw new Error("Excel 檔案中找不到工作表");
+  }
+
+  const rows = XLSX.utils.sheet_to_json<Record<string, any>>(worksheet, {
+    defval: "",
+  });
+
+  if (rows.length === 0) {
+    throw new Error("Excel 檔案中沒有數據");
+  }
+
+  const classrooms: ClassroomRecord[] = [];
+
+  rows.forEach((row, idx) => {
+    const record: Partial<ClassroomRecord> = {
+      last_updated: Date.now(),
+      available_for_tution: false,
+    };
+
+    for (const [header, field] of Object.entries(XLSX_HEADER_FIELD_MAP)) {
+      const rawValue = row[header];
+      if (rawValue === undefined || rawValue === "") continue;
+
+      if (field === "number_of_desks") {
+        record.number_of_desks = parseInt(String(rawValue), 10) || 0;
+      } else if (field === "available_for_tution") {
+        const v = String(rawValue).trim().toLowerCase();
+        record.available_for_tution = v === "true" || v === "是" || v === "1";
+      } else {
+        (record as any)[field] = String(rawValue).trim();
+      }
+    }
+
+    if (!record.classroom_id || !record.classroom_name || !record.class_name) {
+      console.warn(`跳過第 ${idx + 2} 行：缺少必填欄位（教室編號／教室名稱／班級）`);
+      return;
+    }
+
+    classrooms.push(record as ClassroomRecord);
+  });
+
+  if (classrooms.length === 0) {
+    throw new Error(
+      "Excel 檔案中沒有有效的教室數據，請確認欄位標題為：教室編號、教室名稱、班級、桌數"
+    );
+  }
+
+  return classrooms;
+}
 
 interface ClassroomFormData {
   classroom_id: string;
@@ -245,13 +312,29 @@ export const ClassroomManagement: React.FC = () => {
         "application/vnd.ms-excel",
         "text/csv",
       ];
-      if (!validTypes.includes(file.type) && !file.name.endsWith(".xlsx") && !file.name.endsWith(".csv")) {
+      const validExt = [".xlsx", ".xls", ".csv", ".json"];
+      if (!validTypes.includes(file.type) && !validExt.some((ext) => file.name.endsWith(ext))) {
         alert("❌ 請上傳 Excel (.xlsx) 或 CSV 檔案");
         return;
       }
       setBatchFile(file);
       setBatchResult(null);
     }
+  };
+
+  // 下載批量更新用的 Excel 範本
+  const handleDownloadTemplate = () => {
+    const headers = ["教室編號", "教室名稱", "班級", "桌數"];
+    const sampleRows = [
+      ["ROOM-001", "演講廳A", "中一A班", 40],
+      ["ROOM-002", "演講廳B", "中二B班", 35],
+      ["ROOM-003", "討論室C", "高一C班", 20],
+    ];
+
+    const worksheet = XLSX.utils.aoa_to_sheet([headers, ...sampleRows]);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "教室範本");
+    XLSX.writeFile(workbook, "教室批量更新範本.xlsx");
   };
 
   // 處理批量更新
@@ -261,31 +344,103 @@ export const ClassroomManagement: React.FC = () => {
       return;
     }
 
-    // 注意：這裡需要實現 Excel 解析邏輯
-    // 由於前端解析 Excel 需要額外的庫（如 xlsx），這裡僅提供框架
-    alert("⚠️ Excel 解析功能需要配合 xlsx 庫實現。目前僅支援 JSON 格式批量更新。");
-    
-    // 示例：如果是 JSON 文件
     try {
       setBatchLoading(true);
-      const text = await batchFile.text();
-      const data = JSON.parse(text);
-      
-      if (!Array.isArray(data.classrooms)) {
-        throw new Error("檔案格式錯誤：需要包含 classrooms 陣列");
+      setFormError(null);
+
+      let data: any = null;
+      const fileName = batchFile.name.toLowerCase();
+
+      // 1. JSON 文件
+      if (fileName.endsWith(".json")) {
+        const text = await batchFile.text();
+        try {
+          data = JSON.parse(text);
+        } catch (parseErr) {
+          throw new Error("JSON 文件格式無效。請確保文件是有效的 JSON 格式");
+        }
+      }
+      // 2. CSV 文件 - 簡單處理（逗號分隔）
+      else if (fileName.endsWith(".csv")) {
+        const text = await batchFile.text();
+        const lines = text.split("\n").filter(line => line.trim());
+        
+        if (lines.length < 2) {
+          throw new Error("CSV 文件至少需要一列表頭和一行數據");
+        }
+
+        const classrooms: ClassroomRecord[] = [];
+
+        for (let i = 1; i < lines.length; i++) {
+          const values = lines[i].split(",").map(v => v.trim());
+          
+          if (values.length < 4) continue; // 跳過不完整的行
+
+          try {
+            classrooms.push({
+              classroom_id: values[0],
+              classroom_name: values[1],
+              class_name: values[2],
+              number_of_desks: parseInt(values[3]) || 0,
+              available_for_tution: values[4]?.toLowerCase() === "true",
+              last_updated: Date.now(),
+            });
+          } catch (lineErr) {
+            console.warn(`跳過第 ${i + 1} 行`, lineErr);
+          }
+        }
+
+        data = { classrooms };
+      }
+      // 3. Excel 文件 (.xlsx, .xls)
+      else if (fileName.endsWith(".xlsx") || fileName.endsWith(".xls")) {
+        const classroomsFromExcel = await parseClassroomXLSX(batchFile);
+        data = { classrooms: classroomsFromExcel };
+      }
+      // 4. 未知格式
+      else {
+        throw new Error(`不支援的檔案格式：${batchFile.type || "未知"}。支援的格式：.xlsx, .json, .csv`);
       }
 
+      // 驗證數據結構
+      if (!data || !Array.isArray(data.classrooms)) {
+        throw new Error("檔案格式錯誤：需要包含 'classrooms' 陣列");
+      }
+
+      if (data.classrooms.length === 0) {
+        throw new Error("檔案中沒有教室數據");
+      }
+
+      // 發送到後端
       const response = await apiClient.post("/classrooms/batch-update", data);
       
-      if (response.data?.success) {
-        setBatchResult(response.data.stats);
-        alert(`✅ 批量更新完成：成功 ${response.data.stats.success} 筆，失敗 ${response.data.stats.failed} 筆`);
-        await fetchClassrooms();
-      } else {
+      if (!response.data?.success) {
         throw new Error(response.data?.error || "批量更新失敗");
       }
+
+      // 顯示結果
+      const stats = response.data.stats;
+      setBatchResult(stats);
+      
+      if (stats.failed > 0) {
+        alert(
+          `⚠️ 批量更新部分成功\n\n` +
+          `✅ 成功：${stats.success} 筆\n` +
+          `❌ 失敗：${stats.failed} 筆\n\n` +
+          (stats.errors?.length > 0 ? `請展開查看詳細錯誤信息` : "")
+        );
+      } else {
+        alert(`✅ 批量更新完成：全部 ${stats.success} 筆成功！`);
+      }
+
+      await fetchClassrooms();
+      setBatchFile(null);
+      // 清除文件輸入框
+      const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+      if (fileInput) fileInput.value = "";
     } catch (err: any) {
       const errMsg = err.message || "批量更新失敗";
+      setFormError(errMsg);
       alert(`❌ ${errMsg}`);
       console.error("Batch update error:", err);
     } finally {
@@ -333,12 +488,14 @@ export const ClassroomManagement: React.FC = () => {
         {/* 批量更新區域 */}
         <div className="batch-update-section">
           <h3>批量更新教室</h3>
+          <p className="batch-info">支援格式：Excel (.xlsx / .xls)、JSON (.json) 或 CSV (.csv)</p>
           <div className="batch-controls">
             <input
               type="file"
-              accept=".xlsx,.xls,.csv,.json"
+              accept=".xlsx,.xls,.json,.csv"
               onChange={handleFileChange}
               disabled={batchLoading}
+              title="支援 Excel、JSON 和 CSV 格式"
             />
             <button
               className="btn btn-secondary"
@@ -347,7 +504,23 @@ export const ClassroomManagement: React.FC = () => {
             >
               {batchLoading ? "上傳中..." : "📤 上傳並更新"}
             </button>
+            <button
+              type="button"
+              className="btn btn-outline"
+              onClick={handleDownloadTemplate}
+            >
+              📥 下載 Excel 範本
+            </button>
           </div>
+          <p className="batch-info batch-template-hint">
+            Excel 範本欄位：教室編號、教室名稱、班級、桌數（第一列須為標題列，依範本欄位名稱填寫）
+          </p>
+
+          {formError && (
+            <div className="batch-error">
+              <strong>❌ 錯誤：</strong> {formError}
+            </div>
+          )}
           {batchResult && (
             <div className="batch-result">
               <p>

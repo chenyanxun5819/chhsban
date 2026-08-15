@@ -20,6 +20,9 @@ export { StudentKVManager, createStudentKVManager } from "./student/index.js";
 // Teacher Manager
 export { TeacherKVManager, createTeacherKVManager } from "./teacher/index.js";
 
+// Classroom Manager
+export { ClassroomKVManager, createClassroomKVManager } from "./classroom/index.js";
+
 /**
  * 便捷导入示例：
  *

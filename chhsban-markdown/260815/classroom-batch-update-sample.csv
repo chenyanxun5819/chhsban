@@ -1,0 +1,6 @@
+classroom_id,classroom_name,class_name,number_of_desks,available_for_tution
+ROOM-001,演講廳 A,中二A班,38,true
+ROOM-002,演講廳 B,中三B班,42,true
+ROOM-003,小教室 C,小五C班,20,false
+ROOM-004,多功能室,高中D班,50,true
+ROOM-005,自習室,高二E班,30,true

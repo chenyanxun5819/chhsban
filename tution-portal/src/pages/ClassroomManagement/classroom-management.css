@@ -86,6 +86,13 @@
   color: #495057;
 }
 
+.batch-info {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  color: #6c757d;
+  font-style: italic;
+}
+
 .batch-controls {
   display: flex;
   gap: 15px;
@@ -128,6 +135,17 @@
 .batch-result li {
   color: #c33;
   margin: 5px 0;
+}
+
+.batch-error {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: #fee;
+  color: #c33;
+  border-radius: 4px;
+  border-left: 4px solid #c33;
+  font-size: 14px;
+  line-height: 1.5;
 }
 
 /* 教室計數 */
@@ -245,6 +263,22 @@
 
 .btn-secondary:hover:not(:disabled) {
   background-color: #5a6268;
+}
+
+.btn-outline {
+  background-color: white;
+  color: #495057;
+  border: 1px solid #ced4da;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background-color: #f8f9fa;
+  border-color: #adb5bd;
+}
+
+.batch-template-hint {
+  margin-top: 10px;
+  margin-bottom: 0;
 }
 
 .btn-sm {

@@ -73,6 +73,18 @@ export interface TeacherRecord {
 }
 
 /**
+ * 教室管理 - 基本資料
+ */
+export interface ClassroomRecord {
+  classroom_id: string;           // 唯一識別 (e.g., "ROOM-001")
+  classroom_name: string;         // 教室名稱 (e.g., "演講廳A")
+  class_name: string;            // 班級名稱 (e.g., "中一A班")
+  number_of_desks: number;       // 桌數 (e.g., 40)
+  available_for_tution: boolean; // 是否可用於補習（管理員勾選）
+  last_updated: number;          // 最後更新時間戳（毫秒）
+}
+
+/**
  * 共用常量
  */
 export const KV_CONFIG = {
@@ -80,6 +92,7 @@ export const KV_CONFIG = {
   SESSION_PREFIX: "session:",
   STUDENT_PREFIX: "student:",
   TEACHER_PREFIX: "teacher:",
+  CLASSROOM_PREFIX: "classroom:",
   TUTION_CLASS_PREFIX: "tution_class:",
   TUTION_ROSTER_PREFIX: "tution_roster:",
   TUTION_ATTENDANCE_PREFIX: "tution_attendance:",

@@ -18,7 +18,7 @@
  * - 建立記錄: 1 PUT 
  */
 
-import { createAuthKVManager, createTeacherKVManager, createStudentKVManager, TutionClassStatus, AttendanceStatus, type TutionClass, type TutionSchedule } from "@chhsban/kv-utils";
+import { createAuthKVManager, createTeacherKVManager, createStudentKVManager, createClassroomKVManager, TutionClassStatus, AttendanceStatus, type TutionClass, type TutionSchedule } from "@chhsban/kv-utils";
 import { KV_NAMESPACES } from "@chhsban/cloudflare-config";
 import { TutionSheetsSync } from "./sheets-sync";
 import { TutionKVService } from "./tution-service";
@@ -32,6 +32,7 @@ interface Env {
   TUTION_ROSTER_KV: KVNamespace;
   TUTION_ATTENDANCE_KV: KVNamespace;
   TUTION_SCHEDULE_KV: KVNamespace;
+  CLASSROOM_KV: KVNamespace;
   GOOGLE_SHEETS_API_KEY?: string;
   GOOGLE_SHEETS_SPREADSHEET_ID: string;
   GOOGLE_SHEETS_SHEET_CLASSES: string;
@@ -351,6 +352,10 @@ export default {
 
       if (pathname.startsWith("/api/v1/attendance")) {
         return handleAttendance(request, env, session);
+      }
+
+      if (pathname.startsWith("/api/v1/classrooms") || pathname.startsWith("/api/classrooms")) {
+        return handleClassrooms(request, env, session);
       }
 
       return jsonResponse({ error: "Not found" }, 404);
@@ -1229,10 +1234,10 @@ async function handleSchedules(
       }
       if (
         data.status === "rescheduled" &&
-        (!data.rescheduled_to || !data.rescheduled_venue || !data.reschedule_reason)
+        (!data.rescheduled_to || !data.reschedule_reason)
       ) {
         return jsonResponse(
-          { error: "rescheduled_to, rescheduled_venue and reschedule_reason are required" },
+          { error: "rescheduled_to and reschedule_reason are required" },
           400,
         );
       }
@@ -1277,13 +1282,9 @@ async function handleSchedules(
       }
       if (
         updates.status === "rescheduled" &&
-        !(updates.rescheduled_to || existing.rescheduled_to) &&
-        !(updates.rescheduled_venue || existing.rescheduled_venue)
+        !(updates.rescheduled_to || existing.rescheduled_to)
       ) {
-        return jsonResponse(
-          { error: "rescheduled_to and rescheduled_venue are required" },
-          400,
-        );
+        return jsonResponse({ error: "rescheduled_to is required" }, 400);
       }
 
       const updated = await kvService.updateSchedule(scheduleId, updates);
@@ -1310,6 +1311,197 @@ async function handleSchedules(
   } catch (error) {
     console.error("Schedules handler error:", error);
     return jsonResponse({ error: String(error) }, 500);
+  }
+}
+
+/**
+ * 處理教室管理端點
+ * 
+ * 路由：
+ * - POST   /api/classrooms              - 新增教室（admin/super_admin）
+ * - GET    /api/classrooms              - 列出所有教室（所有用戶）
+ * - GET    /api/classrooms/:id          - 查詢單一教室（所有用戶）
+ * - PUT    /api/classrooms/:id          - 更新教室（admin/super_admin）
+ * - PATCH  /api/classrooms/:id/tution   - 切換補習選用（admin/super_admin）
+ * - DELETE /api/classrooms/:id          - 刪除教室（admin/super_admin）
+ * - POST   /api/classrooms/batch-update - Excel 批量更新（admin/super_admin）
+ */
+async function handleClassrooms(
+  request: Request,
+  env: Env,
+  session: any,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const method = request.method;
+  const pathParts = url.pathname.split("/").filter(p => p);
+  
+  // 提取路由參數
+  // pathParts: ["api", "classrooms", ...] 或 ["api", "v1", "classrooms", ...]
+  const classroomsIndex = pathParts.indexOf("classrooms");
+  const classroomId = pathParts[classroomsIndex + 1]; // classrooms/{id}
+  const action = pathParts[classroomsIndex + 2]; // classrooms/{id}/{action}
+
+  const classroomManager = createClassroomKVManager(env.CLASSROOM_KV);
+
+  // 權限檢查輔助函數
+  const requireAdmin = () => {
+    if (!["admin", "super_admin"].includes(session.permission)) {
+      return jsonResponse({ 
+        success: false, 
+        error: "Forbidden: Admin permission required" 
+      }, 403);
+    }
+    return null;
+  };
+
+  try {
+    // POST /api/classrooms - 新增教室
+    if (method === "POST" && !classroomId) {
+      const permissionError = requireAdmin();
+      if (permissionError) return permissionError;
+
+      const data = await request.json() as any;
+
+      // 驗證必填欄位
+      if (!data.classroom_id || !data.classroom_name || !data.class_name || data.number_of_desks === undefined) {
+        return jsonResponse({ 
+          success: false, 
+          error: "Missing required fields: classroom_id, classroom_name, class_name, number_of_desks" 
+        }, 400);
+      }
+
+      // 檢查教室 ID 是否已存在
+      const existing = await classroomManager.getClassroom(data.classroom_id);
+      if (existing) {
+        return jsonResponse({ 
+          success: false, 
+          error: `Classroom ID already exists: ${data.classroom_id}` 
+        }, 409);
+      }
+
+      const classroom = await classroomManager.createClassroom({
+        classroom_id: data.classroom_id,
+        classroom_name: data.classroom_name,
+        class_name: data.class_name,
+        number_of_desks: Number(data.number_of_desks),
+        available_for_tution: Boolean(data.available_for_tution),
+        last_updated: Date.now(),
+      });
+
+      return jsonResponse({ success: true, data: classroom }, 201);
+    }
+
+    // POST /api/classrooms/batch-update - Excel 批量更新
+    if (method === "POST" && classroomId === "batch-update") {
+      const permissionError = requireAdmin();
+      if (permissionError) return permissionError;
+
+      const data = await request.json() as any;
+
+      if (!Array.isArray(data.classrooms)) {
+        return jsonResponse({ 
+          success: false, 
+          error: "Invalid format: expected { classrooms: [...] }" 
+        }, 400);
+      }
+
+      const result = await classroomManager.batchUpdateClassrooms(data.classrooms);
+
+      return jsonResponse({ 
+        success: true, 
+        stats: result 
+      }, 200);
+    }
+
+    // GET /api/classrooms - 列出所有教室
+    if (method === "GET" && !classroomId) {
+      const availableOnly = url.searchParams.get("availableOnly") === "true";
+      const classrooms = await classroomManager.listAllClassrooms(availableOnly);
+
+      return jsonResponse({ success: true, data: classrooms }, 200);
+    }
+
+    // GET /api/classrooms/:id - 查詢單一教室
+    if (method === "GET" && classroomId && !action) {
+      const classroom = await classroomManager.getClassroom(classroomId);
+
+      if (!classroom) {
+        return jsonResponse({ 
+          success: false, 
+          error: "Classroom not found" 
+        }, 404);
+      }
+
+      return jsonResponse({ success: true, data: classroom }, 200);
+    }
+
+    // PUT /api/classrooms/:id - 更新教室
+    if (method === "PUT" && classroomId && !action) {
+      const permissionError = requireAdmin();
+      if (permissionError) return permissionError;
+
+      const data = await request.json() as any;
+
+      // 移除不應被更新的欄位
+      delete data.classroom_id;
+
+      const updated = await classroomManager.updateClassroom(classroomId, data);
+
+      return jsonResponse({ success: true, data: updated }, 200);
+    }
+
+    // PATCH /api/classrooms/:id/tution - 切換補習選用
+    if (method === "PATCH" && classroomId && action === "tution") {
+      const permissionError = requireAdmin();
+      if (permissionError) return permissionError;
+
+      const data = await request.json() as any;
+
+      if (typeof data.available !== "boolean") {
+        return jsonResponse({ 
+          success: false, 
+          error: "Missing required field: available (boolean)" 
+        }, 400);
+      }
+
+      const updated = await classroomManager.toggleAvailableForTution(classroomId, data.available);
+
+      return jsonResponse({ success: true, data: updated }, 200);
+    }
+
+    // DELETE /api/classrooms/:id - 刪除教室
+    if (method === "DELETE" && classroomId && !action) {
+      const permissionError = requireAdmin();
+      if (permissionError) return permissionError;
+
+      const success = await classroomManager.deleteClassroom(classroomId);
+
+      if (!success) {
+        return jsonResponse({ 
+          success: false, 
+          error: "Classroom not found" 
+        }, 404);
+      }
+
+      return jsonResponse({ 
+        success: true, 
+        message: "Classroom deleted successfully" 
+      }, 200);
+    }
+
+    // 未匹配到任何路由
+    return jsonResponse({ 
+      success: false, 
+      error: "Not found or method not allowed" 
+    }, 404);
+
+  } catch (error) {
+    console.error("Classrooms handler error:", error);
+    return jsonResponse({ 
+      success: false, 
+      error: "Internal server error",
+      details: error instanceof Error ? error.message : String(error)
+    }, 500);
   }
 }
 

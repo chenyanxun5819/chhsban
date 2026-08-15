@@ -7,9 +7,6 @@ build/
 pnpm-lock.yaml
 yarn.lock
 package-lock.json
-# tution-portal is not part of the root npm workspace, so it needs its own committed
-# lock file — CI's `npm ci` (and actions/setup-node's cache-dependency-path) require it.
-!tution-portal/package-lock.json
 
 # Python
 __pycache__/
