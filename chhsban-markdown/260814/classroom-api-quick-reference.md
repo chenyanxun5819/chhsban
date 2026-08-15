@@ -187,6 +187,7 @@ Content-Type: application/json
 **請求體**:
 ```json
 {
+  "createIfMissing": false,
   "classrooms": [
     {
       "classroom_id": "ROOM-001",
@@ -209,8 +210,8 @@ Content-Type: application/json
 ```
 
 **注意**: 
-- 只更新 `class_name` 和 `number_of_desks`
-- 不會新增教室（教室必須預先存在）
+- `createIfMissing` 預設 `false`：只更新 `class_name` 和 `number_of_desks`，教室不存在時記為失敗（適用於每年例行更新已存在的教室）
+- `createIfMissing` 設為 `true`：教室不存在時會自動以整筆資料新增教室（適用於第一次批量匯入新教室），存在時仍只更新 `class_name` 和 `number_of_desks`
 
 **回應**: 200 OK
 ```json

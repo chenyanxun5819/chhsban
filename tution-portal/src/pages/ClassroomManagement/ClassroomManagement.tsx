@@ -113,6 +113,7 @@ export const ClassroomManagement: React.FC = () => {
   // 批量更新狀態
   const [batchFile, setBatchFile] = useState<File | null>(null);
   const [batchLoading, setBatchLoading] = useState(false);
+  const [batchInitMode, setBatchInitMode] = useState(false);
   const [batchResult, setBatchResult] = useState<{
     success: number;
     failed: number;
@@ -411,6 +412,9 @@ export const ClassroomManagement: React.FC = () => {
         throw new Error("檔案中沒有教室數據");
       }
 
+      // 初始化模式：教室不存在時自動建立（用於第一次批量匯入）
+      data.createIfMissing = batchInitMode;
+
       // 發送到後端
       const response = await apiClient.post("/classrooms/batch-update", data);
       
@@ -515,6 +519,18 @@ export const ClassroomManagement: React.FC = () => {
           <p className="batch-info batch-template-hint">
             Excel 範本欄位：教室編號、教室名稱、班級、桌數（第一列須為標題列，依範本欄位名稱填寫）
           </p>
+
+          <label className="batch-init-toggle">
+            <input
+              type="checkbox"
+              checked={batchInitMode}
+              onChange={(e) => setBatchInitMode(e.target.checked)}
+              disabled={batchLoading}
+            />
+            <span>
+              初始化匯入（教室不存在時自動建立，適用於第一次批量匯入新教室；平時每年更新請保持關閉，以免誤建立打錯的教室編號）
+            </span>
+          </label>
 
           {formError && (
             <div className="batch-error">

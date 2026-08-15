@@ -281,6 +281,26 @@
   margin-bottom: 0;
 }
 
+.batch-init-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background-color: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #7a5c00;
+  cursor: pointer;
+}
+
+.batch-init-toggle input[type="checkbox"] {
+  margin-top: 2px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
 .btn-sm {
   padding: 6px 12px;
   font-size: 13px;

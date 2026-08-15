@@ -1405,7 +1405,9 @@ async function handleClassrooms(
         }, 400);
       }
 
-      const result = await classroomManager.batchUpdateClassrooms(data.classrooms);
+      const result = await classroomManager.batchUpdateClassrooms(data.classrooms, {
+        createIfMissing: data.createIfMissing === true,
+      });
 
       return jsonResponse({ 
         success: true, 

@@ -189,13 +189,18 @@ export class ClassroomKVManager {
    * 批量更新教室（用於 Excel 導入）
    * 根據 classroom_id 匹配現有教室，更新班級和桌數
    * @param data ClassroomRecord[] 教室資料陣列
+   * @param options.createIfMissing 教室不存在時是否自動建立（用於初始化匯入，預設 false 以維持原本「只更新」語意）
    * @returns 更新統計
    */
-  async batchUpdateClassrooms(data: ClassroomRecord[]): Promise<{
+  async batchUpdateClassrooms(
+    data: ClassroomRecord[],
+    options: { createIfMissing?: boolean } = {}
+  ): Promise<{
     success: number;
     failed: number;
     errors: Array<{ id: string; error: string }>;
   }> {
+    const { createIfMissing = false } = options;
     const stats = {
       success: 0,
       failed: 0,
@@ -205,14 +210,28 @@ export class ClassroomKVManager {
     for (const classroom of data) {
       try {
         const existing = await this.getClassroom(classroom.classroom_id);
-        
+
         if (!existing) {
-          // 教室不存在，記錄為失敗
-          stats.failed++;
-          stats.errors.push({
-            id: classroom.classroom_id,
-            error: "教室不存在",
+          if (!createIfMissing) {
+            stats.failed++;
+            stats.errors.push({
+              id: classroom.classroom_id,
+              error: "教室不存在",
+            });
+            continue;
+          }
+
+          // 初始化匯入：教室不存在則建立新教室
+          await this.createClassroom({
+            classroom_id: classroom.classroom_id,
+            classroom_name: classroom.classroom_name,
+            class_name: classroom.class_name,
+            number_of_desks: classroom.number_of_desks,
+            available_for_tution: classroom.available_for_tution ?? true,
+            last_updated: Date.now(),
           });
+
+          stats.success++;
           continue;
         }
 
