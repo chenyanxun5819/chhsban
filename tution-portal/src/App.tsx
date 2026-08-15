@@ -190,8 +190,9 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
+      <Route path="/admin" element={<Navigate to="/admin/approvals" replace />} />
       <Route
-        path="/admin"
+        path="/admin/:tab"
         element={
           <ProtectedRoute>
             <AdminPanel />
@@ -202,7 +203,9 @@ const AppRoutes = () => {
         path="/classrooms"
         element={
           <ProtectedRoute>
-            <ClassroomManagement />
+            <Layout title="教室管理">
+              <ClassroomManagement />
+            </Layout>
           </ProtectedRoute>
         }
       />

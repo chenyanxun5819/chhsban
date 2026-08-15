@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import houseIcon from "../../assets/house.svg";
 import logOutIcon from "../../assets/log-out.svg";
@@ -58,12 +58,17 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-/**
- * 側邊欄只保留給 super_admin 使用（進入管理後台）。
- * 一般教師的唯一導覽需求是回首頁，已改由 Header 標題點擊處理，不需要側邊欄。
- */
+// 側邊欄只保留給 super_admin 使用，直接列出管理後台的四個分頁
+const ADMIN_NAV_ITEMS: Array<{ path: string; icon: string; label: string }> = [
+  { path: "/admin/approvals", icon: "📋", label: "審批管理" },
+  { path: "/admin/courses", icon: "📚", label: "已開課管理" },
+  { path: "/admin/teachers", icon: "👨‍🏫", label: "老師管理" },
+  { path: "/admin/classrooms", icon: "🏫", label: "教室管理" },
+];
+
 export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const handleNavClick = (path: string) => {
     navigate(path);
@@ -78,25 +83,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
           <h2>補習班系統</h2>
         </div>
         <ul className="nav-list">
-          <li>
-            <button className="nav-item" onClick={() => handleNavClick("/admin")}>
-              <span className="nav-item__icon">🔐</span>
-              <span className="nav-item__label">管理後台</span>
-            </button>
-          </li>
+          {ADMIN_NAV_ITEMS.map((item) => (
+            <li key={item.path}>
+              <button
+                className={`nav-item ${location.pathname === item.path ? "nav-item--active" : ""}`}
+                onClick={() => handleNavClick(item.path)}
+              >
+                <span className="nav-item__icon">{item.icon}</span>
+                <span className="nav-item__label">{item.label}</span>
+              </button>
+            </li>
+          ))}
         </ul>
       </nav>
 
       {/* 手機版底部導航 */}
       <nav className="nav-bottom">
-        <button
-          className="nav-bottom__item"
-          onClick={() => handleNavClick("/admin")}
-          title="管理後台"
-        >
-          <span className="nav-bottom__icon">🔐</span>
-          <span className="nav-bottom__label">管理後台</span>
-        </button>
+        {ADMIN_NAV_ITEMS.map((item) => (
+          <button
+            key={item.path}
+            className={`nav-bottom__item ${location.pathname === item.path ? "nav-bottom__item--active" : ""}`}
+            onClick={() => handleNavClick(item.path)}
+            title={item.label}
+          >
+            <span className="nav-bottom__icon">{item.icon}</span>
+            <span className="nav-bottom__label">{item.label}</span>
+          </button>
+        ))}
       </nav>
     </>
   );

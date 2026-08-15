@@ -148,9 +148,24 @@
   line-height: 1.5;
 }
 
-/* 教室計數 */
-.classroom-count {
+/* 教室計數 + 批量修改按鈕 */
+.classroom-count-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
   margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.classroom-count-row--bottom {
+  margin-top: 15px;
+  margin-bottom: 0;
+  justify-content: flex-end;
+}
+
+.classroom-count {
+  margin: 0;
   color: #666;
   font-size: 14px;
 }
@@ -201,26 +216,20 @@
   padding: 40px 20px !important;
 }
 
-/* 切換按鈕 */
-.toggle-btn {
-  padding: 6px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  background-color: #f8f9fa;
-  color: #495057;
+/* 補習選用勾選框 */
+.availability-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   cursor: pointer;
   font-size: 13px;
-  transition: all 0.2s;
+  color: #495057;
 }
 
-.toggle-btn:hover {
-  background-color: #e9ecef;
-}
-
-.toggle-btn.active {
-  background-color: #d4edda;
-  border-color: #28a745;
-  color: #155724;
+.availability-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
 }
 
 /* 操作按鈕 */

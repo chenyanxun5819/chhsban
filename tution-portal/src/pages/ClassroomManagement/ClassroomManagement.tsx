@@ -2,7 +2,6 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { useAuth } from "@/context/AuthContext";
-import { Layout } from "@/components/common/Layout";
 import apiClient from "@/utils/api";
 import type { ClassroomRecord } from "@/types/index";
 import "./classroom-management.css";
@@ -103,6 +102,10 @@ export const ClassroomManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterAvailable, setFilterAvailable] = useState<boolean | null>(null);
 
+  // 補習選用批量勾選狀態（教室 ID -> 勾選中的值）
+  const [availabilityDraft, setAvailabilityDraft] = useState<Record<string, boolean>>({});
+  const [availabilitySaving, setAvailabilitySaving] = useState(false);
+
   // 模態框狀態
   const [modalOpen, setModalOpen] = useState(false);
   const [modalMode, setModalMode] = useState<ModalMode>("add");
@@ -177,6 +180,13 @@ export const ClassroomManagement: React.FC = () => {
 
     setFilteredClassrooms(filtered);
   }, [classrooms, searchTerm, filterAvailable]);
+
+  // 每次教室列表重新載入時，把批量勾選草稿同步回伺服器目前的狀態
+  useEffect(() => {
+    setAvailabilityDraft(
+      Object.fromEntries(classrooms.map((c) => [c.classroom_id, c.available_for_tution]))
+    );
+  }, [classrooms]);
 
   // 開啟新增模態框
   const handleAdd = () => {
@@ -254,30 +264,44 @@ export const ClassroomManagement: React.FC = () => {
     }
   };
 
-  // 切換補習選用
-  const handleToggleAvailable = async (classroomId: string, currentStatus: boolean) => {
-    const newStatus = !currentStatus;
-    const action = newStatus ? "啟用" : "停用";
+  // 補習選用勾選（不即時送出，先記在草稿中，等按「確定修改」再批量送出）
+  const handleAvailabilityCheck = (classroomId: string, checked: boolean) => {
+    setAvailabilityDraft((prev) => ({ ...prev, [classroomId]: checked }));
+  };
 
-    if (!window.confirm(`確定要${action}此教室的補習選用嗎？`)) {
+  // 與伺服器目前狀態不同、尚未送出的教室 ID 清單
+  const dirtyAvailabilityIds = classrooms
+    .filter((c) => availabilityDraft[c.classroom_id] !== c.available_for_tution)
+    .map((c) => c.classroom_id);
+
+  // 批量套用補習選用勾選變更
+  const handleApplyAvailabilityChanges = async () => {
+    if (dirtyAvailabilityIds.length === 0) return;
+
+    if (!window.confirm(`確定要套用 ${dirtyAvailabilityIds.length} 筆補習選用變更嗎？`)) {
       return;
     }
 
+    setAvailabilitySaving(true);
     try {
-      const response = await apiClient.patch(`/classrooms/${classroomId}/tution`, {
-        available: newStatus,
-      });
+      const results = await Promise.allSettled(
+        dirtyAvailabilityIds.map((id) =>
+          apiClient.patch(`/classrooms/${id}/tution`, { available: availabilityDraft[id] })
+        )
+      );
 
-      if (!response.data?.success) {
-        throw new Error(response.data?.error || "操作失敗");
+      const failedCount = results.filter((r) => r.status === "rejected").length;
+      if (failedCount > 0) {
+        alert(
+          `⚠️ 部分更新失敗\n\n✅ 成功：${dirtyAvailabilityIds.length - failedCount} 筆\n❌ 失敗：${failedCount} 筆`
+        );
+      } else {
+        alert(`✅ 已更新 ${dirtyAvailabilityIds.length} 筆補習選用狀態`);
       }
 
-      alert(`✅ 已${action}補習選用`);
       await fetchClassrooms();
-    } catch (err: any) {
-      const errMsg = err.response?.data?.error || err.message || "操作失敗";
-      alert(`❌ ${errMsg}`);
-      console.error("Toggle available error:", err);
+    } finally {
+      setAvailabilitySaving(false);
     }
   };
 
@@ -453,7 +477,7 @@ export const ClassroomManagement: React.FC = () => {
   };
 
   return (
-    <Layout title="教室管理">
+    <>
       <div className="classroom-management">
         <div className="page-header">
           <h1>教室管理</h1>
@@ -563,9 +587,21 @@ export const ClassroomManagement: React.FC = () => {
           <p className="loading">載入中...</p>
         ) : (
           <>
-            <p className="classroom-count">
-              顯示 {filteredClassrooms.length} / {classrooms.length} 間教室
-            </p>
+            <div className="classroom-count-row">
+              <p className="classroom-count">
+                顯示 {filteredClassrooms.length} / {classrooms.length} 間教室
+              </p>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={dirtyAvailabilityIds.length === 0 || availabilitySaving}
+                onClick={handleApplyAvailabilityChanges}
+              >
+                {availabilitySaving
+                  ? "更新中..."
+                  : `✅ 確定修改${dirtyAvailabilityIds.length > 0 ? `（${dirtyAvailabilityIds.length}）` : ""}`}
+              </button>
+            </div>
             <div className="classroom-table-container">
               <table className="classroom-table">
                 <thead>
@@ -594,17 +630,19 @@ export const ClassroomManagement: React.FC = () => {
                         <td>{classroom.class_name}</td>
                         <td>{classroom.number_of_desks}</td>
                         <td>
-                          <button
-                            className={`toggle-btn ${classroom.available_for_tution ? "active" : ""}`}
-                            onClick={() =>
-                              handleToggleAvailable(
-                                classroom.classroom_id,
+                          <label className="availability-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={
+                                availabilityDraft[classroom.classroom_id] ??
                                 classroom.available_for_tution
-                              )
-                            }
-                          >
-                            {classroom.available_for_tution ? "✅ 可用" : "❌ 不可用"}
-                          </button>
+                              }
+                              onChange={(e) =>
+                                handleAvailabilityCheck(classroom.classroom_id, e.target.checked)
+                              }
+                            />
+                            <span>可用</span>
+                          </label>
                         </td>
                         <td>{new Date(classroom.last_updated).toLocaleString("zh-TW")}</td>
                         <td>
@@ -628,6 +666,18 @@ export const ClassroomManagement: React.FC = () => {
                   )}
                 </tbody>
               </table>
+            </div>
+            <div className="classroom-count-row classroom-count-row--bottom">
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={dirtyAvailabilityIds.length === 0 || availabilitySaving}
+                onClick={handleApplyAvailabilityChanges}
+              >
+                {availabilitySaving
+                  ? "更新中..."
+                  : `✅ 確定修改${dirtyAvailabilityIds.length > 0 ? `（${dirtyAvailabilityIds.length}）` : ""}`}
+              </button>
             </div>
           </>
         )}
@@ -744,7 +794,7 @@ export const ClassroomManagement: React.FC = () => {
           </div>
         )}
       </div>
-    </Layout>
+    </>
   );
 };
 

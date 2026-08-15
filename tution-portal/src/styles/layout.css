@@ -176,6 +176,13 @@
   color: var(--primary-color);
 }
 
+.nav-item--active {
+  background: var(--bg-light);
+  color: var(--primary-color);
+  font-weight: 600;
+  border-left: 3px solid var(--primary-color);
+}
+
 .nav-item__icon {
   font-size: 20px;
   width: 24px;
@@ -218,6 +225,11 @@
 .nav-bottom__item:hover {
   color: var(--primary-color);
   background: var(--bg-light);
+}
+
+.nav-bottom__item--active {
+  color: var(--primary-color);
+  font-weight: 600;
 }
 
 .nav-bottom__icon {

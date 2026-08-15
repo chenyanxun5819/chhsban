@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
 import { ApprovalList, RejectModal } from "@/components/admin";
@@ -10,6 +10,8 @@ import ClassroomManagement from "@/pages/ClassroomManagement/ClassroomManagement
 import "./admin-panel.css";
 
 type TabType = "approvals" | "courses" | "teachers" | "classrooms";
+
+const VALID_TABS: TabType[] = ["approvals", "courses", "teachers", "classrooms"];
 
 const TEACHER_MANAGEMENT_URL = "https://master.teacher-management-portal.pages.dev/";
 
@@ -22,8 +24,9 @@ const COURSE_STATUS_LABELS: Record<string, string> = {
 export const AdminPanel: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { tab } = useParams<{ tab: string }>();
 
-  const [currentTab, setCurrentTab] = useState<TabType>("approvals");
+  const currentTab: TabType = VALID_TABS.includes(tab as TabType) ? (tab as TabType) : "approvals";
   const [error, setError] = useState<string | null>(null);
 
   // 審批相關狀態
@@ -230,39 +233,13 @@ export const AdminPanel: React.FC = () => {
   return (
     <Layout title="管理員儀表板">
       <div className="admin-panel">
-        {/* 選項卡導航 */}
-        <div className="tab-navigation">
-          <button
-            className={`tab-button ${currentTab === "approvals" ? "tab-button--active" : ""}`}
-            onClick={() => setCurrentTab("approvals")}
-          >
-            📋 審批管理{" "}
-            {pendingCount > 0 && <span className="badge badge--danger">{pendingCount}</span>}
-          </button>
-          <button
-            className={`tab-button ${currentTab === "courses" ? "tab-button--active" : ""}`}
-            onClick={() => setCurrentTab("courses")}
-          >
-            📚 已開課管理
-          </button>
-          <button
-            className={`tab-button ${currentTab === "teachers" ? "tab-button--active" : ""}`}
-            onClick={() => setCurrentTab("teachers")}
-          >
-            👨‍🏫 老師管理
-          </button>
-          <button
-            className={`tab-button ${currentTab === "classrooms" ? "tab-button--active" : ""}`}
-            onClick={() => setCurrentTab("classrooms")}
-          >
-            🏫 教室管理
-          </button>
-        </div>
-
         {/* 審批管理 */}
         {currentTab === "approvals" && (
           <section className="admin-section">
-            <h2 className="section-title">審批管理</h2>
+            <h2 className="section-title">
+              審批管理{" "}
+              {pendingCount > 0 && <span className="badge badge--danger">{pendingCount}</span>}
+            </h2>
             <ApprovalList
               applications={applications}
               onApprove={handleApprove}
