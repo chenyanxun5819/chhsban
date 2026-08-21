@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from "react";
-import type { TutionClass } from "@/types/index";
+import type { ClassroomRecord, TutionClass } from "@/types/index";
 import "./admin.css";
 
 interface ApprovalListProps {
   applications: TutionClass[];
+  classrooms: ClassroomRecord[];
+  occupiedVenueDays: Set<string>;
   onApprove: (classId: string) => Promise<void>;
   onReject: (classId: string) => void;
   onAssignVenue: (classId: string, venue: string) => Promise<void>;
@@ -34,6 +36,8 @@ const formatDate = (timestamp?: number) => {
 
 interface ApprovalRowProps {
   application: TutionClass;
+  classrooms: ClassroomRecord[];
+  occupiedVenueDays: Set<string>;
   onApprove: (classId: string) => Promise<void>;
   onReject: (classId: string) => void;
   onAssignVenue: (classId: string, venue: string) => Promise<void>;
@@ -42,6 +46,8 @@ interface ApprovalRowProps {
 
 const ApprovalRow: React.FC<ApprovalRowProps> = ({
   application,
+  classrooms,
+  occupiedVenueDays,
   onApprove,
   onReject,
   onAssignVenue,
@@ -54,6 +60,9 @@ const ApprovalRow: React.FC<ApprovalRowProps> = ({
 
   const canDecide = application.approval_status === "pending" || application.approval_status === "reviewing";
 
+  const isVenueOccupied = (classroomName: string) =>
+    occupiedVenueDays.has(`${application.day_of_week}|${classroomName}`);
+
   const handleApprove = async () => {
     setApproving(true);
     try {
@@ -65,7 +74,11 @@ const ApprovalRow: React.FC<ApprovalRowProps> = ({
 
   const handleAssignVenue = async () => {
     if (!venueInput.trim()) {
-      alert("請輸入上課地點");
+      alert("請選擇上課地點");
+      return;
+    }
+    if (isVenueOccupied(venueInput.trim())) {
+      alert("這間教室在此上課日期已被其他課程使用，請重新選擇");
       return;
     }
     setAssigning(true);
@@ -147,14 +160,27 @@ const ApprovalRow: React.FC<ApprovalRowProps> = ({
             <div className="venue-assign">
               <span className="detail-label">指定上課地點</span>
               <div className="venue-assign__row">
-                <input
-                  type="text"
+                <select
                   className="venue-assign__input"
                   value={venueInput}
                   onChange={(e) => setVenueInput(e.target.value)}
-                  placeholder="輸入教室 / 地點"
                   disabled={assigning}
-                />
+                >
+                  <option value="">請選擇教室</option>
+                  {classrooms.map((classroom) => {
+                    const occupied = isVenueOccupied(classroom.classroom_name);
+                    return (
+                      <option
+                        key={classroom.classroom_id}
+                        value={classroom.classroom_name}
+                        disabled={occupied}
+                      >
+                        {classroom.classroom_name}
+                        {occupied ? "（此日期已被使用）" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
                 <button
                   type="button"
                   className="btn btn--primary btn--small"
@@ -165,7 +191,8 @@ const ApprovalRow: React.FC<ApprovalRowProps> = ({
                 </button>
               </div>
               <p className="venue-assign__hint">
-                指定後申請狀態將轉為「審核中」，申請人將無法再編輯此申請。
+                只列出補習選用勾選為可用的教室；{application.day_of_week}
+                已被其他課程使用的教室會反灰無法選取。指定後申請狀態將轉為「審核中」，申請人將無法再編輯此申請。
               </p>
             </div>
           )}
@@ -214,6 +241,8 @@ const ApprovalRow: React.FC<ApprovalRowProps> = ({
 
 export const ApprovalList: React.FC<ApprovalListProps> = ({
   applications,
+  classrooms,
+  occupiedVenueDays,
   onApprove,
   onReject,
   onAssignVenue,
@@ -318,6 +347,8 @@ export const ApprovalList: React.FC<ApprovalListProps> = ({
             <ApprovalRow
               key={application.class_id}
               application={application}
+              classrooms={classrooms}
+              occupiedVenueDays={occupiedVenueDays}
               onApprove={onApprove}
               onReject={onReject}
               onAssignVenue={onAssignVenue}

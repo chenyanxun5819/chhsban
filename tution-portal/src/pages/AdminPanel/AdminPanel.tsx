@@ -5,7 +5,7 @@ import { Layout } from "@/components/common/Layout";
 import { ApprovalList, RejectModal } from "@/components/admin";
 import { adminService } from "@/services/adminService";
 import apiClient from "@/utils/api";
-import type { TutionClass } from "@/types/index";
+import type { ClassroomRecord, TutionClass } from "@/types/index";
 import ClassroomManagement from "@/pages/ClassroomManagement/ClassroomManagement";
 import "./admin-panel.css";
 
@@ -29,20 +29,40 @@ export const AdminPanel: React.FC = () => {
   const currentTab: TabType = VALID_TABS.includes(tab as TabType) ? (tab as TabType) : "approvals";
   const [error, setError] = useState<string | null>(null);
 
-  // 審批相關狀態
-  const [applications, setApplications] = useState<TutionClass[]>([]);
-  const [appLoading, setAppLoading] = useState(false);
-  const [pendingCount, setPendingCount] = useState(0);
+  // 所有課程（申請中／已開課），審批清單、已開課清單、教室佔用判斷都從這裡衍生
+  const [allClasses, setAllClasses] = useState<TutionClass[]>([]);
+  const [classesLoading, setClassesLoading] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
   const [selectedApp, setSelectedApp] = useState<TutionClass | null>(null);
   const [rejectingId, setRejectingId] = useState<string | null>(null);
 
-  // 已開課相關狀態
-  const [courses, setCourses] = useState<TutionClass[]>([]);
-  const [coursesLoading, setCoursesLoading] = useState(false);
+  // 可用教室清單（用於「指定上課地點」下拉選單）
+  const [classrooms, setClassrooms] = useState<ClassroomRecord[]>([]);
+
   const [endDateDrafts, setEndDateDrafts] = useState<Record<string, string>>({});
   const [savingEndDateId, setSavingEndDateId] = useState<string | null>(null);
+
+  const applications = allClasses.filter(
+    (item) => item.approval_status === "pending" || item.approval_status === "reviewing",
+  );
+  const pendingCount = applications.filter((a) => a.approval_status === "pending").length;
+  const courses = allClasses.filter(
+    (item) =>
+      item.approval_status === "approved" ||
+      item.approval_status === "active" ||
+      item.approval_status === "ended",
+  );
+
+  // 「上課日期＋教室」已被占用的組合（reviewing／approved／active 才算占用，ended 視為已釋出）
+  const occupiedVenueDays = new Set(
+    allClasses
+      .filter(
+        (item) =>
+          ["reviewing", "approved", "active"].includes(item.approval_status) && item.venue,
+      )
+      .map((item) => `${item.day_of_week}|${item.venue}`),
+  );
 
   // 權限檢查：只有 super_admin 才能訪問此頁面
   useEffect(() => {
@@ -51,59 +71,38 @@ export const AdminPanel: React.FC = () => {
     }
   }, [user, navigate]);
 
-  const fetchApplications = async () => {
+  const fetchAllClasses = async () => {
     try {
-      setAppLoading(true);
+      setClassesLoading(true);
       setError(null);
       const response = await apiClient.get("/v1/classes");
-      const apps = ((response.data?.data as TutionClass[]) || []).filter(
-        (item) => item.approval_status === "pending" || item.approval_status === "reviewing",
-      );
-      setApplications(apps);
-      setPendingCount(apps.filter((a) => a.approval_status === "pending").length);
+      setAllClasses((response.data?.data as TutionClass[]) || []);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "載入申請失敗");
-      console.error("Fetch applications error:", err);
+      setError(err instanceof Error ? err.message : "載入課程失敗");
+      console.error("Fetch classes error:", err);
     } finally {
-      setAppLoading(false);
+      setClassesLoading(false);
     }
   };
 
-  // 掛載時抓一次審批清單（同時作為分頁徽章的數量來源）
+  const fetchClassrooms = async () => {
+    try {
+      const response = await apiClient.get("/classrooms?availableOnly=true");
+      if (response.data?.success) {
+        setClassrooms(response.data.data || []);
+      }
+    } catch (err) {
+      console.error("Fetch classrooms error:", err);
+    }
+  };
+
+  // 掛載時抓一次課程清單（同時作為審批分頁徽章、已開課清單、教室占用判斷的資料來源）
   useEffect(() => {
     if (user?.permission !== "super_admin") return;
-    fetchApplications();
+    fetchAllClasses();
+    fetchClassrooms();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.permission]);
-
-  // 載入已開課課程
-  useEffect(() => {
-    if (user?.permission !== "super_admin" || currentTab !== "courses") {
-      return;
-    }
-
-    const fetchCourses = async () => {
-      try {
-        setCoursesLoading(true);
-        setError(null);
-        const response = await apiClient.get("/v1/classes");
-        const list = ((response.data?.data as TutionClass[]) || []).filter(
-          (item) =>
-            item.approval_status === "approved" ||
-            item.approval_status === "active" ||
-            item.approval_status === "ended",
-        );
-        setCourses(list);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "載入課程失敗");
-        console.error("Fetch courses error:", err);
-      } finally {
-        setCoursesLoading(false);
-      }
-    };
-
-    fetchCourses();
-  }, [currentTab, user?.permission]);
 
   // 批准申請
   const handleApprove = async (classId: string) => {
@@ -113,7 +112,7 @@ export const AdminPanel: React.FC = () => {
 
     try {
       await adminService.approveApplication(classId);
-      await fetchApplications();
+      await fetchAllClasses();
       alert("✅ 申請已批准");
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "批准失敗";
@@ -127,7 +126,7 @@ export const AdminPanel: React.FC = () => {
   const handleAssignVenue = async (classId: string, venue: string) => {
     try {
       await adminService.assignVenue(classId, venue);
-      await fetchApplications();
+      await fetchAllClasses();
       alert("✅ 已指定上課地點，申請狀態已轉為審核中");
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "指定地點失敗";
@@ -144,7 +143,7 @@ export const AdminPanel: React.FC = () => {
 
     try {
       await adminService.deleteApplication(classId);
-      await fetchApplications();
+      await fetchAllClasses();
       alert("✅ 申請已刪除");
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "刪除失敗";
@@ -161,7 +160,7 @@ export const AdminPanel: React.FC = () => {
 
     try {
       await adminService.deleteApplication(classId);
-      setCourses((prev) => prev.filter((c) => c.class_id !== classId));
+      await fetchAllClasses();
       alert("✅ 課程已刪除");
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "刪除失敗";
@@ -180,11 +179,8 @@ export const AdminPanel: React.FC = () => {
 
     setSavingEndDateId(classId);
     try {
-      const response = await apiClient.put(`/v1/classes/${classId}`, { end_date: value });
-      const updated = response.data?.data;
-      setCourses((prev) =>
-        prev.map((c) => (c.class_id === classId ? { ...c, end_date: updated?.end_date ?? value } : c))
-      );
+      await apiClient.put(`/v1/classes/${classId}`, { end_date: value });
+      await fetchAllClasses();
       alert("✅ 結束日期已更新");
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : "更新結束日期失敗";
@@ -210,7 +206,7 @@ export const AdminPanel: React.FC = () => {
     try {
       setRejectingId(selectedAppId);
       await adminService.rejectApplication(selectedAppId, reason);
-      await fetchApplications();
+      await fetchAllClasses();
 
       setRejectModalOpen(false);
       setSelectedAppId(null);
@@ -242,12 +238,14 @@ export const AdminPanel: React.FC = () => {
             </h2>
             <ApprovalList
               applications={applications}
+              classrooms={classrooms}
+              occupiedVenueDays={occupiedVenueDays}
               onApprove={handleApprove}
               onReject={handleRejectClick}
               onAssignVenue={handleAssignVenue}
               onDelete={handleDeleteApplication}
-              loading={appLoading}
-              empty={!appLoading && applications.length === 0}
+              loading={classesLoading}
+              empty={!classesLoading && applications.length === 0}
             />
 
             {/* 拒絕彈窗 */}
@@ -272,7 +270,7 @@ export const AdminPanel: React.FC = () => {
         {currentTab === "courses" && (
           <section className="admin-section">
             <h2 className="section-title">已開課管理</h2>
-            {coursesLoading ? (
+            {classesLoading ? (
               <div className="loading-text">載入中...</div>
             ) : courses.length === 0 ? (
               <div className="empty-state">暫無已開課的課程</div>
