@@ -27,14 +27,6 @@ export class ClassroomKVManager {
     const key = `${KV_CONFIG.CLASSROOM_PREFIX}${classroom.classroom_id}`;
     await this.kv.put(key, JSON.stringify(classroom));
 
-    // 更新教室列表索引
-    await this.updateClassroomIndex(classroom.classroom_id, true);
-
-    // 如果可用於補習，更新可用教室列表
-    if (classroom.available_for_tution) {
-      await this.updateAvailableClassroomIndex(classroom.classroom_id, true);
-    }
-
     return classroom;
   }
 
@@ -65,22 +57,7 @@ export class ClassroomKVManager {
    * @returns ClassroomRecord[]
    */
   async listAllClassrooms(filterAvailableOnly: boolean = false): Promise<ClassroomRecord[]> {
-    if (filterAvailableOnly) {
-      // 使用可用教室索引加速查詢
-      const availableIds = await this.getAvailableClassroomIds();
-      const classrooms: ClassroomRecord[] = [];
-      
-      for (const id of availableIds) {
-        const classroom = await this.getClassroom(id);
-        if (classroom) {
-          classrooms.push(classroom);
-        }
-      }
-      
-      return classrooms;
-    }
-
-    // 列出所有教室
+    // 直接掃描全部教室記錄再視需要過濾，避免另外維護一份容易與實際欄位失步的索引
     const classrooms: ClassroomRecord[] = [];
     let cursor: string | undefined;
 
@@ -105,7 +82,9 @@ export class ClassroomKVManager {
       }
     } while (cursor);
 
-    return classrooms;
+    return filterAvailableOnly
+      ? classrooms.filter((c) => c.available_for_tution)
+      : classrooms;
   }
 
   /**
@@ -123,10 +102,6 @@ export class ClassroomKVManager {
       throw new Error(`Classroom not found: ${classroomId}`);
     }
 
-    // 檢查是否改變了 available_for_tution 狀態
-    const wasAvailable = existing.available_for_tution;
-    const newAvailable = updates.available_for_tution ?? wasAvailable;
-
     const updated: ClassroomRecord = {
       ...existing,
       ...updates,
@@ -137,11 +112,6 @@ export class ClassroomKVManager {
     // 儲存更新的資料
     const key = `${KV_CONFIG.CLASSROOM_PREFIX}${classroomId}`;
     await this.kv.put(key, JSON.stringify(updated));
-
-    // 如果 available_for_tution 狀態改變，更新索引
-    if (wasAvailable !== newAvailable) {
-      await this.updateAvailableClassroomIndex(classroomId, newAvailable);
-    }
 
     return updated;
   }
@@ -173,14 +143,6 @@ export class ClassroomKVManager {
     // 刪除教室資料
     const key = `${KV_CONFIG.CLASSROOM_PREFIX}${classroomId}`;
     await this.kv.delete(key);
-
-    // 更新教室列表索引
-    await this.updateClassroomIndex(classroomId, false);
-
-    // 如果在可用教室列表中，也要移除
-    if (existing.available_for_tution) {
-      await this.updateAvailableClassroomIndex(classroomId, false);
-    }
 
     return true;
   }
@@ -252,84 +214,6 @@ export class ClassroomKVManager {
     }
 
     return stats;
-  }
-
-  /**
-   * 更新教室列表索引
-   * @param classroomId 教室 ID
-   * @param add true=添加, false=移除
-   */
-  private async updateClassroomIndex(classroomId: string, add: boolean): Promise<void> {
-    const indexKey = "classrooms:list";
-    const data = await this.kv.get(indexKey);
-    
-    let ids: string[] = [];
-    if (data) {
-      try {
-        ids = JSON.parse(data) as string[];
-      } catch (error) {
-        console.error("Failed to parse classroom index:", error);
-      }
-    }
-
-    if (add) {
-      if (!ids.includes(classroomId)) {
-        ids.push(classroomId);
-      }
-    } else {
-      ids = ids.filter(id => id !== classroomId);
-    }
-
-    await this.kv.put(indexKey, JSON.stringify(ids));
-  }
-
-  /**
-   * 更新可用教室列表索引
-   * @param classroomId 教室 ID
-   * @param add true=添加, false=移除
-   */
-  private async updateAvailableClassroomIndex(classroomId: string, add: boolean): Promise<void> {
-    const indexKey = "classrooms:available";
-    const data = await this.kv.get(indexKey);
-    
-    let ids: string[] = [];
-    if (data) {
-      try {
-        ids = JSON.parse(data) as string[];
-      } catch (error) {
-        console.error("Failed to parse available classroom index:", error);
-      }
-    }
-
-    if (add) {
-      if (!ids.includes(classroomId)) {
-        ids.push(classroomId);
-      }
-    } else {
-      ids = ids.filter(id => id !== classroomId);
-    }
-
-    await this.kv.put(indexKey, JSON.stringify(ids));
-  }
-
-  /**
-   * 取得可用教室 ID 列表
-   * @returns string[]
-   */
-  private async getAvailableClassroomIds(): Promise<string[]> {
-    const indexKey = "classrooms:available";
-    const data = await this.kv.get(indexKey);
-    
-    if (!data) {
-      return [];
-    }
-
-    try {
-      return JSON.parse(data) as string[];
-    } catch (error) {
-      console.error("Failed to parse available classroom index:", error);
-      return [];
-    }
   }
 }
 
