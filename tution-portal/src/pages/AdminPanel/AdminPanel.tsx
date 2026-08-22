@@ -42,6 +42,7 @@ export const AdminPanel: React.FC = () => {
 
   const [endDateDrafts, setEndDateDrafts] = useState<Record<string, string>>({});
   const [savingEndDateId, setSavingEndDateId] = useState<string | null>(null);
+  const [uploadingSignedFormId, setUploadingSignedFormId] = useState<string | null>(null);
 
   const applications = allClasses.filter(
     (item) => item.approval_status === "pending" || item.approval_status === "reviewing",
@@ -190,6 +191,41 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
+  // 上傳已簽核的紙本申請表掃描檔
+  const handleUploadSignedForm = async (classId: string, file: File) => {
+    setUploadingSignedFormId(classId);
+    try {
+      await adminService.uploadSignedForm(classId, file);
+      await fetchAllClasses();
+      alert("✅ 簽核檔已上傳");
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "上傳失敗";
+      alert(`❌ ${errMsg}`);
+      console.error("Upload signed form error:", err);
+    } finally {
+      setUploadingSignedFormId(null);
+    }
+  };
+
+  // 查看已存檔的簽核紙本掃描檔
+  const handleViewSignedForm = async (classId: string) => {
+    // 先開一個空白分頁，避免瀏覽器把非同步觸發的 window.open 當成彈窗封鎖
+    const viewWindow = window.open("", "_blank");
+    try {
+      const blob = await adminService.downloadSignedForm(classId);
+      const url = window.URL.createObjectURL(blob);
+      if (viewWindow) {
+        viewWindow.location.href = url;
+      } else {
+        window.open(url, "_blank");
+      }
+    } catch (err) {
+      viewWindow?.close();
+      alert(`❌ ${err instanceof Error ? err.message : "下載失敗"}`);
+      console.error("View signed form error:", err);
+    }
+  };
+
   // 打開拒絕彈窗
   const handleRejectClick = (classId: string) => {
     const app = applications.find((a) => a.class_id === classId);
@@ -329,6 +365,38 @@ export const AdminPanel: React.FC = () => {
                       >
                         ✓ 點名
                       </button>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        style={{ display: "none" }}
+                        id={`signed-form-input-${course.class_id}`}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadSignedForm(course.class_id, file);
+                          e.target.value = "";
+                        }}
+                      />
+                      <button
+                        className="btn btn-small"
+                        disabled={uploadingSignedFormId === course.class_id}
+                        onClick={() =>
+                          document.getElementById(`signed-form-input-${course.class_id}`)?.click()
+                        }
+                      >
+                        {uploadingSignedFormId === course.class_id
+                          ? "上傳中..."
+                          : course.signed_form_key
+                            ? "🔄 重新上傳簽核檔"
+                            : "📎 上傳簽核檔"}
+                      </button>
+                      {course.signed_form_key && (
+                        <button
+                          className="btn btn-small"
+                          onClick={() => handleViewSignedForm(course.class_id)}
+                        >
+                          📄 查看簽核檔
+                        </button>
+                      )}
                       <button
                         className="btn btn-small btn--danger"
                         onClick={() => handleDeleteCourse(course.class_id)}

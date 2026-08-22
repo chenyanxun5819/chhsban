@@ -111,6 +111,43 @@ export const adminService = {
   },
 
   /**
+   * 上傳已簽核的紙本申請表掃描檔（存檔備份）
+   */
+  async uploadSignedForm(classId: string, file: File): Promise<TutionClass> {
+    try {
+      const response = await apiClient.put<TutionClass>(
+        `/v1/classes/${classId}/signed-form`,
+        file,
+        {
+          headers: {
+            "Content-Type": file.type,
+            "X-Filename": encodeURIComponent(file.name),
+          },
+        }
+      );
+      return response.data!;
+    } catch (error) {
+      console.error("Failed to upload signed form:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 下載已存檔的簽核紙本掃描檔
+   */
+  async downloadSignedForm(classId: string): Promise<Blob> {
+    try {
+      const response = await apiClient.get(`/v1/classes/${classId}/signed-form`, {
+        responseType: "blob",
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Failed to download signed form:", error);
+      throw error;
+    }
+  },
+
+  /**
    * 刪除應用
    */
   async deleteApplication(classId: string): Promise<void> {

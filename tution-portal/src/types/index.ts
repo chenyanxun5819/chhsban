@@ -62,6 +62,9 @@ export interface TutionClass {
   rejection_reason?: string;
   initial_roster?: TutionRosterSnapshot[];
   end_date?: string; // YYYY-MM-DD，課程結束日期，管理員設定；未設定則視為尚未訂結束日
+  signed_form_key?: string; // 已簽核紙本申請表掃描檔在 R2 的物件路徑，有值代表已上傳存檔
+  signed_form_filename?: string;
+  signed_form_uploaded_at?: number;
   created_at: number;
   updated_at: number;
 }
