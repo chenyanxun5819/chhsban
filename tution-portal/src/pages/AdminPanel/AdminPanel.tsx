@@ -122,16 +122,15 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  // 指定上課地點
+  // 確定教室（指定上課地點，狀態轉為審核中）
+  // 成功與否都由 ApprovalRow 就地顯示，這裡不彈窗，失敗時把錯誤往上拋讓呼叫端捕捉
   const handleAssignVenue = async (classId: string, venue: string) => {
     try {
       await adminService.assignVenue(classId, venue);
       await fetchAllClasses();
-      alert("✅ 已指定上課地點，申請狀態已轉為審核中");
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : "指定地點失敗";
-      alert(`❌ ${errMsg}`);
       console.error("Assign venue error:", err);
+      throw err instanceof Error ? err : new Error("確定教室失敗");
     }
   };
 

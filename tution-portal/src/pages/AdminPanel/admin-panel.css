@@ -92,6 +92,12 @@
   color: #6b7280;
 }
 
+.venue-assign__error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #dc2626;
+}
+
 /* 已開課管理 - 課程清單 */
 .course-list {
   display: flex;

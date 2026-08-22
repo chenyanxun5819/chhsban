@@ -56,9 +56,13 @@ const ApprovalRow: React.FC<ApprovalRowProps> = ({
   const [expanded, setExpanded] = useState(false);
   const [venueInput, setVenueInput] = useState(application.venue || "");
   const [assigning, setAssigning] = useState(false);
+  const [venueError, setVenueError] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
 
-  const canDecide = application.approval_status === "pending" || application.approval_status === "reviewing";
+  // 只有「審核中」（已確定教室）才能批准；「拒絕」在待審批／審核中都可以按
+  const canApprove = application.approval_status === "reviewing";
+  const canReject =
+    application.approval_status === "pending" || application.approval_status === "reviewing";
 
   const isVenueOccupied = (classroomName: string) =>
     occupiedVenueDays.has(`${application.day_of_week}|${classroomName}`);
@@ -73,17 +77,21 @@ const ApprovalRow: React.FC<ApprovalRowProps> = ({
   };
 
   const handleAssignVenue = async () => {
+    setVenueError(null);
+
     if (!venueInput.trim()) {
-      alert("請選擇上課地點");
+      setVenueError("請選擇上課地點");
       return;
     }
     if (isVenueOccupied(venueInput.trim())) {
-      alert("這間教室在此上課日期已被其他課程使用，請重新選擇");
+      setVenueError("這間教室在此上課日期已被其他課程使用，請重新選擇");
       return;
     }
     setAssigning(true);
     try {
       await onAssignVenue(application.class_id, venueInput.trim());
+    } catch (err) {
+      setVenueError(err instanceof Error ? err.message : "確定教室失敗");
     } finally {
       setAssigning(false);
     }
@@ -187,13 +195,14 @@ const ApprovalRow: React.FC<ApprovalRowProps> = ({
                   onClick={handleAssignVenue}
                   disabled={assigning}
                 >
-                  {assigning ? "處理中..." : "指定地點"}
+                  {assigning ? "確認中..." : "確定教室"}
                 </button>
               </div>
               <p className="venue-assign__hint">
                 只列出補習選用勾選為可用的教室；{application.day_of_week}
-                已被其他課程使用的教室會反灰無法選取。指定後申請狀態將轉為「審核中」，申請人將無法再編輯此申請。
+                已被其他課程使用的教室會反灰無法選取。確定教室後申請狀態將轉為「審核中」，才能按「批准」，申請人也將無法再編輯此申請。
               </p>
+              {venueError && <p className="venue-assign__error">❌ {venueError}</p>}
             </div>
           )}
 
@@ -205,25 +214,25 @@ const ApprovalRow: React.FC<ApprovalRowProps> = ({
             >
               開啟完整頁面
             </button>
-            {canDecide && (
-              <>
-                <button
-                  type="button"
-                  className="btn btn--danger btn--small"
-                  onClick={() => onReject(application.class_id)}
-                  disabled={approving}
-                >
-                  拒絕
-                </button>
-                <button
-                  type="button"
-                  className="btn btn--primary btn--small"
-                  onClick={handleApprove}
-                  disabled={approving}
-                >
-                  {approving ? "批准中..." : "批准"}
-                </button>
-              </>
+            {canReject && (
+              <button
+                type="button"
+                className="btn btn--danger btn--small"
+                onClick={() => onReject(application.class_id)}
+                disabled={approving}
+              >
+                拒絕
+              </button>
+            )}
+            {canApprove && (
+              <button
+                type="button"
+                className="btn btn--primary btn--small"
+                onClick={handleApprove}
+                disabled={approving}
+              >
+                {approving ? "批准中..." : "批准"}
+              </button>
             )}
             <button
               type="button"
