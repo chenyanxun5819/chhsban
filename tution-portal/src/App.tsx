@@ -11,7 +11,6 @@ import ScheduleManagement from "@/pages/ScheduleManagement/ScheduleManagement";
 import AttendanceSheet from "@/pages/AttendanceSheet/AttendanceSheet";
 import RosterManagementPage from "@/pages/RosterManagement/RosterManagement";
 import AttendanceStatsPage from "@/pages/AttendanceStats/AttendanceStats";
-import PDFDownloadPage from "@/pages/PDFDownload/PDFDownload";
 import ClassroomManagement from "@/pages/ClassroomManagement/ClassroomManagement";
 import { useEffect, useState } from "react";
 import { TutionClass } from "@/types";
@@ -179,14 +178,6 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <AttendanceStatsPage />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/classes/:id/pdf"
-        element={
-          <ProtectedRoute>
-            <PDFDownloadPage />
           </ProtectedRoute>
         }
       />

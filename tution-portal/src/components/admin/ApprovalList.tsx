@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from "react";
 import type { ClassroomRecord, TutionClass } from "@/types/index";
+import { adminService } from "@/services/adminService";
 import "./admin.css";
 
 interface ApprovalListProps {
@@ -58,6 +59,8 @@ const ApprovalRow: React.FC<ApprovalRowProps> = ({
   const [assigning, setAssigning] = useState(false);
   const [venueError, setVenueError] = useState<string | null>(null);
   const [approving, setApproving] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
 
   // 只有「審核中」（已確定教室）才能批准；「拒絕」在待審批／審核中都可以按
   const canApprove = application.approval_status === "reviewing";
@@ -73,6 +76,27 @@ const ApprovalRow: React.FC<ApprovalRowProps> = ({
       await onApprove(application.class_id);
     } finally {
       setApproving(false);
+    }
+  };
+
+  const handlePrintApplication = async () => {
+    setPrintError(null);
+    // 先開一個空白分頁，避免瀏覽器把非同步觸發的 window.open 當成彈窗封鎖
+    const printWindow = window.open("", "_blank");
+    setPrinting(true);
+    try {
+      const blob = await adminService.downloadApplicationPdf(application.class_id);
+      const url = window.URL.createObjectURL(blob);
+      if (printWindow) {
+        printWindow.location.href = url;
+      } else {
+        window.open(url, "_blank");
+      }
+    } catch (err) {
+      printWindow?.close();
+      setPrintError(err instanceof Error ? err.message : "申請表產生失敗");
+    } finally {
+      setPrinting(false);
     }
   };
 
@@ -206,6 +230,15 @@ const ApprovalRow: React.FC<ApprovalRowProps> = ({
             </div>
           )}
 
+          {application.approval_status === "reviewing" && (
+            <div className="venue-assign">
+              <p className="venue-assign__hint">
+                教室已確定。請先列印申請表交付上級簽核，簽核通過後才按「批准」。
+              </p>
+              {printError && <p className="venue-assign__error">❌ {printError}</p>}
+            </div>
+          )}
+
           <div className="application-detail-actions">
             <button
               type="button"
@@ -214,6 +247,16 @@ const ApprovalRow: React.FC<ApprovalRowProps> = ({
             >
               開啟完整頁面
             </button>
+            {application.approval_status === "reviewing" && (
+              <button
+                type="button"
+                className="btn btn--secondary btn--small"
+                onClick={handlePrintApplication}
+                disabled={printing}
+              >
+                {printing ? "產生中..." : "🖨️ 列印申請表"}
+              </button>
+            )}
             {canReject && (
               <button
                 type="button"

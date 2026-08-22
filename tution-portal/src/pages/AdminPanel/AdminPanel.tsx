@@ -330,12 +330,6 @@ export const AdminPanel: React.FC = () => {
                         ✓ 點名
                       </button>
                       <button
-                        className="btn btn-small"
-                        onClick={() => navigate(`/classes/${course.class_id}/pdf`)}
-                      >
-                        📄 PDF
-                      </button>
-                      <button
                         className="btn btn-small btn--danger"
                         onClick={() => handleDeleteCourse(course.class_id)}
                       >
