@@ -33,6 +33,7 @@ interface Env {
   TUTION_ATTENDANCE_KV: KVNamespace;
   TUTION_SCHEDULE_KV: KVNamespace;
   CLASSROOM_KV: KVNamespace;
+  ASSETS_KV: KVNamespace;
   GOOGLE_SHEETS_API_KEY?: string;
   GOOGLE_SHEETS_SPREADSHEET_ID: string;
   GOOGLE_SHEETS_SHEET_CLASSES: string;
@@ -920,7 +921,7 @@ async function handleClasses(
       return jsonResponse({ success: true }, 200);
     }
 
-    // GET /api/v1/classes/{classId}/pdf - 生成 PDF
+    // GET /api/v1/classes/{classId}/pdf - 套印申請表 PDF（供審核中階段列印紙本用）
     if (method === "GET" && classId && subAction === "pdf") {
       const tutionClass = await kvService.getClass(classId);
 
@@ -937,7 +938,8 @@ async function handleClasses(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      return generatePDFResponse(tutionClass);
+      const hydratedClass = await buildClassResponse(env, kvService, tutionClass);
+      return generatePDFResponse(hydratedClass, env.ASSETS_KV);
     }
 
     // GET /api/v1/classes?teacher={teacherId} - 列表查詢
