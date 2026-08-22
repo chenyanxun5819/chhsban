@@ -23,6 +23,7 @@ import { KV_NAMESPACES } from "@chhsban/cloudflare-config";
 import { TutionSheetsSync } from "./sheets-sync";
 import { TutionKVService } from "./tution-service";
 import { generatePDFResponse } from "./pdf-generator";
+import { buildSignedFormKey, getSignedFormResponse, isAllowedContentType } from "./signed-form";
 
 interface Env {
   STUDENT_KV: KVNamespace;
@@ -34,6 +35,7 @@ interface Env {
   TUTION_SCHEDULE_KV: KVNamespace;
   CLASSROOM_KV: KVNamespace;
   ASSETS_KV: KVNamespace;
+  SIGNED_FORMS_BUCKET: R2Bucket;
   GOOGLE_SHEETS_API_KEY?: string;
   GOOGLE_SHEETS_SPREADSHEET_ID: string;
   GOOGLE_SHEETS_SHEET_CLASSES: string;
@@ -940,6 +942,67 @@ async function handleClasses(
 
       const hydratedClass = await buildClassResponse(env, kvService, tutionClass);
       return generatePDFResponse(hydratedClass, env.ASSETS_KV);
+    }
+
+    // PUT /api/v1/classes/{classId}/signed-form - 上傳已簽核紙本申請表掃描檔（存檔備份）
+    if (method === "PUT" && classId && subAction === "signed-form") {
+      if (session.permission !== "admin" && session.permission !== "super_admin") {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const tutionClass = await kvService.getClass(classId);
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+
+      const contentType = request.headers.get("Content-Type") || "";
+      if (!isAllowedContentType(contentType)) {
+        return jsonResponse(
+          { error: "Unsupported file type. Only PDF, JPEG, PNG are accepted." },
+          400,
+        );
+      }
+      if (!request.body) {
+        return jsonResponse({ error: "Missing file body" }, 400);
+      }
+
+      const filename = decodeURIComponent(request.headers.get("X-Filename") || "");
+      const key = buildSignedFormKey(classId, tutionClass.created_at, contentType);
+
+      await env.SIGNED_FORMS_BUCKET.put(key, request.body, {
+        httpMetadata: { contentType },
+      });
+
+      const updated = await kvService.updateClass(classId, {
+        signed_form_key: key,
+        signed_form_filename: filename || undefined,
+        signed_form_content_type: contentType,
+        signed_form_uploaded_at: Date.now(),
+        signed_form_uploaded_by: session.teacher_id,
+      } as any);
+
+      return jsonResponse({ data: updated }, 200);
+    }
+
+    // GET /api/v1/classes/{classId}/signed-form - 下載已存檔的簽核紙本掃描檔
+    if (method === "GET" && classId && subAction === "signed-form") {
+      if (session.permission !== "admin" && session.permission !== "super_admin") {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const tutionClass = (await kvService.getClass(classId)) as any;
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+      if (!tutionClass.signed_form_key) {
+        return jsonResponse({ error: "No signed form uploaded for this class" }, 404);
+      }
+
+      return getSignedFormResponse(
+        env.SIGNED_FORMS_BUCKET,
+        tutionClass.signed_form_key,
+        tutionClass.signed_form_filename,
+      );
     }
 
     // GET /api/v1/classes?teacher={teacherId} - 列表查詢
