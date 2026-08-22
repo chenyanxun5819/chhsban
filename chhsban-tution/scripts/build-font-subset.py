@@ -14,8 +14,15 @@
   之後在 pdf-generator.ts 用 embedFont(bytes, { subset: false }) 整份嵌入，
   不要再讓 fontkit 二次子集化。
 
-字元涵蓋範圍：Big5 可解碼的全部字元（約 13800 字，涵蓋繁體中文姓名/常用字），
-足以覆蓋教師姓名、科目、學生姓名等動態內容。
+字元涵蓋範圍：Unicode CJK Unified Ideographs（U+4E00–U+9FFF）+ Extension A
+（U+3400–U+4DBF），約 27500 字，同時涵蓋簡體/繁體及罕用姓氏字。
+
+⚠️ 教訓：第一版曾用「Big5 可解碼字元」當作字元集，結果實際套印時大量學生
+姓名的中文字被跳過不畫（靜默漏字，不會報錯）。原因是 Template_tution.pdf
+本身的說明文字是簡體中文（芙蓉中華中學這邊學校文件用簡體），但 Big5 是
+繁體中文標準字集，很多簡體字根本不在 Big5 範圍內，導致字型子集缺字。
+改用 Unicode 區塊直接涵蓋，不透過任何舊編碼標準的可解碼性判斷，才能同時
+涵蓋簡體、繁體、罕用字。
 
 用法：
   1. 安裝套件： pip install fonttools
@@ -37,14 +44,12 @@ ROOT = Path(__file__).resolve().parent.parent
 
 def build_charset() -> str:
     chars = set()
-    for lead in range(0xA1, 0xFA):
-        for trail in list(range(0x40, 0x7F)) + list(range(0xA1, 0xFF)):
-            try:
-                ch = bytes([lead, trail]).decode("big5")
-                if ch.isprintable():
-                    chars.add(ch)
-            except Exception:
-                pass
+    # CJK Unified Ideographs + Extension A：直接用 Unicode 區塊涵蓋簡繁與罕用字，
+    # 不透過任何舊編碼標準（Big5／GBK...）的可解碼性判斷，避免遺漏。
+    for cp in range(0x4E00, 0x9FFF + 1):
+        chars.add(chr(cp))
+    for cp in range(0x3400, 0x4DBF + 1):
+        chars.add(chr(cp))
     for cp in range(0x20, 0x7F):
         chars.add(chr(cp))
     chars.update("－、。，：；！？「」『』（）【】《》…—·・")
@@ -87,7 +92,8 @@ def main():
     )
 
     charset_path.unlink(missing_ok=True)
-    print(f"已產生 {output_path}（{output_path.stat().st_size / 1024 / 1024:.2f} MB）")
+    size_mb = output_path.stat().st_size / 1024 / 1024
+    print(f"done: {output_path} ({size_mb:.2f} MB)")
 
 
 if __name__ == "__main__":

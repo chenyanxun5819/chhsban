@@ -25,6 +25,9 @@ interface RosterEntryForPdf {
   student_id?: string;
   name_cn?: string;
   name_en?: string;
+  real_class_name?: string;
+  input_class_name?: string;
+  gender_boarding?: string;
 }
 
 export interface TutionClassForPdf {
@@ -90,15 +93,17 @@ function drawRoster(
   font: import("pdf-lib").PDFFont,
   roster: RosterEntryForPdf[],
 ) {
-  const headerFontSize = 8.5;
-  const rowFontSize = 8;
+  const headerFontSize = 8;
+  const rowFontSize = 7.5;
   const rowHeight = 12.5;
-  const gap = 10;
+  const gap = 8;
   const colWidth = (ROSTER_BOX.right - ROSTER_BOX.left - gap) / 2;
 
+  // 各欄位相對於該欄位群組起點（x0）的偏移量
+  const FIELD_OFFSETS = { no: 0, sid: 19, nameCn: 48, nameEn: 88, className: 168, boarding: 198 };
   const columns = [
-    { x0: ROSTER_BOX.left, no: 0, sid: 20, nameCn: 65, nameEn: 140 },
-    { x0: ROSTER_BOX.left + colWidth + gap, no: 0, sid: 20, nameCn: 65, nameEn: 140 },
+    { x0: ROSTER_BOX.left },
+    { x0: ROSTER_BOX.left + colWidth + gap },
   ];
 
   const headerTop = ROSTER_BOX.top + 4;
@@ -106,10 +111,12 @@ function drawRoster(
   const gray = rgb(0.35, 0.35, 0.35);
 
   for (const col of columns) {
-    page.drawText("編號", { x: col.x0 + col.no, y: headerY, size: headerFontSize, font, color: gray });
-    page.drawText("學號", { x: col.x0 + col.sid, y: headerY, size: headerFontSize, font, color: gray });
-    page.drawText("中文姓名", { x: col.x0 + col.nameCn, y: headerY, size: headerFontSize, font, color: gray });
-    page.drawText("英文姓名", { x: col.x0 + col.nameEn, y: headerY, size: headerFontSize, font, color: gray });
+    page.drawText("編號", { x: col.x0 + FIELD_OFFSETS.no, y: headerY, size: headerFontSize, font, color: gray });
+    page.drawText("學號", { x: col.x0 + FIELD_OFFSETS.sid, y: headerY, size: headerFontSize, font, color: gray });
+    page.drawText("中文姓名", { x: col.x0 + FIELD_OFFSETS.nameCn, y: headerY, size: headerFontSize, font, color: gray });
+    page.drawText("英文姓名", { x: col.x0 + FIELD_OFFSETS.nameEn, y: headerY, size: headerFontSize, font, color: gray });
+    page.drawText("班級", { x: col.x0 + FIELD_OFFSETS.className, y: headerY, size: headerFontSize, font, color: gray });
+    page.drawText("走/宿", { x: col.x0 + FIELD_OFFSETS.boarding, y: headerY, size: headerFontSize, font, color: gray });
   }
 
   const rowsPerCol = Math.ceil(roster.length / 2);
@@ -124,17 +131,26 @@ function drawRoster(
     const col = columns[colIndex];
     const rowTop = headerTop + 16 + rowIndex * rowHeight;
     const y = PAGE_HEIGHT - (rowTop + rowFontSize * 0.8);
+    const className = student.real_class_name || student.input_class_name || "";
 
-    page.drawText(String(index + 1), { x: col.x0 + col.no, y, size: rowFontSize, font, color: black });
+    page.drawText(String(index + 1), { x: col.x0 + FIELD_OFFSETS.no, y, size: rowFontSize, font, color: black });
     page.drawText(student.student_no || student.student_id || "", {
-      x: col.x0 + col.sid,
+      x: col.x0 + FIELD_OFFSETS.sid,
       y,
       size: rowFontSize,
       font,
       color: black,
     });
-    page.drawText(student.name_cn || "", { x: col.x0 + col.nameCn, y, size: rowFontSize, font, color: black });
-    page.drawText(student.name_en || "", { x: col.x0 + col.nameEn, y, size: rowFontSize, font, color: black });
+    page.drawText(student.name_cn || "", { x: col.x0 + FIELD_OFFSETS.nameCn, y, size: rowFontSize, font, color: black });
+    page.drawText(student.name_en || "", { x: col.x0 + FIELD_OFFSETS.nameEn, y, size: rowFontSize, font, color: black });
+    page.drawText(className, { x: col.x0 + FIELD_OFFSETS.className, y, size: rowFontSize, font, color: black });
+    page.drawText(student.gender_boarding || "", {
+      x: col.x0 + FIELD_OFFSETS.boarding,
+      y,
+      size: rowFontSize,
+      font,
+      color: black,
+    });
   });
 }
 
