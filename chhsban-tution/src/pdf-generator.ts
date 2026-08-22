@@ -184,6 +184,15 @@ export async function fillTutionPDF(
   return pdfDoc.save();
 }
 
+// 與 index.ts 的 getCorsHeaders() 保持一致——這支 Response 是自己組的，
+// 不會經過 jsonResponse()，必須自己補上 CORS 標頭，否則瀏覽器會擋下這個
+// 跨網域回應（即使伺服器端是 200 成功，前端也讀不到內容）。
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
+};
+
 /**
  * 生成 PDF 並回傳為下載用的 Response
  */
@@ -197,6 +206,7 @@ export async function generatePDFResponse(
     return new Response(pdfBytes, {
       status: 200,
       headers: {
+        ...CORS_HEADERS,
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="application_${tutionClass.application_no || tutionClass.class_id}.pdf"`,
         "Content-Length": String(pdfBytes.length),
@@ -211,7 +221,7 @@ export async function generatePDFResponse(
       }),
       {
         status: 500,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...CORS_HEADERS, "Content-Type": "application/json" },
       },
     );
   }
