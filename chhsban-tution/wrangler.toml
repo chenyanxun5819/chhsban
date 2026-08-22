@@ -53,10 +53,11 @@ GOOGLE_SHEETS_SHEET_ROSTER = "Roster"
 GOOGLE_SHEETS_SHEET_ATTENDANCE = "Attendance"
 
 # 生產環境配置
+# 註：曾規劃掛在自訂網域 api.chhsban.tution.mybazaar.my，但 mybazaar.my 的
+# nameserver 從未指向 Cloudflare（該網域仍在使用中的網站+Google Workspace 信箱，
+# 且子網域委派需要企業方案才能自助設定），此路由設定從未真正生效過。
+# 正式環境實際使用的是 Workers 預設網址 tution-system.astcws.workers.dev。
 [env.production]
-routes = [
-  { pattern = "api.chhsban.tution.mybazaar.my/*", zone_name = "mybazaar.my" }
-]
 
 # KV 綁定配置（生產環境）
 [[env.production.kv_namespaces]]
