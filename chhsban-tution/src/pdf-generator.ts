@@ -225,6 +225,20 @@ export async function fillTutionPDF(
     });
   }
 
+  // 申請編號印在右上角空白處，方便日後整理排序
+  if (tutionClass.application_no) {
+    const label = `申請編號：${tutionClass.application_no}`;
+    const labelFontSize = 9;
+    const textWidth = font.widthOfTextAtSize(label, labelFontSize);
+    page.drawText(label, {
+      x: 584 - textWidth,
+      y: PAGE_HEIGHT - (12 + labelFontSize * 0.8),
+      size: labelFontSize,
+      font,
+      color: black,
+    });
+  }
+
   drawRoster(page, font, tutionClass.initial_roster || []);
 
   return pdfDoc.save();
