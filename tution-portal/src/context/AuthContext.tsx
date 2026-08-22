@@ -13,7 +13,7 @@ const initialState: AuthState = {
   user: null,
   token: null,
   isAuthenticated: false,
-  isLoading: false,
+  isLoading: true,
   error: null,
 };
 
@@ -77,7 +77,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       } catch (error) {
         console.error("Failed to restore session:", error);
         clearSession();
+        dispatch({ type: "SET_LOADING", payload: false });
       }
+    } else {
+      dispatch({ type: "SET_LOADING", payload: false });
     }
   }, []);
 
