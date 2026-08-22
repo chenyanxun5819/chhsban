@@ -33,6 +33,7 @@ interface RosterEntryForPdf {
 export interface TutionClassForPdf {
   class_id: string;
   application_no?: string;
+  teacher_id?: string;
   teacher_name_cn?: string;
   form?: string;
   subject?: string;
@@ -88,6 +89,12 @@ function base64ToBytes(base64: string): Uint8Array {
   return bytes;
 }
 
+const BOARDING_CODES = ["L", "LH", "P", "PH", "-"];
+
+function truncate(text: string, maxLen: number): string {
+  return text.length > maxLen ? `${text.slice(0, maxLen)}...` : text;
+}
+
 function drawRoster(
   page: import("pdf-lib").PDFPage,
   font: import("pdf-lib").PDFFont,
@@ -106,9 +113,25 @@ function drawRoster(
     { x0: ROSTER_BOX.left + colWidth + gap },
   ];
 
-  const headerTop = ROSTER_BOX.top + 4;
-  const headerY = PAGE_HEIGHT - (headerTop + headerFontSize * 0.8);
   const gray = rgb(0.35, 0.35, 0.35);
+  const black = rgb(0, 0, 0);
+
+  // 最上層：走/宿各代碼統計數值及總數
+  const statsTop = ROSTER_BOX.top + 4;
+  const statsY = PAGE_HEIGHT - (statsTop + headerFontSize * 0.8);
+  const counts: Record<string, number> = {};
+  for (const code of BOARDING_CODES) counts[code] = 0;
+  for (const student of roster) {
+    const code = (student.gender_boarding || "").trim();
+    if (code in counts) counts[code] += 1;
+  }
+  const statsText =
+    BOARDING_CODES.map((code) => `${code} ${counts[code]}`).join("　") + `　｜　總人數 ${roster.length}`;
+  page.drawText(statsText, { x: ROSTER_BOX.left, y: statsY, size: headerFontSize, font, color: black });
+
+  // 欄位標題往下移 2 行，讓出上面的統計列空間
+  const headerTop = statsTop + 2 * rowHeight;
+  const headerY = PAGE_HEIGHT - (headerTop + headerFontSize * 0.8);
 
   for (const col of columns) {
     page.drawText("編號", { x: col.x0 + FIELD_OFFSETS.no, y: headerY, size: headerFontSize, font, color: gray });
@@ -121,7 +144,6 @@ function drawRoster(
 
   const rowsPerCol = Math.ceil(roster.length / 2);
   const maxRowsPerCol = Math.floor((ROSTER_BOX.bottom - headerTop - 16) / rowHeight);
-  const black = rgb(0, 0, 0);
 
   roster.forEach((student, index) => {
     const colIndex = Math.floor(index / rowsPerCol);
@@ -142,7 +164,13 @@ function drawRoster(
       color: black,
     });
     page.drawText(student.name_cn || "", { x: col.x0 + FIELD_OFFSETS.nameCn, y, size: rowFontSize, font, color: black });
-    page.drawText(student.name_en || "", { x: col.x0 + FIELD_OFFSETS.nameEn, y, size: rowFontSize, font, color: black });
+    page.drawText(truncate(student.name_en || "", 15), {
+      x: col.x0 + FIELD_OFFSETS.nameEn,
+      y,
+      size: rowFontSize,
+      font,
+      color: black,
+    });
     page.drawText(className, { x: col.x0 + FIELD_OFFSETS.className, y, size: rowFontSize, font, color: black });
     page.drawText(student.gender_boarding || "", {
       x: col.x0 + FIELD_OFFSETS.boarding,
@@ -174,7 +202,9 @@ export async function fillTutionPDF(
   const black = rgb(0, 0, 0);
 
   const values: Record<string, string> = {
-    teacher_name_cn: tutionClass.teacher_name_cn || "",
+    teacher_name_cn: tutionClass.teacher_id
+      ? `${tutionClass.teacher_name_cn || ""}（${tutionClass.teacher_id}）`
+      : tutionClass.teacher_name_cn || "",
     form: tutionClass.form || "",
     subject: tutionClass.subject || "",
     day_of_week: tutionClass.day_of_week || "",
