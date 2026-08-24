@@ -57,12 +57,13 @@ function sortCourses(courses: TutionClass[], sortKey: CourseSortKey): TutionClas
 }
 
 function exportCoursesToXLSX(courses: TutionClass[]): void {
-  const headers = ["編號", "申請人", "課程名稱", "上課日", "教室"];
+  const headers = ["編號", "申請人", "科目", "年級", "上課日", "教室"];
   const rows = courses.map((c) => [
     c.application_no || "",
     c.teacher_name_cn,
-    `${c.subject}（${c.form}）`,
-    `${c.day_of_week} ${c.time_start}-${c.time_end}`,
+    c.subject,
+    c.form,
+    c.day_of_week,
     c.venue || "",
   ]);
   const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
