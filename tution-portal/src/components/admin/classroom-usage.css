@@ -158,6 +158,21 @@
   color: #6b7280;
 }
 
+.usage-overview__desks {
+  font-weight: 400;
+  font-size: 11px;
+  color: #d1d5db;
+}
+
+.usage-cell {
+  padding: 4px 6px;
+  border-radius: 6px;
+}
+
+.usage-cell + .usage-cell {
+  margin-top: 6px;
+}
+
 .usage-cell__subject {
   font-weight: 600;
   color: #111827;
@@ -166,4 +181,34 @@
 .usage-cell__teacher {
   color: #6b7280;
   font-size: 12px;
+}
+
+/* 已調走／停課的原課程：反灰顯示，這格教室其實是空的 */
+.usage-cell--faded {
+  background-color: #f3f4f6;
+  opacity: 0.7;
+}
+
+.usage-cell--faded .usage-cell__subject,
+.usage-cell--faded .usage-cell__teacher {
+  color: #9ca3af;
+}
+
+.usage-cell__note {
+  font-size: 11px;
+  color: #9ca3af;
+  font-style: italic;
+}
+
+/* 調課調入的課程：亮綠色標示 */
+.usage-cell--rescheduled {
+  background-color: #4ade80;
+}
+
+.usage-cell--rescheduled .usage-cell__subject {
+  color: #052e16;
+}
+
+.usage-cell--rescheduled .usage-cell__teacher {
+  color: #14532d;
 }

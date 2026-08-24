@@ -62,6 +62,15 @@ interface CellEntry {
   subject: string;
   form: string;
   teacher_name_cn: string;
+  kind: "regular" | "rescheduled-in";
+}
+
+interface FadedEntry {
+  class_id: string;
+  subject: string;
+  form: string;
+  teacher_name_cn: string;
+  note: string; // 例如「已調至 8/9/2026」或「已停課」
 }
 
 interface UnassignedEntry {
@@ -116,17 +125,20 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
 
   const dates = useMemo(() => generateWeekdayDates(fromDate, toDate), [fromDate, toDate]);
 
-  // 每個日期 -> 每個教室名稱 -> 佔用該格的課程；以及尚未指定教室的調課清單（依日期排序的一維陣列）
-  const { occupancyByDate, unassignedList } = useMemo(() => {
+  // 每個日期 -> 每個教室名稱 -> 目前實際佔用該格的課程（判斷空閒／衝堂用這份）
+  // 另外還有：已調走／停課的原課程（反灰顯示用，不算佔用），以及尚未指定教室的調課清單
+  const { occupancyByDate, fadedByDate, unassignedList } = useMemo(() => {
     const classById = new Map(classes.map((c) => [c.class_id, c]));
     const occupancy: Record<string, Record<string, CellEntry>> = {};
+    const faded: Record<string, Record<string, FadedEntry>> = {};
     const unassigned: UnassignedEntry[] = [];
 
     for (const date of dates) {
       occupancy[date] = {};
+      faded[date] = {};
       const dayName = getDayOfWeekFromDate(date);
 
-      // 1. 規律上課：day_of_week 相符，且當天沒有停課／調走的例外記錄
+      // 1. 規律上課：day_of_week 相符
       for (const cls of classes) {
         if (!OCCUPYING_STATUSES.includes(cls.approval_status)) continue;
         if (cls.day_of_week !== dayName) continue;
@@ -135,16 +147,35 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
         const exception = schedules.find(
           (s) => s.class_id === cls.class_id && s.scheduled_date === date
         );
-        if (exception && (exception.status === "cancelled" || exception.status === "rescheduled")) {
-          continue; // 當天停課，或調到別天了
-        }
 
-        occupancy[date][cls.venue] = {
-          class_id: cls.class_id,
-          subject: cls.subject,
-          form: cls.form,
-          teacher_name_cn: cls.teacher_name_cn,
-        };
+        if (!exception) {
+          // 正常上課
+          occupancy[date][cls.venue] = {
+            class_id: cls.class_id,
+            subject: cls.subject,
+            form: cls.form,
+            teacher_name_cn: cls.teacher_name_cn,
+            kind: "regular",
+          };
+        } else if (exception.status === "cancelled") {
+          // 當天停課：反灰顯示，這格教室視為空的
+          faded[date][cls.venue] = {
+            class_id: cls.class_id,
+            subject: cls.subject,
+            form: cls.form,
+            teacher_name_cn: cls.teacher_name_cn,
+            note: "已停課",
+          };
+        } else if (exception.status === "rescheduled" && exception.rescheduled_to) {
+          // 調到別天了：反灰並註記調到哪一天，這格教室視為空的
+          faded[date][cls.venue] = {
+            class_id: cls.class_id,
+            subject: cls.subject,
+            form: cls.form,
+            teacher_name_cn: cls.teacher_name_cn,
+            note: `已調至 ${formatDateMain(exception.rescheduled_to)}`,
+          };
+        }
       }
 
       // 2. 調課調入：rescheduled_to 命中這一天
@@ -159,6 +190,7 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
             subject: cls.subject,
             form: cls.form,
             teacher_name_cn: cls.teacher_name_cn,
+            kind: "rescheduled-in",
           };
         } else {
           unassigned.push({ date, schedule, cls });
@@ -168,9 +200,10 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
 
     unassigned.sort((a, b) => a.date.localeCompare(b.date));
 
-    return { occupancyByDate: occupancy, unassignedList: unassigned };
+    return { occupancyByDate: occupancy, fadedByDate: faded, unassignedList: unassigned };
   }, [classes, schedules, dates]);
 
+  // 空不空只看「目前實際佔用」，原課程調走／停課後反灰顯示的那格不算佔用
   const isVenueFreeOnDate = (date: string, classroomName: string) =>
     !occupancyByDate[date]?.[classroomName];
 
@@ -231,7 +264,12 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
                   <tr>
                     <th className="usage-overview__date-col">日期</th>
                     {groupClassrooms.map((classroom) => (
-                      <th key={classroom.classroom_id}>{classroom.classroom_name}</th>
+                      <th key={classroom.classroom_id}>
+                        <div>{classroom.classroom_name}</div>
+                        <div className="usage-overview__desks">
+                          ({classroom.number_of_desks}桌)
+                        </div>
+                      </th>
                     ))}
                   </tr>
                 </thead>
@@ -244,10 +282,27 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
                       </td>
                       {groupClassrooms.map((classroom) => {
                         const entry = occupancyByDate[date]?.[classroom.classroom_name];
+                        const fadedEntry = fadedByDate[date]?.[classroom.classroom_name];
                         return (
                           <td key={classroom.classroom_id}>
+                            {fadedEntry && (
+                              <div className="usage-cell usage-cell--faded">
+                                <div className="usage-cell__subject">
+                                  {fadedEntry.form}
+                                  {fadedEntry.subject}
+                                </div>
+                                <div className="usage-cell__teacher">
+                                  （{fadedEntry.teacher_name_cn}）
+                                </div>
+                                <div className="usage-cell__note">{fadedEntry.note}</div>
+                              </div>
+                            )}
                             {entry && (
-                              <div className="usage-cell">
+                              <div
+                                className={`usage-cell ${
+                                  entry.kind === "rescheduled-in" ? "usage-cell--rescheduled" : ""
+                                }`}
+                              >
                                 <div className="usage-cell__subject">
                                   {entry.form}
                                   {entry.subject}
