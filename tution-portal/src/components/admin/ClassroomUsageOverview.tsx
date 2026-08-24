@@ -47,10 +47,14 @@ function generateWeekdayDates(fromDate: string, toDate: string): string[] {
   return dates;
 }
 
-function formatDateLabel(dateStr: string): string {
+function formatDateMain(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
+  return `${d}/${m}/${y}`;
+}
+
+function formatDateWeekday(dateStr: string): string {
   const dayName = getDayOfWeekFromDate(dateStr);
-  return `${d}/${m}/${y}(${WEEKDAY_SHORT[dayName] || dayName})`;
+  return `(${WEEKDAY_SHORT[dayName] || dayName})`;
 }
 
 interface CellEntry {
@@ -61,6 +65,7 @@ interface CellEntry {
 }
 
 interface UnassignedEntry {
+  date: string;
   schedule: TutionSchedule;
   cls: TutionClass;
 }
@@ -98,18 +103,27 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
     [classrooms]
   );
 
+  // 教室編號前兩碼相同的分成一組，各自一張表，避免單一表格橫向過長
+  const classroomGroups = useMemo(() => {
+    const map = new Map<string, ClassroomRecord[]>();
+    for (const classroom of sortedClassrooms) {
+      const prefix = classroom.classroom_id.slice(0, 2);
+      if (!map.has(prefix)) map.set(prefix, []);
+      map.get(prefix)!.push(classroom);
+    }
+    return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+  }, [sortedClassrooms]);
+
   const dates = useMemo(() => generateWeekdayDates(fromDate, toDate), [fromDate, toDate]);
 
-  // 每個日期 -> 每個教室名稱 -> 佔用該格的課程；以及每個日期 -> 尚未指定教室的調課清單
-  const { occupancyByDate, unassignedByDate } = useMemo(() => {
+  // 每個日期 -> 每個教室名稱 -> 佔用該格的課程；以及尚未指定教室的調課清單（依日期排序的一維陣列）
+  const { occupancyByDate, unassignedList } = useMemo(() => {
     const classById = new Map(classes.map((c) => [c.class_id, c]));
     const occupancy: Record<string, Record<string, CellEntry>> = {};
-    const unassigned: Record<string, UnassignedEntry[]> = {};
+    const unassigned: UnassignedEntry[] = [];
 
     for (const date of dates) {
       occupancy[date] = {};
-      unassigned[date] = [];
-
       const dayName = getDayOfWeekFromDate(date);
 
       // 1. 規律上課：day_of_week 相符，且當天沒有停課／調走的例外記錄
@@ -139,22 +153,22 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
         const cls = classById.get(schedule.class_id);
         if (!cls || !OCCUPYING_STATUSES.includes(cls.approval_status)) continue;
 
-        const entry: CellEntry = {
-          class_id: cls.class_id,
-          subject: cls.subject,
-          form: cls.form,
-          teacher_name_cn: cls.teacher_name_cn,
-        };
-
         if (schedule.rescheduled_venue) {
-          occupancy[date][schedule.rescheduled_venue] = entry;
+          occupancy[date][schedule.rescheduled_venue] = {
+            class_id: cls.class_id,
+            subject: cls.subject,
+            form: cls.form,
+            teacher_name_cn: cls.teacher_name_cn,
+          };
         } else {
-          unassigned[date].push({ schedule, cls });
+          unassigned.push({ date, schedule, cls });
         }
       }
     }
 
-    return { occupancyByDate: occupancy, unassignedByDate: unassigned };
+    unassigned.sort((a, b) => a.date.localeCompare(b.date));
+
+    return { occupancyByDate: occupancy, unassignedList: unassigned };
   }, [classes, schedules, dates]);
 
   const isVenueFreeOnDate = (date: string, classroomName: string) =>
@@ -184,61 +198,75 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
 
       {error && <div className="usage-overview__error">❌ {error}</div>}
 
+      {/* 待指定教室（調課）：放在頁面最上方，不放進表格裡 */}
+      {unassignedList.length > 0 && (
+        <div className="unassigned-section">
+          <h3 className="unassigned-section__title">⚠️ 待指定教室（調課）</h3>
+          {unassignedList.map(({ date, schedule, cls }) => (
+            <UnassignedRescheduleRow
+              key={schedule.schedule_id}
+              date={date}
+              cls={cls}
+              classrooms={sortedClassrooms}
+              isVenueFree={(classroomName) => isVenueFreeOnDate(date, classroomName)}
+              onAssign={(venue) => handleAssignRescheduleVenue(schedule.schedule_id, venue)}
+            />
+          ))}
+        </div>
+      )}
+
       {loading ? (
         <div className="loading-text">載入中...</div>
       ) : dates.length === 0 ? (
         <div className="empty-state">請選擇有效的日期範圍</div>
       ) : (
-        <div className="usage-overview__table-container">
-          <table className="usage-overview__table">
-            <thead>
-              <tr>
-                <th className="usage-overview__date-col">日期</th>
-                {sortedClassrooms.map((classroom) => (
-                  <th key={classroom.classroom_id}>{classroom.classroom_name}</th>
-                ))}
-                <th>待指定教室（調課）</th>
-              </tr>
-            </thead>
-            <tbody>
-              {dates.map((date) => (
-                <tr key={date}>
-                  <td className="usage-overview__date-col">{formatDateLabel(date)}</td>
-                  {sortedClassrooms.map((classroom) => {
-                    const entry = occupancyByDate[date]?.[classroom.classroom_name];
-                    return (
-                      <td key={classroom.classroom_id}>
-                        {entry && (
-                          <div className="usage-cell">
-                            <div className="usage-cell__subject">
-                              {entry.form}
-                              {entry.subject}
-                            </div>
-                            <div className="usage-cell__teacher">（{entry.teacher_name_cn}）</div>
-                          </div>
-                        )}
-                      </td>
-                    );
-                  })}
-                  <td className="usage-overview__unassigned-col">
-                    {unassignedByDate[date]?.map(({ schedule, cls }) => (
-                      <UnassignedRescheduleRow
-                        key={schedule.schedule_id}
-                        date={date}
-                        cls={cls}
-                        classrooms={sortedClassrooms}
-                        isVenueFree={(classroomName) => isVenueFreeOnDate(date, classroomName)}
-                        onAssign={(venue) =>
-                          handleAssignRescheduleVenue(schedule.schedule_id, venue)
-                        }
-                      />
+        classroomGroups.map(([prefix, groupClassrooms]) => (
+          <div key={prefix} className="usage-overview__group">
+            <h3 className="usage-overview__group-title">
+              {prefix}xx（{groupClassrooms.length} 間）
+            </h3>
+            <div className="usage-overview__table-container">
+              <table className="usage-overview__table">
+                <thead>
+                  <tr>
+                    <th className="usage-overview__date-col">日期</th>
+                    {groupClassrooms.map((classroom) => (
+                      <th key={classroom.classroom_id}>{classroom.classroom_name}</th>
                     ))}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dates.map((date) => (
+                    <tr key={date}>
+                      <td className="usage-overview__date-col">
+                        <div>{formatDateMain(date)}</div>
+                        <div className="usage-overview__weekday">{formatDateWeekday(date)}</div>
+                      </td>
+                      {groupClassrooms.map((classroom) => {
+                        const entry = occupancyByDate[date]?.[classroom.classroom_name];
+                        return (
+                          <td key={classroom.classroom_id}>
+                            {entry && (
+                              <div className="usage-cell">
+                                <div className="usage-cell__subject">
+                                  {entry.form}
+                                  {entry.subject}
+                                </div>
+                                <div className="usage-cell__teacher">
+                                  （{entry.teacher_name_cn}）
+                                </div>
+                              </div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ))
       )}
     </div>
   );
@@ -253,6 +281,7 @@ interface UnassignedRescheduleRowProps {
 }
 
 const UnassignedRescheduleRow: React.FC<UnassignedRescheduleRowProps> = ({
+  date,
   cls,
   classrooms,
   isVenueFree,
@@ -278,7 +307,8 @@ const UnassignedRescheduleRow: React.FC<UnassignedRescheduleRowProps> = ({
   return (
     <div className="unassigned-reschedule">
       <div className="unassigned-reschedule__info">
-        ⚠️ 未指定教室：{cls.form}
+        {formatDateMain(date)}
+        {formatDateWeekday(date)}　{cls.form}
         {cls.subject}（{cls.teacher_name_cn}）
       </div>
       <div className="unassigned-reschedule__row">

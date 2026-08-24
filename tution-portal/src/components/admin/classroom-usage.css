@@ -30,6 +30,72 @@
   margin-bottom: 16px;
 }
 
+/* 待指定教室（調課）：頁面最上方的獨立區塊 */
+.unassigned-section {
+  margin-bottom: 24px;
+  padding: 14px 16px;
+  background-color: #fffbeb;
+  border: 1px solid #fde68a;
+  border-radius: 10px;
+}
+
+.unassigned-section__title {
+  margin: 0 0 10px;
+  font-size: 15px;
+  color: #92400e;
+}
+
+.unassigned-reschedule {
+  padding: 8px 10px;
+  margin-bottom: 8px;
+  background-color: #fff;
+  border: 1px solid #ffe082;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.unassigned-reschedule:last-child {
+  margin-bottom: 0;
+}
+
+.unassigned-reschedule__info {
+  font-size: 13px;
+  color: #7a5c00;
+  font-weight: 600;
+}
+
+.unassigned-reschedule__row {
+  display: flex;
+  gap: 6px;
+}
+
+.unassigned-reschedule__row select {
+  min-width: 140px;
+  padding: 5px 8px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+/* 每組教室（前兩碼相同）各自一張表 */
+.usage-overview__group {
+  margin-bottom: 28px;
+}
+
+.usage-overview__group:last-child {
+  margin-bottom: 0;
+}
+
+.usage-overview__group-title {
+  margin: 0 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #374151;
+}
+
 .usage-overview__table-container {
   overflow-x: auto;
   border: 1px solid #e5e7eb;
@@ -46,35 +112,50 @@
 .usage-overview__table td {
   padding: 10px 12px;
   border-bottom: 1px solid #e5e7eb;
-  border-right: 1px solid #f0f0f0;
+  border-right: 1px solid #eef0f2;
   text-align: left;
   vertical-align: top;
   white-space: nowrap;
 }
 
-.usage-overview__table th {
-  background-color: #f8f9fa;
+.usage-overview__table th:last-child,
+.usage-overview__table td:last-child {
+  border-right: none;
+}
+
+.usage-overview__table thead th {
+  background-color: #374151;
+  color: #fff;
   font-weight: 600;
-  color: #374151;
   position: sticky;
   top: 0;
+  z-index: 2;
+}
+
+.usage-overview__table tbody tr:nth-child(odd) {
+  background-color: #ffffff;
+}
+
+.usage-overview__table tbody tr:nth-child(even) {
+  background-color: #eef2ff;
 }
 
 .usage-overview__table tbody tr:hover {
-  background-color: #fafafa;
+  background-color: #dbeafe;
 }
 
 .usage-overview__date-col {
   position: sticky;
   left: 0;
-  background-color: #fff;
   font-weight: 600;
   z-index: 1;
+  background-color: inherit;
 }
 
-.usage-overview__table th.usage-overview__date-col {
-  background-color: #f8f9fa;
-  z-index: 2;
+.usage-overview__weekday {
+  font-weight: 400;
+  font-size: 12px;
+  color: #6b7280;
 }
 
 .usage-cell__subject {
@@ -84,42 +165,5 @@
 
 .usage-cell__teacher {
   color: #6b7280;
-  font-size: 12px;
-}
-
-.usage-overview__unassigned-col {
-  min-width: 220px;
-  white-space: normal;
-}
-
-.unassigned-reschedule {
-  padding: 8px;
-  margin-bottom: 6px;
-  background-color: #fff8e1;
-  border: 1px solid #ffe082;
-  border-radius: 6px;
-}
-
-.unassigned-reschedule:last-child {
-  margin-bottom: 0;
-}
-
-.unassigned-reschedule__info {
-  font-size: 12px;
-  color: #7a5c00;
-  margin-bottom: 6px;
-}
-
-.unassigned-reschedule__row {
-  display: flex;
-  gap: 6px;
-}
-
-.unassigned-reschedule__row select {
-  flex: 1;
-  min-width: 100px;
-  padding: 4px 6px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
   font-size: 12px;
 }
