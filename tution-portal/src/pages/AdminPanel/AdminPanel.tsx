@@ -47,7 +47,9 @@ function sortCourses(courses: TutionClass[], sortKey: CourseSortKey): TutionClas
       case "day_of_week": {
         const ai = DAY_OF_WEEK_ORDER[a.day_of_week?.trim().toLowerCase()] ?? 99;
         const bi = DAY_OF_WEEK_ORDER[b.day_of_week?.trim().toLowerCase()] ?? 99;
-        return ai - bi;
+        if (ai !== bi) return ai - bi;
+        // 同一天再依年級排序（初一→高三，F1~F6 字面順序剛好一致）
+        return a.form.localeCompare(b.form);
       }
       default:
         return 0;
