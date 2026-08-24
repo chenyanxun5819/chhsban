@@ -165,12 +165,12 @@
 }
 
 .usage-cell {
-  padding: 4px 6px;
-  border-radius: 6px;
+  padding: 1px 3px;
+  border-radius: 4px;
 }
 
 .usage-cell + .usage-cell {
-  margin-top: 6px;
+  margin-top: 4px;
 }
 
 .usage-cell__subject {
