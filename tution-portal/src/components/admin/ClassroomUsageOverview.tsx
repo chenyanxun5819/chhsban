@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { ClassroomRecord, TutionClass, TutionSchedule } from "@/types/index";
 import { scheduleService } from "@/services/scheduleService";
 import { formatDate, getDayOfWeekFromDate } from "@/utils/validators";
+import { getSemesterInfo } from "@/utils/semester";
 import "./classroom-usage.css";
 
 interface ClassroomUsageOverviewProps {
@@ -51,11 +52,18 @@ function generateMonthWeekdays(yearMonth: string): string[] {
   return dates;
 }
 
-// 課程是否仍在有效上課區間內（未設結束日期視為沒有上限）
+// 沒有設定 end_date 時的預設邊界：開課日所在那個學期（上/下學年）的最後一天，
+// 避免課程沒設結束日期就被當成無限期每週重複，一路排到很久以後的月份
+function getEffectiveEndDate(cls: TutionClass): string {
+  if (cls.end_date) return cls.end_date;
+  const { year, half } = getSemesterInfo(cls.start_date);
+  return half === "h1" ? `${year}-05-31` : `${year}-12-31`;
+}
+
+// 課程是否仍在有效上課區間內
 function isDateWithinClassRange(cls: TutionClass, date: string): boolean {
   if (date < cls.start_date) return false;
-  if (cls.end_date && date > cls.end_date) return false;
-  return true;
+  return date <= getEffectiveEndDate(cls);
 }
 
 function formatDateMain(dateStr: string): string {
