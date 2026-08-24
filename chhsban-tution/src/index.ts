@@ -1419,10 +1419,17 @@ async function handleSchedules(
 
   try {
     // GET /api/v1/schedules?class={classId} - 列出該課程的所有例外記錄
+    // GET /api/v1/schedules（不帶 class）- 列出全系統例外記錄，僅 admin/super_admin 可用
+    //   （供管理員的每日教室使用總覽判斷調課／停課）
     if (method === "GET" && !scheduleId) {
       const classId = url.searchParams.get("class");
+
       if (!classId) {
-        return jsonResponse({ error: "Missing required query param: class" }, 400);
+        if (session.permission !== "admin" && session.permission !== "super_admin") {
+          return jsonResponse({ error: "Missing required query param: class" }, 400);
+        }
+        const allSchedules = await kvService.listAllSchedules();
+        return jsonResponse({ data: allSchedules }, 200);
       }
 
       const tutionClass = await kvService.getClass(classId);

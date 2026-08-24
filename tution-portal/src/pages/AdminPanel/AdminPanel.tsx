@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
-import { ApprovalList, RejectModal } from "@/components/admin";
+import { ApprovalList, ClassroomUsageOverview, RejectModal } from "@/components/admin";
 import { adminService } from "@/services/adminService";
 import { getSemesterInfo } from "@/utils/semester";
 import apiClient from "@/utils/api";
@@ -74,9 +74,9 @@ function exportCoursesToXLSX(courses: TutionClass[]): void {
   XLSX.writeFile(workbook, `courses-${Date.now()}.xlsx`);
 }
 
-type TabType = "approvals" | "courses" | "teachers" | "classrooms";
+type TabType = "approvals" | "courses" | "teachers" | "usage" | "classrooms";
 
-const VALID_TABS: TabType[] = ["approvals", "courses", "teachers", "classrooms"];
+const VALID_TABS: TabType[] = ["approvals", "courses", "teachers", "usage", "classrooms"];
 
 const TEACHER_MANAGEMENT_URL = "https://master.teacher-management-portal.pages.dev/";
 
@@ -651,6 +651,14 @@ export const AdminPanel: React.FC = () => {
                 前往教師管理系統 ↗
               </button>
             </div>
+          </section>
+        )}
+
+        {/* 每日教室使用總覽 */}
+        {currentTab === "usage" && (
+          <section className="admin-section">
+            <h2 className="section-title">每日教室使用總覽</h2>
+            <ClassroomUsageOverview classes={allClasses} classrooms={classrooms} />
           </section>
         )}
 

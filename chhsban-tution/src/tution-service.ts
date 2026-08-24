@@ -324,6 +324,15 @@ export class TutionKVService implements TutionKVManager {
     );
   }
 
+  /** 列出全系統所有排課例外記錄（無開課／調課），供管理員的每日教室使用總覽使用 */
+  async listAllSchedules(): Promise<TutionSchedule[]> {
+    const result = await this.requireScheduleKV().list({ prefix: "schedule_" });
+    const schedules = await Promise.all(
+      result.keys.map((item: any) => this.getSchedule(item.name)),
+    );
+    return schedules.filter((s: any): s is TutionSchedule => s !== null);
+  }
+
   async updateSchedule(
     scheduleId: string,
     updates: Partial<TutionSchedule>,

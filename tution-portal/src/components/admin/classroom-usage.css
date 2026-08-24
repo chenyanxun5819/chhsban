@@ -1,0 +1,125 @@
+/* 每日教室使用總覽 */
+
+.usage-overview__controls {
+  display: flex;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+
+.usage-overview__controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.usage-overview__controls input[type="date"] {
+  padding: 8px 10px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.usage-overview__error {
+  padding: 12px;
+  background-color: #fee;
+  color: #c33;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.usage-overview__table-container {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.usage-overview__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.usage-overview__table th,
+.usage-overview__table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  border-right: 1px solid #f0f0f0;
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.usage-overview__table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: #374151;
+  position: sticky;
+  top: 0;
+}
+
+.usage-overview__table tbody tr:hover {
+  background-color: #fafafa;
+}
+
+.usage-overview__date-col {
+  position: sticky;
+  left: 0;
+  background-color: #fff;
+  font-weight: 600;
+  z-index: 1;
+}
+
+.usage-overview__table th.usage-overview__date-col {
+  background-color: #f8f9fa;
+  z-index: 2;
+}
+
+.usage-cell__subject {
+  font-weight: 600;
+  color: #111827;
+}
+
+.usage-cell__teacher {
+  color: #6b7280;
+  font-size: 12px;
+}
+
+.usage-overview__unassigned-col {
+  min-width: 220px;
+  white-space: normal;
+}
+
+.unassigned-reschedule {
+  padding: 8px;
+  margin-bottom: 6px;
+  background-color: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 6px;
+}
+
+.unassigned-reschedule:last-child {
+  margin-bottom: 0;
+}
+
+.unassigned-reschedule__info {
+  font-size: 12px;
+  color: #7a5c00;
+  margin-bottom: 6px;
+}
+
+.unassigned-reschedule__row {
+  display: flex;
+  gap: 6px;
+}
+
+.unassigned-reschedule__row select {
+  flex: 1;
+  min-width: 100px;
+  padding: 4px 6px;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 12px;
+}

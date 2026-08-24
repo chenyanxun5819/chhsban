@@ -81,4 +81,33 @@ export const scheduleService = {
       reschedule_reason: reason,
     });
   },
+
+  /**
+   * 取得全系統所有排課例外記錄（僅 admin/super_admin），供每日教室使用總覽使用
+   */
+  async listAllSchedules(): Promise<TutionSchedule[]> {
+    try {
+      const response = await apiClient.get<{ data: TutionSchedule[] }>(`/v1/schedules`);
+      return response.data?.data || [];
+    } catch (error) {
+      console.error("Failed to fetch all schedules:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 管理員為調課後的課程指定教室（rescheduled_venue）
+   */
+  async assignRescheduleVenue(scheduleId: string, venue: string): Promise<TutionSchedule> {
+    try {
+      const response = await apiClient.put<{ data: TutionSchedule }>(
+        `/v1/schedules/${scheduleId}`,
+        { rescheduled_venue: venue }
+      );
+      return response.data.data;
+    } catch (error) {
+      console.error("Failed to assign reschedule venue:", error);
+      throw error;
+    }
+  },
 };
