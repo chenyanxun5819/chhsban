@@ -125,7 +125,8 @@ export const AttendanceSheet: React.FC = () => {
 
   const [selectedDate, setSelectedDate] = useState("");
   const [draft, setDraft] = useState<Map<string, DraftEntry>>(new Map());
-  const [showOverview, setShowOverview] = useState(false);
+  // 管理員（唯讀）直接看總覽表格，不需要進到個別日期的點名畫面。
+  const [showOverview, setShowOverview] = useState(readOnly);
 
   const loadStaticData = useCallback(async () => {
     if (!classId) {
@@ -324,13 +325,15 @@ export const AttendanceSheet: React.FC = () => {
               {classInfo.venue}
             </p>
           </div>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            onClick={() => setShowOverview((v) => !v)}
-          >
-            {showOverview ? "返回點名" : "查看總覽表格"}
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              onClick={() => setShowOverview((v) => !v)}
+            >
+              {showOverview ? "返回點名" : "查看總覽表格"}
+            </button>
+          )}
         </div>
 
         {error && (
