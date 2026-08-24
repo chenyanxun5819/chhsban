@@ -159,7 +159,7 @@ const Welcome: React.FC = () => {
         disabled={savingEndDateId === app.class_id}
         onClick={() => handleSetEndDate(app.class_id)}
       >
-        {savingEndDateId === app.class_id ? "儲存中..." : "設定結束日期"}
+        {savingEndDateId === app.class_id ? "儲存中..." : "確定"}
       </button>
     </div>
   );

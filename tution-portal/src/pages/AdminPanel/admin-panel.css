@@ -22,50 +22,6 @@
   border-bottom: 2px solid #f0f0f0;
 }
 
-.section-title-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  margin-bottom: 20px;
-  padding-bottom: 12px;
-  border-bottom: 2px solid #f0f0f0;
-}
-
-.section-title-row .section-title {
-  margin: 0;
-  padding: 0;
-  border-bottom: none;
-}
-
-.last-teaching-date {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.last-teaching-date label {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  font-size: 12px;
-  color: #6b7280;
-}
-
-.last-teaching-date input[type="date"] {
-  padding: 6px 8px;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  font-size: 13px;
-}
-
-.last-teaching-date__hint {
-  font-size: 12px;
-  color: #9ca3af;
-}
-
 /* 手風琴詳情共用欄位（由 ApprovalList / RejectModal 之外的地方引用） */
 .application-detail-grid {
   display: grid;
@@ -160,7 +116,8 @@
   color: #374151;
 }
 
-.course-list-toolbar__sort select {
+.course-list-toolbar__sort select,
+.course-list-toolbar__sort input[type="date"] {
   padding: 6px 10px;
   border: 1px solid #d0d0d0;
   border-radius: 4px;

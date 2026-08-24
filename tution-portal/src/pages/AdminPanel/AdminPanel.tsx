@@ -435,31 +435,7 @@ export const AdminPanel: React.FC = () => {
         {/* 已開課管理 */}
         {currentTab === "courses" && (
           <section className="admin-section">
-            <div className="section-title-row">
-              <h2 className="section-title">已開課管理</h2>
-              <div className="last-teaching-date">
-                <label>
-                  最後上課日期
-                  <input
-                    type="date"
-                    value={lastTeachingDate}
-                    onChange={(e) => setLastTeachingDateState(e.target.value)}
-                    disabled={savingLastTeachingDate}
-                  />
-                </label>
-                <button
-                  type="button"
-                  className="btn btn-small"
-                  onClick={handleSaveLastTeachingDate}
-                  disabled={savingLastTeachingDate}
-                >
-                  {savingLastTeachingDate ? "儲存中..." : "儲存"}
-                </button>
-                <span className="last-teaching-date__hint">
-                  申請人沒自行設定結束日期的課程，以此為預設終止日
-                </span>
-              </div>
-            </div>
+            <h2 className="section-title">已開課管理</h2>
             {classesLoading ? (
               <div className="loading-text">載入中...</div>
             ) : courses.length === 0 ? (
@@ -494,6 +470,23 @@ export const AdminPanel: React.FC = () => {
                       ))}
                     </select>
                   </label>
+                  <label className="course-list-toolbar__sort">
+                    <span>最後上課日期：</span>
+                    <input
+                      type="date"
+                      value={lastTeachingDate}
+                      onChange={(e) => setLastTeachingDateState(e.target.value)}
+                      disabled={savingLastTeachingDate}
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    className="btn btn-small"
+                    onClick={handleSaveLastTeachingDate}
+                    disabled={savingLastTeachingDate}
+                  >
+                    {savingLastTeachingDate ? "儲存中..." : "儲存"}
+                  </button>
                   <button
                     type="button"
                     className="btn btn-small"
