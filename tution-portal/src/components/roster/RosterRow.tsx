@@ -5,9 +5,16 @@ interface RosterRowProps {
   student: ClassRosterEntry;
   onWithdraw: (student: ClassRosterEntry) => Promise<void>;
   loading?: boolean;
+  /** 管理員（super_admin）只能檢視，不能操作退出。 */
+  readOnly?: boolean;
 }
 
-const RosterRow: React.FC<RosterRowProps> = ({ student, onWithdraw, loading = false }) => {
+const RosterRow: React.FC<RosterRowProps> = ({
+  student,
+  onWithdraw,
+  loading = false,
+  readOnly = false,
+}) => {
   const [withdrawing, setWithdrawing] = React.useState(false);
 
   const handleWithdraw = async () => {
@@ -42,7 +49,7 @@ const RosterRow: React.FC<RosterRowProps> = ({ student, onWithdraw, loading = fa
           <span className={`status-badge ${student.is_active ? "success" : "danger"}`}>
             {student.is_active ? "在讀" : "已退出"}
           </span>
-          {student.is_active && (
+          {student.is_active && !readOnly && (
             <button
               className="btn btn-outline-danger btn-withdraw"
               onClick={handleWithdraw}

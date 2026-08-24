@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Layout } from "@/components/common/Layout";
+import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/utils/api";
 import { getClassRoster } from "@/services/rosterService";
 import { scheduleService } from "@/services/scheduleService";
@@ -111,6 +112,8 @@ function composeReason(entry: DraftEntry): string {
 
 export const AttendanceSheet: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const readOnly = user?.permission === "super_admin";
 
   const [classInfo, setClassInfo] = useState<TutionClass | null>(null);
   const [roster, setRoster] = useState<ClassRosterEntry[]>([]);
@@ -257,7 +260,7 @@ export const AttendanceSheet: React.FC = () => {
   };
 
   const handleSave = async () => {
-    if (!classId || !selectedDate) return;
+    if (!classId || !selectedDate || readOnly) return;
 
     for (const student of enrolledRoster) {
       const entry = draft.get(student.student_id);
@@ -366,9 +369,11 @@ export const AttendanceSheet: React.FC = () => {
                   ))}
                 </select>
               </label>
-              <button type="button" className="btn btn-secondary" onClick={handleMarkAllPresent}>
-                全部到課
-              </button>
+              {!readOnly && (
+                <button type="button" className="btn btn-secondary" onClick={handleMarkAllPresent}>
+                  全部到課
+                </button>
+              )}
             </div>
 
             {activeRoster.length === 0 ? (
@@ -404,6 +409,7 @@ export const AttendanceSheet: React.FC = () => {
                         <select
                           className="form-control attendance-status-select"
                           value={entry.status}
+                          disabled={readOnly}
                           onChange={(e) =>
                             updateDraft(student.student_id, {
                               status: e.target.value as AttendanceStatusCode,
@@ -426,6 +432,7 @@ export const AttendanceSheet: React.FC = () => {
                           <select
                             className="form-control"
                             value={entry.reasonPreset}
+                            disabled={readOnly}
                             onChange={(e) =>
                               updateDraft(student.student_id, { reasonPreset: e.target.value })
                             }
@@ -442,6 +449,7 @@ export const AttendanceSheet: React.FC = () => {
                               className="form-control"
                               placeholder="請填寫具體原因"
                               value={entry.reasonOther}
+                              disabled={readOnly}
                               onChange={(e) =>
                                 updateDraft(student.student_id, { reasonOther: e.target.value })
                               }
@@ -455,16 +463,18 @@ export const AttendanceSheet: React.FC = () => {
               </div>
             )}
 
-            <div className="attendance-save-bar">
-              <button
-                type="button"
-                className="btn btn-primary"
-                disabled={saving || activeRoster.length === 0}
-                onClick={handleSave}
-              >
-                {saving ? "儲存中..." : "儲存點名"}
-              </button>
-            </div>
+            {!readOnly && (
+              <div className="attendance-save-bar">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  disabled={saving || activeRoster.length === 0}
+                  onClick={handleSave}
+                >
+                  {saving ? "儲存中..." : "儲存點名"}
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>

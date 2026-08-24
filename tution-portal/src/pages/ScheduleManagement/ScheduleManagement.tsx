@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Layout } from "@/components/common/Layout";
+import { useAuth } from "@/context/AuthContext";
 import apiClient from "@/utils/api";
 import { scheduleService } from "@/services/scheduleService";
 import { attendanceQueryService } from "@/services/attendanceQueryService";
@@ -21,6 +22,8 @@ import "./schedule-management.css";
 
 export const ScheduleManagement: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const readOnly = user?.permission === "super_admin";
 
   const [classInfo, setClassInfo] = useState<TutionClass | null>(null);
   const [exceptions, setExceptions] = useState<TutionSchedule[]>([]);
@@ -88,7 +91,7 @@ export const ScheduleManagement: React.FC = () => {
   };
 
   const handleCancelConfirm = async (reason: string) => {
-    if (!cancelTarget || !classId) return;
+    if (!cancelTarget || !classId || readOnly) return;
     setActionLoading(true);
     try {
       const updated = await scheduleService.markAsCancelled(
@@ -103,7 +106,7 @@ export const ScheduleManagement: React.FC = () => {
   };
 
   const handleRescheduleConfirm = async (newDate: string, reason: string) => {
-    if (!rescheduleTarget || !classId) return;
+    if (!rescheduleTarget || !classId || readOnly) return;
     setActionLoading(true);
     try {
       const updated = await scheduleService.markAsRescheduled(
@@ -170,6 +173,7 @@ export const ScheduleManagement: React.FC = () => {
           attendedDates={attendedDates}
           onCancel={(row) => setCancelTarget(row)}
           onReschedule={(row) => setRescheduleTarget(row)}
+          readOnly={readOnly}
         />
 
         {cancelTarget && (

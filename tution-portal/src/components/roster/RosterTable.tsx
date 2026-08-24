@@ -9,6 +9,8 @@ interface RosterTableProps {
   onExport: () => void;
   onRefresh: () => Promise<void>;
   loading?: boolean;
+  /** 管理員（super_admin）只能檢視名單，不能新增／退出學生。 */
+  readOnly?: boolean;
 }
 
 type FilterStatus = "all" | "active" | "withdrawn";
@@ -20,6 +22,7 @@ const RosterTable: React.FC<RosterTableProps> = ({
   onExport,
   onRefresh,
   loading = false,
+  readOnly = false,
 }) => {
   const [searchTerm, setSearchTerm] = React.useState("");
   const [filterStatus, setFilterStatus] = React.useState<FilterStatus>("active");
@@ -79,21 +82,23 @@ const RosterTable: React.FC<RosterTableProps> = ({
     <div className="roster-table">
       {/* 新增學生 */}
       <div className="table-toolbar">
-        <div className="toolbar-left add-student-row">
-          <input
-            type="text"
-            value={newStudentId}
-            onChange={(e) => setNewStudentId(e.target.value)}
-            placeholder="輸入學生 ID 新增"
-            disabled={loading || adding}
-            onKeyPress={(e) => {
-              if (e.key === "Enter") handleAddStudent();
-            }}
-          />
-          <button className="btn btn-primary" onClick={handleAddStudent} disabled={loading || adding}>
-            {adding ? "新增中..." : "+ 新增學生"}
-          </button>
-        </div>
+        {!readOnly && (
+          <div className="toolbar-left add-student-row">
+            <input
+              type="text"
+              value={newStudentId}
+              onChange={(e) => setNewStudentId(e.target.value)}
+              placeholder="輸入學生 ID 新增"
+              disabled={loading || adding}
+              onKeyPress={(e) => {
+                if (e.key === "Enter") handleAddStudent();
+              }}
+            />
+            <button className="btn btn-primary" onClick={handleAddStudent} disabled={loading || adding}>
+              {adding ? "新增中..." : "+ 新增學生"}
+            </button>
+          </div>
+        )}
 
         <div className="toolbar-right">
           <button className="btn btn-secondary" onClick={onExport} disabled={loading || roster.length === 0}>
@@ -152,7 +157,13 @@ const RosterTable: React.FC<RosterTableProps> = ({
         {paginatedData.length > 0 ? (
           <div className="roster-list">
             {paginatedData.map((student) => (
-              <RosterRow key={student.roster_id} student={student} onWithdraw={onWithdraw} loading={loading} />
+              <RosterRow
+                key={student.roster_id}
+                student={student}
+                onWithdraw={onWithdraw}
+                loading={loading}
+                readOnly={readOnly}
+              />
             ))}
           </div>
         ) : (

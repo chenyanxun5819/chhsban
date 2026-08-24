@@ -22,6 +22,8 @@ interface ScheduleTableProps {
   loading?: boolean;
   onCancel: (row: GeneratedScheduleRow) => void;
   onReschedule: (row: GeneratedScheduleRow) => void;
+  /** 管理員（super_admin）只能檢視排課，不能停課／調課。 */
+  readOnly?: boolean;
 }
 
 const STATUS_LABEL: Record<GeneratedScheduleRow["status"], string> = {
@@ -43,6 +45,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   loading = false,
   onCancel,
   onReschedule,
+  readOnly = false,
 }) => {
   const today = todayStr();
 
@@ -97,7 +100,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                 {row.status === "held" && "—"}
               </span>
 
-              {!isLocked && (
+              {!isLocked && !readOnly && (
                 <span className="schedule-row-actions">
                   <button
                     type="button"

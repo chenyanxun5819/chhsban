@@ -10,6 +10,7 @@ import {
 } from "@/services/rosterService";
 import { RosterTable, RosterStats } from "@/components/roster";
 import { Layout } from "@/components/common/Layout";
+import { useAuth } from "@/context/AuthContext";
 import "@/components/roster/roster.css";
 
 interface PageState {
@@ -23,6 +24,8 @@ interface PageState {
 const RosterManagement: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const readOnly = user?.permission === "super_admin";
   const [state, setState] = React.useState<PageState>({
     roster: [],
     loading: true,
@@ -185,6 +188,7 @@ const RosterManagement: React.FC = () => {
             onExport={handleExport}
             onRefresh={fetchRoster}
             loading={state.saving}
+            readOnly={readOnly}
           />
         )}
       </div>
