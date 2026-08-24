@@ -98,6 +98,42 @@
   color: #dc2626;
 }
 
+/* 已開課管理 - 排序／匯出工具列 */
+.course-list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.course-list-toolbar__sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.course-list-toolbar__sort select {
+  padding: 6px 10px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.course-row__no {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #f3f4f6;
+  white-space: nowrap;
+}
+
 /* 已開課管理 - 課程清單 */
 .course-list {
   display: flex;

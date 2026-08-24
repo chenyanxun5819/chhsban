@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import * as XLSX from "xlsx";
 import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
 import { ApprovalList, RejectModal } from "@/components/admin";
@@ -9,6 +10,66 @@ import apiClient from "@/utils/api";
 import type { ClassroomRecord, TutionClass } from "@/types/index";
 import ClassroomManagement from "@/pages/ClassroomManagement/ClassroomManagement";
 import "./admin-panel.css";
+
+type CourseSortKey = "default" | "application_no" | "teacher" | "subject" | "day_of_week";
+
+const COURSE_SORT_LABELS: Record<CourseSortKey, string> = {
+  default: "預設順序",
+  application_no: "編號",
+  teacher: "申請人",
+  subject: "課程",
+  day_of_week: "星期",
+};
+
+const DAY_OF_WEEK_ORDER: Record<string, number> = {
+  sunday: 0,
+  monday: 1,
+  tuesday: 2,
+  wednesday: 3,
+  thursday: 4,
+  friday: 5,
+  saturday: 6,
+};
+
+function sortCourses(courses: TutionClass[], sortKey: CourseSortKey): TutionClass[] {
+  if (sortKey === "default") return courses;
+  const sorted = [...courses];
+  sorted.sort((a, b) => {
+    switch (sortKey) {
+      case "application_no":
+        return (a.application_no || "").localeCompare(b.application_no || "", undefined, {
+          numeric: true,
+        });
+      case "teacher":
+        return a.teacher_name_cn.localeCompare(b.teacher_name_cn, "zh-Hant");
+      case "subject":
+        return a.subject.localeCompare(b.subject, "zh-Hant");
+      case "day_of_week": {
+        const ai = DAY_OF_WEEK_ORDER[a.day_of_week?.trim().toLowerCase()] ?? 99;
+        const bi = DAY_OF_WEEK_ORDER[b.day_of_week?.trim().toLowerCase()] ?? 99;
+        return ai - bi;
+      }
+      default:
+        return 0;
+    }
+  });
+  return sorted;
+}
+
+function exportCoursesToXLSX(courses: TutionClass[]): void {
+  const headers = ["編號", "申請人", "課程名稱", "上課日", "教室"];
+  const rows = courses.map((c) => [
+    c.application_no || "",
+    c.teacher_name_cn,
+    `${c.subject}（${c.form}）`,
+    `${c.day_of_week} ${c.time_start}-${c.time_end}`,
+    c.venue || "",
+  ]);
+  const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, worksheet, "已開課課程");
+  XLSX.writeFile(workbook, `courses-${Date.now()}.xlsx`);
+}
 
 type TabType = "approvals" | "courses" | "teachers" | "classrooms";
 
@@ -45,6 +106,7 @@ export const AdminPanel: React.FC = () => {
   const [savingEndDateId, setSavingEndDateId] = useState<string | null>(null);
   const [uploadingSignedFormId, setUploadingSignedFormId] = useState<string | null>(null);
   const [reviewingReceiptKey, setReviewingReceiptKey] = useState<string | null>(null);
+  const [courseSortKey, setCourseSortKey] = useState<CourseSortKey>("default");
 
   const applications = allClasses.filter(
     (item) => item.approval_status === "pending" || item.approval_status === "reviewing",
@@ -56,6 +118,7 @@ export const AdminPanel: React.FC = () => {
       item.approval_status === "active" ||
       item.approval_status === "ended",
   );
+  const sortedCourses = sortCourses(courses, courseSortKey);
 
   // 「上課日期＋教室」已被占用的組合（reviewing／approved／active 才算占用，ended 視為已釋出）
   const occupiedVenueDays = new Set(
@@ -359,13 +422,37 @@ export const AdminPanel: React.FC = () => {
             ) : courses.length === 0 ? (
               <div className="empty-state">暫無已開課的課程</div>
             ) : (
-              <div className="course-list">
-                {courses.map((course) => (
-                  <div key={course.class_id} className="course-row">
-                    <div className="course-row__main">
-                      <span className="course-row__title">
-                        {course.subject}（{course.form}）
-                      </span>
+              <>
+                <div className="course-list-toolbar">
+                  <label className="course-list-toolbar__sort">
+                    <span>排序：</span>
+                    <select
+                      value={courseSortKey}
+                      onChange={(e) => setCourseSortKey(e.target.value as CourseSortKey)}
+                    >
+                      {(Object.keys(COURSE_SORT_LABELS) as CourseSortKey[]).map((key) => (
+                        <option key={key} value={key}>
+                          {COURSE_SORT_LABELS[key]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <button
+                    type="button"
+                    className="btn btn-small"
+                    onClick={() => exportCoursesToXLSX(sortedCourses)}
+                  >
+                    📥 匯出 Excel
+                  </button>
+                </div>
+                <div className="course-list">
+                  {sortedCourses.map((course) => (
+                    <div key={course.class_id} className="course-row">
+                      <div className="course-row__main">
+                        <span className="course-row__no">{course.application_no || "-"}</span>
+                        <span className="course-row__title">
+                          {course.subject}（{course.form}）
+                        </span>
                       <span className="course-row__badge">
                         {COURSE_STATUS_LABELS[course.approval_status] || course.approval_status}
                       </span>
@@ -517,8 +604,9 @@ export const AdminPanel: React.FC = () => {
                       </button>
                     </div>
                   </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              </>
             )}
           </section>
         )}
