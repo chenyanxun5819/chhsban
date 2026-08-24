@@ -109,7 +109,8 @@ export const AdminPanel: React.FC = () => {
   const [savingEndDateId, setSavingEndDateId] = useState<string | null>(null);
   const [uploadingSignedFormId, setUploadingSignedFormId] = useState<string | null>(null);
   const [reviewingReceiptKey, setReviewingReceiptKey] = useState<string | null>(null);
-  const [courseSortKey, setCourseSortKey] = useState<CourseSortKey>("default");
+  const [courseSortKey, setCourseSortKey] = useState<CourseSortKey>("day_of_week");
+  const [courseFilterTeacher, setCourseFilterTeacher] = useState<string>("");
 
   const applications = allClasses.filter(
     (item) => item.approval_status === "pending" || item.approval_status === "reviewing",
@@ -121,7 +122,13 @@ export const AdminPanel: React.FC = () => {
       item.approval_status === "active" ||
       item.approval_status === "ended",
   );
-  const sortedCourses = sortCourses(courses, courseSortKey);
+  const courseTeacherOptions = Array.from(new Set(courses.map((c) => c.teacher_name_cn))).sort(
+    (a, b) => a.localeCompare(b, "zh-Hant"),
+  );
+  const filteredCourses = courseFilterTeacher
+    ? courses.filter((c) => c.teacher_name_cn === courseFilterTeacher)
+    : courses;
+  const sortedCourses = sortCourses(filteredCourses, courseSortKey);
 
   // 「上課日期＋教室」已被占用的組合（reviewing／approved／active 才算占用，ended 視為已釋出）
   const occupiedVenueDays = new Set(
@@ -436,6 +443,20 @@ export const AdminPanel: React.FC = () => {
                       {(Object.keys(COURSE_SORT_LABELS) as CourseSortKey[]).map((key) => (
                         <option key={key} value={key}>
                           {COURSE_SORT_LABELS[key]}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="course-list-toolbar__sort">
+                    <span>申請人：</span>
+                    <select
+                      value={courseFilterTeacher}
+                      onChange={(e) => setCourseFilterTeacher(e.target.value)}
+                    >
+                      <option value="">全部申請人</option>
+                      {courseTeacherOptions.map((name) => (
+                        <option key={name} value={name}>
+                          {name}
                         </option>
                       ))}
                     </select>
