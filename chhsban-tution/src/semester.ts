@@ -1,5 +1,5 @@
 /**
- * 學年切分：每年以 7/1 為界，分「上學年」(1-6月) / 「下學年」(7-12月)。
+ * 學年切分：每年以 6/1 為界，分「上學年」(1-5月) / 「下學年」(6-12月)。
  * 場地費收據、每年最多 2 堂課的申請名額，都以此為單位分開計算。
  */
 
@@ -15,7 +15,7 @@ export interface SemesterInfo {
 export function getSemesterInfo(date: string | number | Date): SemesterInfo {
   const d = new Date(date);
   const year = d.getFullYear();
-  const half: SemesterHalf = d.getMonth() < 6 ? "h1" : "h2"; // 0-5月=上學年，6-11月(7-12月)=下學年
+  const half: SemesterHalf = d.getMonth() < 5 ? "h1" : "h2"; // 0-4月(1-5月)=上學年，5-11月(6-12月)=下學年
   const key = `${year}-${half}`;
   const label = `${year}年${half === "h1" ? "上" : "下"}學年`;
   return { year, half, key, label };

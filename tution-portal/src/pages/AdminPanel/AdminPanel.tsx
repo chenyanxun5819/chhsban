@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
 import { ApprovalList, RejectModal } from "@/components/admin";
 import { adminService } from "@/services/adminService";
+import { getSemesterInfo } from "@/utils/semester";
 import apiClient from "@/utils/api";
 import type { ClassroomRecord, TutionClass } from "@/types/index";
 import ClassroomManagement from "@/pages/ClassroomManagement/ClassroomManagement";
@@ -378,61 +379,67 @@ export const AdminPanel: React.FC = () => {
                       <span>🏁 結束日期：{course.end_date || "未設定"}</span>
                     </div>
                     <div className="course-row__receipts">
-                      {(["h1", "h2"] as const).map((half) => {
-                        const record = half === "h1" ? course.receipt_h1 : course.receipt_h2;
-                        const halfLabel = half === "h1" ? "上學年" : "下學年";
-                        const reviewKey = `${course.class_id}-${half}`;
-                        return (
-                          <div key={half} className="receipt-status-row">
-                            <span className="receipt-status-row__label">{halfLabel}收據：</span>
-                            {!record ? (
-                              <span className="receipt-status-row__empty">尚未上傳</span>
-                            ) : (
-                              <>
-                                <span>編號 {record.receipt_no || "-"}</span>
-                                <span
-                                  className={`badge badge-${record.status === "pending" ? "reviewing" : record.status === "approved" ? "approved" : "rejected"}`}
-                                >
-                                  {record.status === "pending"
-                                    ? "⏳ 審核中"
-                                    : record.status === "approved"
-                                      ? "✅ 已通過"
-                                      : "❌ 已退回"}
-                                </span>
-                                <button
-                                  className="btn btn-small"
-                                  onClick={() => handleViewReceipt(course.class_id, half)}
-                                >
-                                  📄 查看
-                                </button>
-                                {record.status === "pending" && (
-                                  <>
-                                    <button
-                                      className="btn btn-small"
-                                      disabled={reviewingReceiptKey === reviewKey}
-                                      onClick={() => handleReviewReceipt(course.class_id, half, "approved")}
-                                    >
-                                      ✅ 收據正確
-                                    </button>
-                                    <button
-                                      className="btn btn-small btn--danger"
-                                      disabled={reviewingReceiptKey === reviewKey}
-                                      onClick={() => handleReviewReceipt(course.class_id, half, "rejected")}
-                                    >
-                                      ❌ 收據不正確
-                                    </button>
-                                  </>
-                                )}
-                                {record.status === "rejected" && record.rejection_reason && (
-                                  <span className="receipt-status-row__reason">
-                                    原因：{record.rejection_reason}
+                      {(["h1", "h2"] as const)
+                        .filter(
+                          // 開課日期已經落在下學年（6/1 以後）的課程，從未經歷過上學年，
+                          // 不需要繳交／顯示上學年收據。
+                          (half) => half !== "h1" || getSemesterInfo(course.start_date).half === "h1",
+                        )
+                        .map((half) => {
+                          const record = half === "h1" ? course.receipt_h1 : course.receipt_h2;
+                          const halfLabel = half === "h1" ? "上學年" : "下學年";
+                          const reviewKey = `${course.class_id}-${half}`;
+                          return (
+                            <div key={half} className="receipt-status-row">
+                              <span className="receipt-status-row__label">{halfLabel}收據：</span>
+                              {!record ? (
+                                <span className="receipt-status-row__empty">尚未上傳</span>
+                              ) : (
+                                <>
+                                  <span>編號 {record.receipt_no || "-"}</span>
+                                  <span
+                                    className={`badge badge-${record.status === "pending" ? "reviewing" : record.status === "approved" ? "approved" : "rejected"}`}
+                                  >
+                                    {record.status === "pending"
+                                      ? "⏳ 審核中"
+                                      : record.status === "approved"
+                                        ? "✅ 已通過"
+                                        : "❌ 已退回"}
                                   </span>
-                                )}
-                              </>
-                            )}
-                          </div>
-                        );
-                      })}
+                                  <button
+                                    className="btn btn-small"
+                                    onClick={() => handleViewReceipt(course.class_id, half)}
+                                  >
+                                    📄 查看
+                                  </button>
+                                  {record.status === "pending" && (
+                                    <>
+                                      <button
+                                        className="btn btn-small"
+                                        disabled={reviewingReceiptKey === reviewKey}
+                                        onClick={() => handleReviewReceipt(course.class_id, half, "approved")}
+                                      >
+                                        ✅ 收據正確
+                                      </button>
+                                      <button
+                                        className="btn btn-small btn--danger"
+                                        disabled={reviewingReceiptKey === reviewKey}
+                                        onClick={() => handleReviewReceipt(course.class_id, half, "rejected")}
+                                      >
+                                        ❌ 收據不正確
+                                      </button>
+                                    </>
+                                  )}
+                                  {record.status === "rejected" && record.rejection_reason && (
+                                    <span className="receipt-status-row__reason">
+                                      原因：{record.rejection_reason}
+                                    </span>
+                                  )}
+                                </>
+                              )}
+                            </div>
+                          );
+                        })}
                     </div>
                     <div className="course-row__end-date">
                       <input

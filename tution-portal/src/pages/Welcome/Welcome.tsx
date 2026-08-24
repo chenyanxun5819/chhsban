@@ -59,7 +59,7 @@ const Welcome: React.FC = () => {
     fetchApplications();
   }, [user?.teacherId]);
 
-  // 每學年（以 7/1 為界的上/下學年）最多 2 堂已批准（含進行中）課程，
+  // 每學年（以 6/1 為界的上/下學年）最多 2 堂已批准（含進行中）課程，
   // 用當下所在的學年判斷是否已達申請上限——實際強制以後端為準，這裡只是預先隱藏按鈕避免白填表單
   const currentSemester = getCurrentSemesterInfo();
   const approvedCourses = applications.filter(
@@ -137,7 +137,7 @@ const Welcome: React.FC = () => {
     }
   };
 
-  // 只顯示「目前這個時間點該收的那一學期」收據狀態／上傳鈕（7/31 前上學期、8/1 起下學期）
+  // 只顯示「目前這個時間點該收的那一學期」收據狀態／上傳鈕（5/31 前上學期、6/1 起下學期）
   const renderReceiptAction = (app: TutionClass) => {
     const record = activeHalf === "h1" ? app.receipt_h1 : app.receipt_h2;
 
