@@ -24,6 +24,9 @@ import { TutionSheetsSync } from "./sheets-sync";
 import { TutionKVService } from "./tution-service";
 import { generatePDFResponse } from "./pdf-generator";
 import { buildSignedFormKey, getSignedFormResponse, isAllowedContentType } from "./signed-form";
+import { getSemesterInfo } from "./semester";
+import { buildReceiptKey, getReceiptResponse, isAllowedReceiptContentType, isSemesterHalf, type ReceiptRecord } from "./receipt";
+import { ocrReceiptImage } from "./google-vision";
 
 interface Env {
   STUDENT_KV: KVNamespace;
@@ -44,6 +47,7 @@ interface Env {
   GOOGLE_SERVICE_ACCOUNT_EMAIL?: string;
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?: string;
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID?: string;
+  GOOGLE_VISION_API_KEY?: string;
 }
 
 interface IncomingRosterSnapshot {
@@ -115,7 +119,7 @@ function getCorsHeaders(): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key, X-Filename",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key, X-Filename, X-Receipt-No",
     "Content-Type": "application/json; charset=utf-8",
   };
 }
@@ -489,6 +493,22 @@ async function handleClasses(
           console.warn("Failed to fetch teacher name:", e);
           teacherNameCn = "";
         }
+      }
+
+      // 每學年（以 7/1 為界的上/下學年）每位申請人最多 2 堂已批准（含進行中）的課程，
+      // 依新申請的 start_date 判斷落在哪個學年
+      const semester = getSemesterInfo(data.start_date);
+      const teacherClasses = await kvService.listClassesByTeacher(session.teacher_id);
+      const approvedThisSemester = teacherClasses.filter(
+        (c) =>
+          (c.approval_status === "approved" || c.approval_status === "active") &&
+          getSemesterInfo(c.start_date).key === semester.key,
+      ).length;
+      if (approvedThisSemester >= 2) {
+        return jsonResponse(
+          { error: `已達${semester.label}申請上限（最多 2 堂已批准課程），無法再提出新申請` },
+          400,
+        );
       }
 
       // 產生可讀的申請代碼：tution-{年份後兩碼}-{該年度序號}
@@ -1003,6 +1023,176 @@ async function handleClasses(
         tutionClass.signed_form_key,
         tutionClass.signed_form_filename,
       );
+    }
+
+    // POST /api/v1/classes/receipt-ocr - 辨識收據照片上的 Receipt No.（僅輔助預填，不寫入任何資料）
+    if (method === "POST" && classId === "receipt-ocr" && !subAction) {
+      if (!env.GOOGLE_VISION_API_KEY) {
+        return jsonResponse({ error: "OCR 功能尚未設定（缺少 GOOGLE_VISION_API_KEY）" }, 500);
+      }
+
+      const contentType = request.headers.get("Content-Type") || "";
+      if (!isAllowedReceiptContentType(contentType)) {
+        return jsonResponse(
+          { error: "Unsupported file type. Only PDF, JPEG, PNG are accepted." },
+          400,
+        );
+      }
+      if (!request.body) {
+        return jsonResponse({ error: "Missing file body" }, 400);
+      }
+
+      try {
+        const imageBytes = await request.arrayBuffer();
+        const result = await ocrReceiptImage(imageBytes, env.GOOGLE_VISION_API_KEY);
+        return jsonResponse({ data: result }, 200);
+      } catch (err) {
+        console.error("Receipt OCR error:", err);
+        return jsonResponse(
+          { error: err instanceof Error ? err.message : "收據辨識失敗" },
+          500,
+        );
+      }
+    }
+
+    // PUT /api/v1/classes/{classId}/receipt - 申請人上傳場地費收據（上傳後即進入審核中，無法再更改）
+    if (method === "PUT" && classId && subAction === "receipt" && !subId) {
+      const tutionClass = (await kvService.getClass(classId)) as any;
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+
+      // 只有課程本人或管理員可以上傳
+      if (
+        tutionClass.teacher_id !== session.teacher_id &&
+        session.permission !== "admin" &&
+        session.permission !== "super_admin"
+      ) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const half = url.searchParams.get("half");
+      if (!isSemesterHalf(half)) {
+        return jsonResponse({ error: "Missing or invalid 'half' query param (h1|h2)" }, 400);
+      }
+
+      const receiptNo = decodeURIComponent(request.headers.get("X-Receipt-No") || "").trim();
+      if (!receiptNo) {
+        return jsonResponse({ error: "Missing X-Receipt-No header" }, 400);
+      }
+
+      const existing: ReceiptRecord | undefined =
+        half === "h1" ? tutionClass.receipt_h1 : tutionClass.receipt_h2;
+      if (existing && (existing.status === "pending" || existing.status === "approved")) {
+        return jsonResponse(
+          { error: "此學期收據已上傳且審核中或已通過，無法重複上傳。如需更正，請聯絡管理員退回後再重新上傳。" },
+          400,
+        );
+      }
+
+      const contentType = request.headers.get("Content-Type") || "";
+      if (!isAllowedReceiptContentType(contentType)) {
+        return jsonResponse(
+          { error: "Unsupported file type. Only PDF, JPEG, PNG are accepted." },
+          400,
+        );
+      }
+      if (!request.body) {
+        return jsonResponse({ error: "Missing file body" }, 400);
+      }
+
+      const filename = decodeURIComponent(request.headers.get("X-Filename") || "");
+      const key = buildReceiptKey(classId, half, new Date().getFullYear(), contentType);
+
+      await env.SIGNED_FORMS_BUCKET.put(key, request.body, {
+        httpMetadata: { contentType },
+      });
+
+      const receiptRecord = {
+        key,
+        filename: filename || undefined,
+        content_type: contentType,
+        receipt_no: receiptNo,
+        status: "pending" as const,
+        uploaded_at: Date.now(),
+        uploaded_by: session.teacher_id,
+      };
+
+      const updated = await kvService.updateClass(classId, {
+        [half === "h1" ? "receipt_h1" : "receipt_h2"]: receiptRecord,
+      } as any);
+
+      return jsonResponse({ data: updated }, 200);
+    }
+
+    // GET /api/v1/classes/{classId}/receipt?half=h1|h2 - 下載收據檔案
+    if (method === "GET" && classId && subAction === "receipt" && !subId) {
+      const tutionClass = (await kvService.getClass(classId)) as any;
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+
+      if (
+        tutionClass.teacher_id !== session.teacher_id &&
+        session.permission !== "admin" &&
+        session.permission !== "super_admin"
+      ) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const half = url.searchParams.get("half");
+      if (!isSemesterHalf(half)) {
+        return jsonResponse({ error: "Missing or invalid 'half' query param (h1|h2)" }, 400);
+      }
+
+      const receipt = half === "h1" ? tutionClass.receipt_h1 : tutionClass.receipt_h2;
+      if (!receipt?.key) {
+        return jsonResponse({ error: "No receipt uploaded for this semester" }, 404);
+      }
+
+      return getReceiptResponse(env.SIGNED_FORMS_BUCKET, receipt.key, receipt.filename);
+    }
+
+    // PUT /api/v1/classes/{classId}/receipt/review - 管理員審核收據「正確／不正確」
+    if (method === "PUT" && classId && subAction === "receipt" && subId === "review") {
+      if (session.permission !== "admin" && session.permission !== "super_admin") {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const tutionClass = (await kvService.getClass(classId)) as any;
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+
+      const body = (await request.json()) as any;
+      const half = body?.half;
+      const decision = body?.decision;
+      if (!isSemesterHalf(half)) {
+        return jsonResponse({ error: "Missing or invalid 'half' (h1|h2)" }, 400);
+      }
+      if (decision !== "approved" && decision !== "rejected") {
+        return jsonResponse({ error: "Missing or invalid 'decision' (approved|rejected)" }, 400);
+      }
+
+      const fieldName = half === "h1" ? "receipt_h1" : "receipt_h2";
+      const existing = tutionClass[fieldName];
+      if (!existing) {
+        return jsonResponse({ error: "尚未上傳此學期的收據" }, 400);
+      }
+
+      const updatedReceipt = {
+        ...existing,
+        status: decision,
+        reviewed_at: Date.now(),
+        reviewed_by: session.teacher_id,
+        rejection_reason: decision === "rejected" ? body?.rejection_reason || "" : undefined,
+      };
+
+      const updated = await kvService.updateClass(classId, {
+        [fieldName]: updatedReceipt,
+      } as any);
+
+      return jsonResponse({ data: updated }, 200);
     }
 
     // GET /api/v1/classes?teacher={teacherId} - 列表查詢
