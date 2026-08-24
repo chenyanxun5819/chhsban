@@ -19,24 +19,28 @@ const WEEKDAY_SHORT: Record<string, string> = {
   Friday: "Fri",
 };
 
-function todayStr(): string {
-  return formatDate(new Date());
+function currentMonthStr(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
 
-function addDaysStr(dateStr: string, days: number): string {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  date.setUTCDate(date.getUTCDate() + days);
-  return formatDate(date);
+function shiftMonth(yearMonth: string, delta: number): string {
+  const [y, m] = yearMonth.split("-").map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
 }
 
-// 產生 from~to 範圍內的所有平日日期（跳過星期六、日），依日期排序
-function generateWeekdayDates(fromDate: string, toDate: string): string[] {
-  if (!fromDate || !toDate || fromDate > toDate) return [];
-  const [fy, fm, fd] = fromDate.split("-").map(Number);
-  const [ty, tm, td] = toDate.split("-").map(Number);
-  const start = Date.UTC(fy, fm - 1, fd);
-  const end = Date.UTC(ty, tm - 1, td);
+function formatMonthLabel(yearMonth: string): string {
+  const [y, m] = yearMonth.split("-").map(Number);
+  return `${y}年${m}月`;
+}
+
+// 產生該月份的所有平日日期（跳過星期六、日），依日期排序
+function generateMonthWeekdays(yearMonth: string): string[] {
+  if (!yearMonth) return [];
+  const [y, m] = yearMonth.split("-").map(Number);
+  const start = Date.UTC(y, m - 1, 1);
+  const end = Date.UTC(y, m, 0); // 該月最後一天
   const dates: string[] = [];
 
   for (let t = start; t <= end; t += 86400000) {
@@ -45,6 +49,13 @@ function generateWeekdayDates(fromDate: string, toDate: string): string[] {
     dates.push(formatDate(new Date(t)));
   }
   return dates;
+}
+
+// 課程是否仍在有效上課區間內（未設結束日期視為沒有上限）
+function isDateWithinClassRange(cls: TutionClass, date: string): boolean {
+  if (date < cls.start_date) return false;
+  if (cls.end_date && date > cls.end_date) return false;
+  return true;
 }
 
 function formatDateMain(dateStr: string): string {
@@ -83,8 +94,7 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
   classes,
   classrooms,
 }) => {
-  const [fromDate, setFromDate] = useState(todayStr());
-  const [toDate, setToDate] = useState(addDaysStr(todayStr(), 13));
+  const [selectedMonth, setSelectedMonth] = useState(currentMonthStr());
   const [schedules, setSchedules] = useState<TutionSchedule[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -123,7 +133,7 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
     return Array.from(map.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [sortedClassrooms]);
 
-  const dates = useMemo(() => generateWeekdayDates(fromDate, toDate), [fromDate, toDate]);
+  const dates = useMemo(() => generateMonthWeekdays(selectedMonth), [selectedMonth]);
 
   // 每個日期 -> 每個教室名稱 -> 目前實際佔用該格的課程（判斷空閒／衝堂用這份）
   // 另外還有：已調走／停課的原課程（反灰顯示用，不算佔用），以及尚未指定教室的調課清單
@@ -138,11 +148,12 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
       faded[date] = {};
       const dayName = getDayOfWeekFromDate(date);
 
-      // 1. 規律上課：day_of_week 相符
+      // 1. 規律上課：day_of_week 相符，且這一天落在課程的開課～結束日期之間
       for (const cls of classes) {
         if (!OCCUPYING_STATUSES.includes(cls.approval_status)) continue;
         if (cls.day_of_week !== dayName) continue;
         if (!cls.venue) continue;
+        if (!isDateWithinClassRange(cls, date)) continue;
 
         const exception = schedules.find(
           (s) => s.class_id === cls.class_id && s.scheduled_date === date
@@ -207,6 +218,17 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
   const isVenueFreeOnDate = (date: string, classroomName: string) =>
     !occupancyByDate[date]?.[classroomName];
 
+  // 只顯示當天在任一教室有課程活動（含反灰的原課程）的日期，過去／未來完全沒課的日期不顯示
+  const activeDates = useMemo(
+    () =>
+      dates.filter((date) => {
+        const occ = occupancyByDate[date];
+        const fad = fadedByDate[date];
+        return (occ && Object.keys(occ).length > 0) || (fad && Object.keys(fad).length > 0);
+      }),
+    [dates, occupancyByDate, fadedByDate]
+  );
+
   const handleAssignRescheduleVenue = async (scheduleId: string, venue: string) => {
     try {
       await scheduleService.assignRescheduleVenue(scheduleId, venue);
@@ -219,14 +241,29 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
   return (
     <div className="usage-overview">
       <div className="usage-overview__controls">
+        <button
+          type="button"
+          className="btn btn--secondary btn--small"
+          onClick={() => setSelectedMonth((m) => shiftMonth(m, -1))}
+        >
+          ◀ 上個月
+        </button>
         <label>
-          開始日期
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+          月份
+          <input
+            type="month"
+            value={selectedMonth}
+            onChange={(e) => setSelectedMonth(e.target.value)}
+          />
         </label>
-        <label>
-          結束日期
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} />
-        </label>
+        <button
+          type="button"
+          className="btn btn--secondary btn--small"
+          onClick={() => setSelectedMonth((m) => shiftMonth(m, 1))}
+        >
+          下個月 ▶
+        </button>
+        <span className="usage-overview__month-label">{formatMonthLabel(selectedMonth)}</span>
       </div>
 
       {error && <div className="usage-overview__error">❌ {error}</div>}
@@ -250,8 +287,8 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
 
       {loading ? (
         <div className="loading-text">載入中...</div>
-      ) : dates.length === 0 ? (
-        <div className="empty-state">請選擇有效的日期範圍</div>
+      ) : activeDates.length === 0 ? (
+        <div className="empty-state">這個月沒有任何課程紀錄</div>
       ) : (
         classroomGroups.map(([prefix, groupClassrooms]) => (
           <div key={prefix} className="usage-overview__group">
@@ -274,7 +311,7 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {dates.map((date) => (
+                  {activeDates.map((date) => (
                     <tr key={date}>
                       <td className="usage-overview__date-col">
                         <div>{formatDateMain(date)}</div>

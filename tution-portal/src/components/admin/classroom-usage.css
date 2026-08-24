@@ -2,7 +2,8 @@
 
 .usage-overview__controls {
   display: flex;
-  gap: 20px;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
   margin-bottom: 16px;
 }
@@ -15,11 +16,18 @@
   color: #6b7280;
 }
 
-.usage-overview__controls input[type="date"] {
+.usage-overview__controls input[type="month"] {
   padding: 8px 10px;
   border: 1px solid #e5e7eb;
   border-radius: 8px;
   font-size: 14px;
+}
+
+.usage-overview__month-label {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-left: 8px;
 }
 
 .usage-overview__error {
