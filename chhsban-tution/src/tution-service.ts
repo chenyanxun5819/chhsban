@@ -21,6 +21,9 @@ import {
  * 限制: 1,000 PUT/天（所有系統共享）
  * 詳見: /memories/repo/PUT操作成本清單.md
  */
+// 系統設定用的保留 key，不會被 "class_" 前綴的清單掃描掃到
+const LAST_TEACHING_DATE_KEY = "system:last_teaching_date";
+
 export class TutionKVService implements TutionKVManager {
   private classKV: KVNamespace;
   private rosterKV: KVNamespace;
@@ -61,6 +64,25 @@ export class TutionKVService implements TutionKVManager {
   async getClass(classId: string): Promise<TutionClass | null> {
     const data = await this.classKV.get(classId);
     return data ? JSON.parse(data) : null;
+  }
+
+  // ===== 系統設定：管理員設定的「最後上課日期」，供申請人沒自行設定 end_date 的課程當預設終止日 =====
+
+  async getLastTeachingDate(): Promise<string | null> {
+    const data = await this.classKV.get(LAST_TEACHING_DATE_KEY);
+    if (!data) return null;
+    try {
+      return JSON.parse(data).date || null;
+    } catch {
+      return null;
+    }
+  }
+
+  async setLastTeachingDate(date: string): Promise<void> {
+    await this.classKV.put(
+      LAST_TEACHING_DATE_KEY,
+      JSON.stringify({ date, updated_at: Date.now() }),
+    );
   }
 
   async updateClass(

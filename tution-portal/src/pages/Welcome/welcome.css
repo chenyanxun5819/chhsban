@@ -163,6 +163,26 @@
   gap: var(--spacing-sm);
 }
 
+.app-row__end-date {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-sm);
+  font-size: 13px;
+  color: var(--text-secondary);
+  flex-basis: 100%;
+}
+
+.app-row__end-date-label {
+  white-space: nowrap;
+}
+
+.app-row__end-date-input {
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 13px;
+}
+
 @media (max-width: 767px) {
   .app-row {
     flex-direction: column;

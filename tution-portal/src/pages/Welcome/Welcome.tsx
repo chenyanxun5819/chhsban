@@ -13,10 +13,11 @@ import "./welcome.css";
 interface ApplicationRowProps {
   app: TutionClass;
   statusBadge: string;
+  extra?: React.ReactNode;
   actions: React.ReactNode;
 }
 
-const ApplicationRow: React.FC<ApplicationRowProps> = ({ app, statusBadge, actions }) => (
+const ApplicationRow: React.FC<ApplicationRowProps> = ({ app, statusBadge, extra, actions }) => (
   <div className="app-row">
     <div className="app-row__main">
       <span className="app-row__title">
@@ -29,6 +30,7 @@ const ApplicationRow: React.FC<ApplicationRowProps> = ({ app, statusBadge, actio
       <span>📍 {app.venue || "-"}</span>
       <span>💰 RM {app.fees}</span>
     </div>
+    {extra}
     <div className="app-row__actions">{actions}</div>
   </div>
 );
@@ -54,6 +56,8 @@ const Welcome: React.FC = () => {
   const [receiptModalTarget, setReceiptModalTarget] = useState<{ classId: string; half: SemesterHalf } | null>(
     null,
   );
+  const [endDateDrafts, setEndDateDrafts] = useState<Record<string, string>>({});
+  const [savingEndDateId, setSavingEndDateId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchApplications();
@@ -116,6 +120,49 @@ const Welcome: React.FC = () => {
     };
     return statusMap[status] || status;
   };
+
+  // 設定自己課程的結束日期（供排課/教室使用等功能判斷這堂課還要開多久）
+  const handleSetEndDate = async (classId: string) => {
+    const value = endDateDrafts[classId];
+    if (!value) {
+      alert("請先選擇結束日期");
+      return;
+    }
+
+    setSavingEndDateId(classId);
+    try {
+      await apiClient.put(`/v1/classes/${classId}`, { end_date: value });
+      await fetchApplications();
+      alert("✅ 結束日期已更新");
+    } catch (err) {
+      const errMsg = err instanceof Error ? err.message : "更新結束日期失敗";
+      alert(`❌ ${errMsg}`);
+      console.error("Set end date error:", err);
+    } finally {
+      setSavingEndDateId(null);
+    }
+  };
+
+  const renderEndDateEditor = (app: TutionClass) => (
+    <div className="app-row__end-date">
+      <span className="app-row__end-date-label">🏁 結束日期</span>
+      <input
+        type="date"
+        className="app-row__end-date-input"
+        value={endDateDrafts[app.class_id] ?? app.end_date ?? ""}
+        onChange={(e) =>
+          setEndDateDrafts((prev) => ({ ...prev, [app.class_id]: e.target.value }))
+        }
+      />
+      <button
+        className="btn btn-small"
+        disabled={savingEndDateId === app.class_id}
+        onClick={() => handleSetEndDate(app.class_id)}
+      >
+        {savingEndDateId === app.class_id ? "儲存中..." : "設定結束日期"}
+      </button>
+    </div>
+  );
 
   const activeHalf = getActiveReceiptHalf();
   const activeHalfLabel = activeHalf === "h1" ? "上學期" : "下學期";
@@ -253,6 +300,7 @@ const Welcome: React.FC = () => {
                     key={app.class_id}
                     app={app}
                     statusBadge={getStatusBadge(app.approval_status)}
+                    extra={renderEndDateEditor(app)}
                     actions={
                       <>
                         <button

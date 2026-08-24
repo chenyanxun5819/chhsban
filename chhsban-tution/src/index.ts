@@ -351,6 +351,10 @@ export default {
         return handleClasses(request, env, session);
       }
 
+      if (pathname.startsWith("/api/v1/settings")) {
+        return handleSettings(request, env, session);
+      }
+
       if (pathname.startsWith("/api/v1/schedules")) {
         return handleSchedules(request, env, session);
       }
@@ -1385,6 +1389,61 @@ async function handleAttendance(
     return jsonResponse({ error: "Not found" }, 404);
   } catch (error) {
     console.error("Attendance handler error:", error);
+    return jsonResponse({ error: String(error) }, 500);
+  }
+}
+
+/**
+ * 系統設定
+ *
+ * GET  /api/v1/settings/last-teaching-date - 最後上課日期（所有已登入使用者可讀）
+ * PUT  /api/v1/settings/last-teaching-date - 設定最後上課日期（僅 admin/super_admin）
+ *
+ * 用途：申請人（教師）可在 Welcome 頁自行設定自己課程的 end_date；
+ * 沒有自行設定的課程，前端以這裡的全域「最後上課日期」當預設終止日。
+ */
+async function handleSettings(
+  request: Request,
+  env: Env,
+  session: any,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const method = request.method;
+  const pathParts = url.pathname.split("/");
+  const settingKey = pathParts[4]; // /api/v1/settings/{key}
+
+  const kvService = new TutionKVService(
+    env.TUTION_CLASS_KV,
+    env.TUTION_ROSTER_KV,
+    env.TUTION_ATTENDANCE_KV,
+    env.TUTION_SCHEDULE_KV,
+  );
+
+  try {
+    if (settingKey === "last-teaching-date") {
+      if (method === "GET") {
+        const date = await kvService.getLastTeachingDate();
+        return jsonResponse({ data: { date } }, 200);
+      }
+
+      if (method === "PUT") {
+        if (session.permission !== "admin" && session.permission !== "super_admin") {
+          return jsonResponse({ error: "Forbidden" }, 403);
+        }
+
+        const body = (await request.json()) as { date?: string };
+        if (!body.date) {
+          return jsonResponse({ error: "Missing date" }, 400);
+        }
+
+        await kvService.setLastTeachingDate(body.date);
+        return jsonResponse({ data: { date: body.date } }, 200);
+      }
+    }
+
+    return jsonResponse({ error: "Not found" }, 404);
+  } catch (error) {
+    console.error("Settings handler error:", error);
     return jsonResponse({ error: String(error) }, 500);
   }
 }

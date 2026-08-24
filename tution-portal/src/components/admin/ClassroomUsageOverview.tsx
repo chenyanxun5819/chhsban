@@ -8,6 +8,8 @@ import "./classroom-usage.css";
 interface ClassroomUsageOverviewProps {
   classes: TutionClass[];
   classrooms: ClassroomRecord[];
+  /** 管理員設定的全域「最後上課日期」：課程沒自行設定 end_date 時的預設終止日 */
+  lastTeachingDate?: string;
 }
 
 const OCCUPYING_STATUSES = ["reviewing", "approved", "active"];
@@ -52,18 +54,22 @@ function generateMonthWeekdays(yearMonth: string): string[] {
   return dates;
 }
 
-// 沒有設定 end_date 時的預設邊界：開課日所在那個學期（上/下學年）的最後一天，
+// 沒有設定 end_date 時的預設邊界，依序參考：
+// 1. 申請人自己設定的 end_date
+// 2. 管理員設定的全域「最後上課日期」
+// 3. 開課日所在那個學期（上/下學年）的最後一天（管理員也還沒設定時的保底邊界）
 // 避免課程沒設結束日期就被當成無限期每週重複，一路排到很久以後的月份
-function getEffectiveEndDate(cls: TutionClass): string {
+function getEffectiveEndDate(cls: TutionClass, lastTeachingDate?: string): string {
   if (cls.end_date) return cls.end_date;
+  if (lastTeachingDate) return lastTeachingDate;
   const { year, half } = getSemesterInfo(cls.start_date);
   return half === "h1" ? `${year}-05-31` : `${year}-12-31`;
 }
 
 // 課程是否仍在有效上課區間內
-function isDateWithinClassRange(cls: TutionClass, date: string): boolean {
+function isDateWithinClassRange(cls: TutionClass, date: string, lastTeachingDate?: string): boolean {
   if (date < cls.start_date) return false;
-  return date <= getEffectiveEndDate(cls);
+  return date <= getEffectiveEndDate(cls, lastTeachingDate);
 }
 
 function formatDateMain(dateStr: string): string {
@@ -101,6 +107,7 @@ interface UnassignedEntry {
 export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
   classes,
   classrooms,
+  lastTeachingDate,
 }) => {
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr());
   const [schedules, setSchedules] = useState<TutionSchedule[]>([]);
@@ -161,7 +168,7 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
         if (!OCCUPYING_STATUSES.includes(cls.approval_status)) continue;
         if (cls.day_of_week !== dayName) continue;
         if (!cls.venue) continue;
-        if (!isDateWithinClassRange(cls, date)) continue;
+        if (!isDateWithinClassRange(cls, date, lastTeachingDate)) continue;
 
         const exception = schedules.find(
           (s) => s.class_id === cls.class_id && s.scheduled_date === date
@@ -220,7 +227,7 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
     unassigned.sort((a, b) => a.date.localeCompare(b.date));
 
     return { occupancyByDate: occupancy, fadedByDate: faded, unassignedList: unassigned };
-  }, [classes, schedules, dates]);
+  }, [classes, schedules, dates, lastTeachingDate]);
 
   // 空不空只看「目前實際佔用」，原課程調走／停課後反灰顯示的那格不算佔用
   const isVenueFreeOnDate = (date: string, classroomName: string) =>

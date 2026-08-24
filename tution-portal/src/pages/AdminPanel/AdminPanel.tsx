@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
 import { ApprovalList, ClassroomUsageOverview, RejectModal } from "@/components/admin";
 import { adminService } from "@/services/adminService";
+import { settingsService } from "@/services/settingsService";
 import { getSemesterInfo } from "@/utils/semester";
 import apiClient from "@/utils/api";
 import type { ClassroomRecord, TutionClass } from "@/types/index";
@@ -105,8 +106,10 @@ export const AdminPanel: React.FC = () => {
   // 可用教室清單（用於「指定上課地點」下拉選單）
   const [classrooms, setClassrooms] = useState<ClassroomRecord[]>([]);
 
-  const [endDateDrafts, setEndDateDrafts] = useState<Record<string, string>>({});
-  const [savingEndDateId, setSavingEndDateId] = useState<string | null>(null);
+  // 最後上課日期（全域設定）：申請人沒自行設定 end_date 的課程，以此為預設終止日
+  const [lastTeachingDate, setLastTeachingDateState] = useState<string>("");
+  const [savingLastTeachingDate, setSavingLastTeachingDate] = useState(false);
+
   const [uploadingSignedFormId, setUploadingSignedFormId] = useState<string | null>(null);
   const [reviewingReceiptKey, setReviewingReceiptKey] = useState<string | null>(null);
   const [courseSortKey, setCourseSortKey] = useState<CourseSortKey>("day_of_week");
@@ -172,13 +175,41 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
+  const fetchLastTeachingDate = async () => {
+    try {
+      const date = await settingsService.getLastTeachingDate();
+      setLastTeachingDateState(date || "");
+    } catch (err) {
+      console.error("Fetch last teaching date error:", err);
+    }
+  };
+
   // 掛載時抓一次課程清單（同時作為審批分頁徽章、已開課清單、教室占用判斷的資料來源）
   useEffect(() => {
     if (user?.permission !== "super_admin") return;
     fetchAllClasses();
     fetchClassrooms();
+    fetchLastTeachingDate();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.permission]);
+
+  // 儲存全域「最後上課日期」：申請人沒自行設定 end_date 的課程，以此為預設終止日
+  const handleSaveLastTeachingDate = async () => {
+    if (!lastTeachingDate) {
+      alert("請先選擇日期");
+      return;
+    }
+    setSavingLastTeachingDate(true);
+    try {
+      await settingsService.setLastTeachingDate(lastTeachingDate);
+      alert("✅ 已更新最後上課日期");
+    } catch (err) {
+      alert(`❌ ${err instanceof Error ? err.message : "更新失敗"}`);
+      console.error("Set last teaching date error:", err);
+    } finally {
+      setSavingLastTeachingDate(false);
+    }
+  };
 
   // 批准申請
   const handleApprove = async (classId: string) => {
@@ -241,28 +272,6 @@ export const AdminPanel: React.FC = () => {
       const errMsg = err instanceof Error ? err.message : "刪除失敗";
       alert(`❌ ${errMsg}`);
       console.error("Delete course error:", err);
-    }
-  };
-
-  // 設定課程結束日期（供 ScheduleManagement 排課生成範圍使用）
-  const handleSetEndDate = async (classId: string) => {
-    const value = endDateDrafts[classId];
-    if (!value) {
-      alert("請先選擇結束日期");
-      return;
-    }
-
-    setSavingEndDateId(classId);
-    try {
-      await apiClient.put(`/v1/classes/${classId}`, { end_date: value });
-      await fetchAllClasses();
-      alert("✅ 結束日期已更新");
-    } catch (err) {
-      const errMsg = err instanceof Error ? err.message : "更新結束日期失敗";
-      alert(`❌ ${errMsg}`);
-      console.error("Set end date error:", err);
-    } finally {
-      setSavingEndDateId(null);
     }
   };
 
@@ -426,7 +435,31 @@ export const AdminPanel: React.FC = () => {
         {/* 已開課管理 */}
         {currentTab === "courses" && (
           <section className="admin-section">
-            <h2 className="section-title">已開課管理</h2>
+            <div className="section-title-row">
+              <h2 className="section-title">已開課管理</h2>
+              <div className="last-teaching-date">
+                <label>
+                  最後上課日期
+                  <input
+                    type="date"
+                    value={lastTeachingDate}
+                    onChange={(e) => setLastTeachingDateState(e.target.value)}
+                    disabled={savingLastTeachingDate}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-small"
+                  onClick={handleSaveLastTeachingDate}
+                  disabled={savingLastTeachingDate}
+                >
+                  {savingLastTeachingDate ? "儲存中..." : "儲存"}
+                </button>
+                <span className="last-teaching-date__hint">
+                  申請人沒自行設定結束日期的課程，以此為預設終止日
+                </span>
+              </div>
+            </div>
             {classesLoading ? (
               <div className="loading-text">載入中...</div>
             ) : courses.length === 0 ? (
@@ -552,23 +585,6 @@ export const AdminPanel: React.FC = () => {
                           );
                         })}
                     </div>
-                    <div className="course-row__end-date">
-                      <input
-                        type="date"
-                        className="course-row__end-date-input"
-                        value={endDateDrafts[course.class_id] ?? course.end_date ?? ""}
-                        onChange={(e) =>
-                          setEndDateDrafts((prev) => ({ ...prev, [course.class_id]: e.target.value }))
-                        }
-                      />
-                      <button
-                        className="btn btn-small"
-                        disabled={savingEndDateId === course.class_id}
-                        onClick={() => handleSetEndDate(course.class_id)}
-                      >
-                        {savingEndDateId === course.class_id ? "儲存中..." : "設定結束日期"}
-                      </button>
-                    </div>
                     <div className="course-row__actions">
                       <button
                         className="btn btn-small"
@@ -658,7 +674,11 @@ export const AdminPanel: React.FC = () => {
         {currentTab === "usage" && (
           <section className="admin-section">
             <h2 className="section-title">每日教室使用總覽</h2>
-            <ClassroomUsageOverview classes={allClasses} classrooms={classrooms} />
+            <ClassroomUsageOverview
+              classes={allClasses}
+              classrooms={classrooms}
+              lastTeachingDate={lastTeachingDate || undefined}
+            />
           </section>
         )}
 
