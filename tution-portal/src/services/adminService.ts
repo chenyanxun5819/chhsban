@@ -1,5 +1,6 @@
 import apiClient from "@/utils/api";
 import type { TutionClass } from "@/types/index";
+import type { SemesterHalf } from "@/utils/semester";
 
 export interface ApprovalPayload {
   decision: "approved" | "rejected";
@@ -143,6 +144,42 @@ export const adminService = {
       return response.data;
     } catch (error) {
       console.error("Failed to download signed form:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 審核申請人上傳的場地費收據（正確／不正確）
+   */
+  async reviewReceipt(
+    classId: string,
+    half: SemesterHalf,
+    decision: "approved" | "rejected",
+    rejectionReason?: string,
+  ): Promise<TutionClass> {
+    try {
+      const response = await apiClient.put<TutionClass>(
+        `/v1/classes/${classId}/receipt/review`,
+        { half, decision, rejection_reason: rejectionReason },
+      );
+      return response.data!;
+    } catch (error) {
+      console.error("Failed to review receipt:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 下載申請人上傳的收據檔案
+   */
+  async downloadReceipt(classId: string, half: SemesterHalf): Promise<Blob> {
+    try {
+      const response = await apiClient.get(`/v1/classes/${classId}/receipt?half=${half}`, {
+        responseType: "blob",
+      });
+      return response.data;
+    } catch (error) {
+      console.error("Failed to download receipt:", error);
       throw error;
     }
   },

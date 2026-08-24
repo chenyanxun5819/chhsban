@@ -43,6 +43,7 @@ export const AdminPanel: React.FC = () => {
   const [endDateDrafts, setEndDateDrafts] = useState<Record<string, string>>({});
   const [savingEndDateId, setSavingEndDateId] = useState<string | null>(null);
   const [uploadingSignedFormId, setUploadingSignedFormId] = useState<string | null>(null);
+  const [reviewingReceiptKey, setReviewingReceiptKey] = useState<string | null>(null);
 
   const applications = allClasses.filter(
     (item) => item.approval_status === "pending" || item.approval_status === "reviewing",
@@ -226,6 +227,53 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
+  // 查看申請人上傳的場地費收據
+  const handleViewReceipt = async (classId: string, half: "h1" | "h2") => {
+    const viewWindow = window.open("", "_blank");
+    try {
+      const blob = await adminService.downloadReceipt(classId, half);
+      const url = window.URL.createObjectURL(blob);
+      if (viewWindow) {
+        viewWindow.location.href = url;
+      } else {
+        window.open(url, "_blank");
+      }
+    } catch (err) {
+      viewWindow?.close();
+      alert(`❌ ${err instanceof Error ? err.message : "下載失敗"}`);
+      console.error("View receipt error:", err);
+    }
+  };
+
+  // 審核收據「正確／不正確」：正確即通過並記錄收據編號，不正確則退回、要求重新上傳
+  const handleReviewReceipt = async (
+    classId: string,
+    half: "h1" | "h2",
+    decision: "approved" | "rejected",
+  ) => {
+    let rejectionReason: string | undefined;
+    if (decision === "rejected") {
+      rejectionReason = window.prompt("請輸入退回原因（選填）：") || "";
+      if (!window.confirm("確定要將此收據標記為「不正確」並退回嗎？申請人需重新上傳。")) {
+        return;
+      }
+    } else if (!window.confirm("確認此收據正確無誤嗎？")) {
+      return;
+    }
+
+    const key = `${classId}-${half}`;
+    setReviewingReceiptKey(key);
+    try {
+      await adminService.reviewReceipt(classId, half, decision, rejectionReason);
+      await fetchAllClasses();
+    } catch (err) {
+      alert(`❌ ${err instanceof Error ? err.message : "審核失敗"}`);
+      console.error("Review receipt error:", err);
+    } finally {
+      setReviewingReceiptKey(null);
+    }
+  };
+
   // 打開拒絕彈窗
   const handleRejectClick = (classId: string) => {
     const app = applications.find((a) => a.class_id === classId);
@@ -328,6 +376,63 @@ export const AdminPanel: React.FC = () => {
                         📅 {course.day_of_week} {course.time_start}-{course.time_end}
                       </span>
                       <span>🏁 結束日期：{course.end_date || "未設定"}</span>
+                    </div>
+                    <div className="course-row__receipts">
+                      {(["h1", "h2"] as const).map((half) => {
+                        const record = half === "h1" ? course.receipt_h1 : course.receipt_h2;
+                        const halfLabel = half === "h1" ? "上學年" : "下學年";
+                        const reviewKey = `${course.class_id}-${half}`;
+                        return (
+                          <div key={half} className="receipt-status-row">
+                            <span className="receipt-status-row__label">{halfLabel}收據：</span>
+                            {!record ? (
+                              <span className="receipt-status-row__empty">尚未上傳</span>
+                            ) : (
+                              <>
+                                <span>編號 {record.receipt_no || "-"}</span>
+                                <span
+                                  className={`badge badge-${record.status === "pending" ? "reviewing" : record.status === "approved" ? "approved" : "rejected"}`}
+                                >
+                                  {record.status === "pending"
+                                    ? "⏳ 審核中"
+                                    : record.status === "approved"
+                                      ? "✅ 已通過"
+                                      : "❌ 已退回"}
+                                </span>
+                                <button
+                                  className="btn btn-small"
+                                  onClick={() => handleViewReceipt(course.class_id, half)}
+                                >
+                                  📄 查看
+                                </button>
+                                {record.status === "pending" && (
+                                  <>
+                                    <button
+                                      className="btn btn-small"
+                                      disabled={reviewingReceiptKey === reviewKey}
+                                      onClick={() => handleReviewReceipt(course.class_id, half, "approved")}
+                                    >
+                                      ✅ 收據正確
+                                    </button>
+                                    <button
+                                      className="btn btn-small btn--danger"
+                                      disabled={reviewingReceiptKey === reviewKey}
+                                      onClick={() => handleReviewReceipt(course.class_id, half, "rejected")}
+                                    >
+                                      ❌ 收據不正確
+                                    </button>
+                                  </>
+                                )}
+                                {record.status === "rejected" && record.rejection_reason && (
+                                  <span className="receipt-status-row__reason">
+                                    原因：{record.rejection_reason}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                     <div className="course-row__end-date">
                       <input

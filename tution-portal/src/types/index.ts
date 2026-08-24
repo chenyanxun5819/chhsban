@@ -65,8 +65,25 @@ export interface TutionClass {
   signed_form_key?: string; // 已簽核紙本申請表掃描檔在 R2 的物件路徑，有值代表已上傳存檔
   signed_form_filename?: string;
   signed_form_uploaded_at?: number;
+  receipt_h1?: ReceiptRecord; // 上學年（1-6月）場地費收據
+  receipt_h2?: ReceiptRecord; // 下學年（7-12月）場地費收據
   created_at: number;
   updated_at: number;
+}
+
+export type ReceiptStatus = "pending" | "approved" | "rejected";
+
+export interface ReceiptRecord {
+  key?: string;
+  filename?: string;
+  content_type?: string;
+  receipt_no?: string;
+  status?: ReceiptStatus;
+  uploaded_at?: number;
+  uploaded_by?: string;
+  reviewed_at?: number;
+  reviewed_by?: string;
+  rejection_reason?: string;
 }
 
 export interface TutionRosterSnapshot {

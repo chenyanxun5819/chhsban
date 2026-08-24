@@ -5,6 +5,8 @@ import { Layout } from "@/components/common/Layout";
 import { ResponsiveCard } from "@/components/common/ResponsiveCard";
 import { TutionClass, TutionStatus } from "@/types";
 import apiClient from "@/utils/api";
+import { getCurrentSemesterInfo, getSemesterInfo } from "@/utils/semester";
+import { ReceiptUploadModal } from "./ReceiptUploadModal";
 import "./welcome.css";
 
 interface ApplicationRowProps {
@@ -48,10 +50,22 @@ const Welcome: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [applications, setApplications] = useState<TutionClass[]>([]);
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
 
   useEffect(() => {
     fetchApplications();
   }, [user?.teacherId]);
+
+  // 每學年（以 7/1 為界的上/下學年）最多 2 堂已批准（含進行中）課程，
+  // 用當下所在的學年判斷是否已達申請上限——實際強制以後端為準，這裡只是預先隱藏按鈕避免白填表單
+  const currentSemester = getCurrentSemesterInfo();
+  const approvedCourses = applications.filter(
+    (app) => app.approval_status === "approved" || app.approval_status === "active",
+  );
+  const approvedThisSemesterCount = approvedCourses.filter(
+    (app) => getSemesterInfo(app.start_date).key === currentSemester.key,
+  ).length;
+  const canApplyNew = approvedThisSemesterCount < 2;
 
   const fetchApplications = async () => {
     try {
@@ -201,6 +215,12 @@ const Welcome: React.FC = () => {
                   />
                 ))}
             </div>
+
+            <div className="welcome-section__footer">
+              <button className="btn btn-small" onClick={() => setReceiptModalOpen(true)}>
+                📎 上傳場地費收據
+              </button>
+            </div>
           </section>
         )}
 
@@ -220,8 +240,8 @@ const Welcome: React.FC = () => {
           </ResponsiveCard>
         )}
 
-        {/* 新增申請按鈕 */}
-        {!loading && stats.total > 0 && (
+        {/* 新增申請按鈕：每學年（上/下學年）最多 2 堂已批准課程，達上限則不顯示 */}
+        {!loading && stats.total > 0 && canApplyNew && (
           <div className="welcome-footer">
             <button
               className="btn btn-primary btn-lg"
@@ -231,6 +251,19 @@ const Welcome: React.FC = () => {
             </button>
           </div>
         )}
+
+        {!loading && stats.total > 0 && !canApplyNew && (
+          <p className="welcome-quota-hint">
+            {currentSemester.label}已有 {approvedThisSemesterCount} 堂已批准課程，達本學年申請上限（2 堂）
+          </p>
+        )}
+
+        <ReceiptUploadModal
+          isOpen={receiptModalOpen}
+          approvedClasses={approvedCourses}
+          onClose={() => setReceiptModalOpen(false)}
+          onUploaded={fetchApplications}
+        />
 
         {/* Loading 狀態 */}
         {loading && (
