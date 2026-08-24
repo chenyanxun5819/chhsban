@@ -103,7 +103,6 @@
 }
 
 .usage-overview__table {
-  width: 100%;
   border-collapse: collapse;
   font-size: 13px;
 }
@@ -158,6 +157,9 @@
   font-weight: 600;
   z-index: 1;
   background-color: inherit;
+  padding-left: 10px;
+  padding-right: 8px;
+  max-width: 88px;
 }
 
 .usage-overview__weekday {
