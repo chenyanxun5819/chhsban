@@ -26,7 +26,6 @@ import { generatePDFResponse } from "./pdf-generator";
 import { buildSignedFormKey, getSignedFormResponse, isAllowedContentType } from "./signed-form";
 import { getSemesterInfo } from "./semester";
 import { buildReceiptKey, getReceiptResponse, isAllowedReceiptContentType, isSemesterHalf, type ReceiptRecord } from "./receipt";
-import { ocrReceiptImage } from "./google-vision";
 
 interface Env {
   STUDENT_KV: KVNamespace;
@@ -47,7 +46,6 @@ interface Env {
   GOOGLE_SERVICE_ACCOUNT_EMAIL?: string;
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?: string;
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID?: string;
-  GOOGLE_VISION_API_KEY?: string;
 }
 
 interface IncomingRosterSnapshot {
@@ -1025,37 +1023,8 @@ async function handleClasses(
       );
     }
 
-    // POST /api/v1/classes/receipt-ocr - 辨識收據照片上的 Receipt No.（僅輔助預填，不寫入任何資料）
-    if (method === "POST" && classId === "receipt-ocr" && !subAction) {
-      if (!env.GOOGLE_VISION_API_KEY) {
-        return jsonResponse({ error: "OCR 功能尚未設定（缺少 GOOGLE_VISION_API_KEY）" }, 500);
-      }
-
-      const contentType = request.headers.get("Content-Type") || "";
-      if (!isAllowedReceiptContentType(contentType)) {
-        return jsonResponse(
-          { error: "Unsupported file type. Only PDF, JPEG, PNG are accepted." },
-          400,
-        );
-      }
-      if (!request.body) {
-        return jsonResponse({ error: "Missing file body" }, 400);
-      }
-
-      try {
-        const imageBytes = await request.arrayBuffer();
-        const result = await ocrReceiptImage(imageBytes, env.GOOGLE_VISION_API_KEY);
-        return jsonResponse({ data: result }, 200);
-      } catch (err) {
-        console.error("Receipt OCR error:", err);
-        return jsonResponse(
-          { error: err instanceof Error ? err.message : "收據辨識失敗" },
-          500,
-        );
-      }
-    }
-
     // PUT /api/v1/classes/{classId}/receipt - 申請人上傳場地費收據（上傳後即進入審核中，無法再更改）
+    // 收據編號一律由申請人手動輸入（曾試過 Google Vision OCR 輔助辨識，準確度不佳，已移除）
     if (method === "PUT" && classId && subAction === "receipt" && !subId) {
       const tutionClass = (await kvService.getClass(classId)) as any;
       if (!tutionClass) {

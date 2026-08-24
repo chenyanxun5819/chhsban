@@ -5,7 +5,8 @@ import { Layout } from "@/components/common/Layout";
 import { ResponsiveCard } from "@/components/common/ResponsiveCard";
 import { TutionClass, TutionStatus } from "@/types";
 import apiClient from "@/utils/api";
-import { getCurrentSemesterInfo, getSemesterInfo } from "@/utils/semester";
+import { getActiveReceiptHalf, getCurrentSemesterInfo, getSemesterInfo, type SemesterHalf } from "@/utils/semester";
+import { receiptService } from "@/services/receiptService";
 import { ReceiptUploadModal } from "./ReceiptUploadModal";
 import "./welcome.css";
 
@@ -50,7 +51,9 @@ const Welcome: React.FC = () => {
   });
   const [loading, setLoading] = useState(true);
   const [applications, setApplications] = useState<TutionClass[]>([]);
-  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [receiptModalTarget, setReceiptModalTarget] = useState<{ classId: string; half: SemesterHalf } | null>(
+    null,
+  );
 
   useEffect(() => {
     fetchApplications();
@@ -112,6 +115,66 @@ const Welcome: React.FC = () => {
       ended: "🏁 已結束",
     };
     return statusMap[status] || status;
+  };
+
+  const activeHalf = getActiveReceiptHalf();
+  const activeHalfLabel = activeHalf === "h1" ? "上學期" : "下學期";
+
+  const handleViewReceipt = async (classId: string, half: SemesterHalf) => {
+    const viewWindow = window.open("", "_blank");
+    try {
+      const blob = await receiptService.downloadReceipt(classId, half);
+      const url = window.URL.createObjectURL(blob);
+      if (viewWindow) {
+        viewWindow.location.href = url;
+      } else {
+        window.open(url, "_blank");
+      }
+    } catch (err) {
+      viewWindow?.close();
+      alert(`❌ ${err instanceof Error ? err.message : "下載失敗"}`);
+      console.error("View receipt error:", err);
+    }
+  };
+
+  // 只顯示「目前這個時間點該收的那一學期」收據狀態／上傳鈕（7/31 前上學期、8/1 起下學期）
+  const renderReceiptAction = (app: TutionClass) => {
+    const record = activeHalf === "h1" ? app.receipt_h1 : app.receipt_h2;
+
+    if (!record || record.status === "rejected") {
+      return (
+        <React.Fragment key="receipt">
+          {record?.status === "rejected" && (
+            <span className="receipt-rejected-tag">❌ 收據被退回，請重新上傳</span>
+          )}
+          <button
+            className="btn btn-small"
+            onClick={() => setReceiptModalTarget({ classId: app.class_id, half: activeHalf })}
+          >
+            📎 上傳{activeHalfLabel}收據
+          </button>
+        </React.Fragment>
+      );
+    }
+
+    if (record.status === "pending") {
+      return (
+        <span key="receipt" className="receipt-inline-status">
+          ⏳ {activeHalfLabel}收據審核中
+        </span>
+      );
+    }
+
+    return (
+      <button
+        key="receipt"
+        type="button"
+        className="btn-link"
+        onClick={() => handleViewReceipt(app.class_id, activeHalf)}
+      >
+        📄 {activeHalfLabel}收據（已通過）
+      </button>
+    );
   };
 
   return (
@@ -210,16 +273,11 @@ const Welcome: React.FC = () => {
                         >
                           ✓ 點名
                         </button>
+                        {renderReceiptAction(app)}
                       </>
                     }
                   />
                 ))}
-            </div>
-
-            <div className="welcome-section__footer">
-              <button className="btn btn-small" onClick={() => setReceiptModalOpen(true)}>
-                📎 上傳場地費收據
-              </button>
             </div>
           </section>
         )}
@@ -258,12 +316,16 @@ const Welcome: React.FC = () => {
           </p>
         )}
 
-        <ReceiptUploadModal
-          isOpen={receiptModalOpen}
-          approvedClasses={approvedCourses}
-          onClose={() => setReceiptModalOpen(false)}
-          onUploaded={fetchApplications}
-        />
+        {receiptModalTarget && (
+          <ReceiptUploadModal
+            isOpen={true}
+            classId={receiptModalTarget.classId}
+            half={receiptModalTarget.half}
+            halfLabel={receiptModalTarget.half === "h1" ? "上學期" : "下學期"}
+            onClose={() => setReceiptModalTarget(null)}
+            onUploaded={fetchApplications}
+          />
+        )}
 
         {/* Loading 狀態 */}
         {loading && (

@@ -309,14 +309,6 @@
   font-size: 16px;
 }
 
-/* ========== 已批准課程列表下方（上傳收據） ========== */
-
-.welcome-section__footer {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: var(--spacing-md);
-}
-
 .welcome-quota-hint {
   margin-top: var(--spacing-lg);
   padding: var(--spacing-md);
@@ -425,43 +417,6 @@
   color: #dc3545;
 }
 
-.receipt-half-options {
-  display: flex;
-  gap: var(--spacing-lg);
-}
-
-.receipt-half-option {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.receipt-class-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-sm);
-}
-
-.receipt-class-option {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.receipt-rejected-tag {
-  font-size: 12px;
-  color: #ff4d4f;
-}
-
-.receipt-empty-hint {
-  font-size: 13px;
-  color: var(--text-secondary);
-}
-
 .receipt-no-input {
   width: 100%;
   padding: 8px 12px;
@@ -478,10 +433,28 @@
   border-radius: 4px;
 }
 
-.receipt-confirm-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* ========== 已批准課程列表：收據狀態（按鈕/審核中/連結） ========== */
+
+.receipt-rejected-tag {
+  font-size: 12px;
+  color: #ff4d4f;
+}
+
+.receipt-inline-status {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--primary-color);
   font-size: 13px;
   cursor: pointer;
+  text-decoration: underline;
+}
+
+.btn-link:hover {
+  color: #1f8bff;
 }
