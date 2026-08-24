@@ -115,7 +115,15 @@
   border-right: 1px solid #eef0f2;
   text-align: left;
   vertical-align: top;
+}
+
+.usage-overview__table th {
   white-space: nowrap;
+}
+
+.usage-overview__table td {
+  white-space: normal;
+  max-width: 140px;
 }
 
 .usage-overview__table th:last-child,
