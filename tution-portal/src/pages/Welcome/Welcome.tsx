@@ -7,6 +7,7 @@ import { TutionClass, TutionStatus } from "@/types";
 import apiClient from "@/utils/api";
 import { getActiveReceiptHalf, getCurrentSemesterInfo, getSemesterInfo, type SemesterHalf } from "@/utils/semester";
 import { receiptService } from "@/services/receiptService";
+import { formatDisplayDate } from "@/utils/validators";
 import { useGradeLabel } from "@/i18n/labels";
 import { ReceiptUploadModal } from "./ReceiptUploadModal";
 import "./welcome.css";
@@ -29,7 +30,7 @@ const ApplicationRow: React.FC<ApplicationRowProps> = ({ app, statusBadge, extra
       <span className="app-row__badge">{statusBadge}</span>
     </div>
     <div className="app-row__meta">
-      <span>📅 {new Date(app.start_date).toLocaleDateString("zh-TW")}</span>
+      <span>📅 {formatDisplayDate(app.start_date)}</span>
       <span>📍 {app.venue || "-"}</span>
       <span>💰 RM {app.fees}</span>
     </div>

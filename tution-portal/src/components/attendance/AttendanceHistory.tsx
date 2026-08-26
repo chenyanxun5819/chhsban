@@ -1,5 +1,6 @@
 import React from "react";
 import { TutionAttendance } from "@/types";
+import { formatDisplayDate } from "@/utils/validators";
 
 interface StudentStat {
   name: string;
@@ -28,9 +29,7 @@ const AttendanceHistory: React.FC<AttendanceHistoryProps> = ({
     const grouped: Record<string, TutionAttendance[]> = {};
 
     records.forEach((record) => {
-      const dateStr = new Date(record.recorded_at).toLocaleDateString(
-        "zh-TW"
-      );
+      const dateStr = formatDisplayDate(record.recorded_at);
       if (!grouped[dateStr]) {
         grouped[dateStr] = [];
       }

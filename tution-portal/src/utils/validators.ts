@@ -108,6 +108,16 @@ export function getMinDate(): string {
 }
 
 /**
+ * 格式化日期為顯示用的 DD/MM/YYYY（馬來西亞通用格式，中英文介面一致，不隨語言切換）
+ */
+export function formatDisplayDate(date: string | number | Date): string {
+  const d = new Date(date);
+  const day = String(d.getDate()).padStart(2, "0");
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  return `${day}/${month}/${d.getFullYear()}`;
+}
+
+/**
  * 常用常數
  */
 export const FORMS = ["初一", "初二", "初三", "高一", "高二", "高三"];

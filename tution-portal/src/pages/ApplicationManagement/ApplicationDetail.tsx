@@ -4,7 +4,7 @@ import { Layout } from "@/components/common/Layout";
 import { TutionClass, TutionRosterSnapshot } from "@/types";
 import apiClient from "@/utils/api";
 import { validateStudent, updateRoster } from "@/services/classService";
-import { FORMS, DAYS_OF_WEEK } from "@/utils/validators";
+import { FORMS, DAYS_OF_WEEK, formatDisplayDate } from "@/utils/validators";
 import { useGradeLabel, useDayLabel } from "@/i18n/labels";
 import "./application-detail.css";
 
@@ -306,7 +306,7 @@ const ApplicationDetail: React.FC = () => {
               </div>
               <div className="info-item">
                 <label>開課日期</label>
-                <p>{new Date(application.start_date).toLocaleDateString("zh-TW")}</p>
+                <p>{formatDisplayDate(application.start_date)}</p>
               </div>
               <div className="info-item">
                 <label>學費</label>

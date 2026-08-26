@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
 import { TutionClass, TutionStatus } from "@/types";
 import apiClient from "@/utils/api";
+import { formatDisplayDate } from "@/utils/validators";
 import { useGradeLabel, useDayLabel } from "@/i18n/labels";
 import "./application-list.css";
 
@@ -175,7 +176,7 @@ const ApplicationList: React.FC = () => {
                             <strong>{app.subject}</strong>
                           </td>
                           <td>{gradeLabel(app.form)}</td>
-                          <td>{new Date(app.start_date).toLocaleDateString("zh-TW")}</td>
+                          <td>{formatDisplayDate(app.start_date)}</td>
                           <td>{app.venue}</td>
                           <td>RM {app.fees}</td>
                           <td>
@@ -232,7 +233,7 @@ const ApplicationList: React.FC = () => {
                         <div className="card-row">
                           <span className="label">開課日期:</span>
                           <span className="value">
-                            {new Date(app.start_date).toLocaleDateString("zh-TW")}
+                            {formatDisplayDate(app.start_date)}
                           </span>
                         </div>
                         <div className="card-row">
