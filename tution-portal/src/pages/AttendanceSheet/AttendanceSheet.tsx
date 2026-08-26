@@ -292,9 +292,11 @@ export const AttendanceSheet: React.FC = () => {
     }
   };
 
+  const pageTitle = readOnly ? "出席狀況" : "點名";
+
   if (loading) {
     return (
-      <Layout title="點名">
+      <Layout title={pageTitle}>
         <div className="attendance-sheet">
           <div className="attendance-empty">正在載入點名資料...</div>
         </div>
@@ -304,7 +306,7 @@ export const AttendanceSheet: React.FC = () => {
 
   if (!classInfo) {
     return (
-      <Layout title="點名">
+      <Layout title={pageTitle}>
         <div className="attendance-sheet">
           <div className="alert alert-danger">{error || "找不到課程"}</div>
         </div>
@@ -313,7 +315,7 @@ export const AttendanceSheet: React.FC = () => {
   }
 
   return (
-    <Layout title="點名">
+    <Layout title={pageTitle}>
       <div className="attendance-sheet">
         <div className="attendance-page-header">
           <div>
@@ -321,8 +323,8 @@ export const AttendanceSheet: React.FC = () => {
               {classInfo.subject}（{classInfo.form}）
             </h2>
             <p className="attendance-subtitle">
-              每{classInfo.day_of_week} {classInfo.time_start}-{classInfo.time_end} ・{" "}
-              {classInfo.venue}
+              申請人: {classInfo.teacher_name_cn} ・ 每{classInfo.day_of_week}{" "}
+              {classInfo.time_start}-{classInfo.time_end} ・ {classInfo.venue}
             </p>
           </div>
           {!readOnly && (

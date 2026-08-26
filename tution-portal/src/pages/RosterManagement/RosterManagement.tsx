@@ -119,9 +119,10 @@ const RosterManagement: React.FC = () => {
   const classNameDisplay = state.classInfo
     ? `${state.classInfo.subject} (${state.classInfo.form})`
     : "課程";
+  const pageTitle = readOnly ? "學生總覽" : "學生管理";
 
   return (
-    <Layout title="學生管理">
+    <Layout title={pageTitle}>
       <div style={{ maxWidth: "1400px", margin: "0 auto", padding: "24px" }}>
         {/* 頁面標題 */}
         <div
@@ -135,10 +136,18 @@ const RosterManagement: React.FC = () => {
 
           <div>
             <h1 style={{ margin: "0 0 4px 0", fontSize: "24px" }}>
-              {classNameDisplay} - 學生名單管理
+              {classNameDisplay} - {pageTitle}
             </h1>
             <p style={{ margin: "0", color: "#666", fontSize: "14px" }}>
               課程編號: {state.classInfo?.application_no || classId}
+              {state.classInfo && (
+                <>
+                  {" ・ "}申請人: {state.classInfo.teacher_name_cn}
+                  {" ・ "}每{state.classInfo.day_of_week}
+                  {" ・ "}
+                  {state.classInfo.venue || "-"}
+                </>
+              )}
             </p>
           </div>
         </div>

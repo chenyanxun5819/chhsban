@@ -121,9 +121,11 @@ export const ScheduleManagement: React.FC = () => {
     }
   };
 
+  const pageTitle = readOnly ? "排課狀態" : "排課管理";
+
   if (loading) {
     return (
-      <Layout title="排課管理">
+      <Layout title={pageTitle}>
         <div className="schedule-management">
           <div className="schedule-table-empty">正在載入排課資料...</div>
         </div>
@@ -133,7 +135,7 @@ export const ScheduleManagement: React.FC = () => {
 
   if (!classInfo) {
     return (
-      <Layout title="排課管理">
+      <Layout title={pageTitle}>
         <div className="schedule-management">
           <div className="alert alert-danger">{error || "找不到課程"}</div>
         </div>
@@ -142,7 +144,7 @@ export const ScheduleManagement: React.FC = () => {
   }
 
   return (
-    <Layout title="排課管理">
+    <Layout title={pageTitle}>
       <div className="schedule-management">
         <div className="schedule-header">
           <div className="header-title">
@@ -150,8 +152,8 @@ export const ScheduleManagement: React.FC = () => {
               {classInfo.subject}（{classInfo.form}）
             </h2>
             <p className="subtitle">
-              每{classInfo.day_of_week} {classInfo.time_start}-{classInfo.time_end} ・{" "}
-              {classInfo.venue}
+              申請人: {classInfo.teacher_name_cn} ・ 每{classInfo.day_of_week}{" "}
+              {classInfo.time_start}-{classInfo.time_end} ・ {classInfo.venue}
               {classInfo.end_date ? ` ・ 結束日期 ${classInfo.end_date}` : ""}
             </p>
           </div>

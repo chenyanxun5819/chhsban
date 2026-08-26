@@ -59,6 +59,19 @@ function sortCourses(courses: TutionClass[], sortKey: CourseSortKey): TutionClas
   return sorted;
 }
 
+// 課程需要繳交的收據學期：開課日期已落在下學年（6/1 以後）的課程，從未經歷過上學年，不需要上學年收據。
+function getApplicableReceiptHalves(course: TutionClass): ("h1" | "h2")[] {
+  return (["h1", "h2"] as const).filter(
+    (half) => half !== "h1" || getSemesterInfo(course.start_date).half === "h1",
+  );
+}
+
+function hasMissingReceipt(course: TutionClass): boolean {
+  return getApplicableReceiptHalves(course).some(
+    (half) => !(half === "h1" ? course.receipt_h1 : course.receipt_h2),
+  );
+}
+
 function exportCoursesToXLSX(courses: TutionClass[]): void {
   const headers = ["編號", "申請人", "科目", "年級", "上課日", "教室"];
   const rows = courses.map((c) => [
@@ -114,6 +127,7 @@ export const AdminPanel: React.FC = () => {
   const [reviewingReceiptKey, setReviewingReceiptKey] = useState<string | null>(null);
   const [courseSortKey, setCourseSortKey] = useState<CourseSortKey>("day_of_week");
   const [courseFilterTeacher, setCourseFilterTeacher] = useState<string>("");
+  const [courseFilterMissingReceipt, setCourseFilterMissingReceipt] = useState(false);
 
   const applications = allClasses.filter(
     (item) => item.approval_status === "pending" || item.approval_status === "reviewing",
@@ -128,9 +142,9 @@ export const AdminPanel: React.FC = () => {
   const courseTeacherOptions = Array.from(new Set(courses.map((c) => c.teacher_name_cn))).sort(
     (a, b) => a.localeCompare(b, "zh-Hant"),
   );
-  const filteredCourses = courseFilterTeacher
-    ? courses.filter((c) => c.teacher_name_cn === courseFilterTeacher)
-    : courses;
+  const filteredCourses = courses
+    .filter((c) => !courseFilterTeacher || c.teacher_name_cn === courseFilterTeacher)
+    .filter((c) => !courseFilterMissingReceipt || hasMissingReceipt(c));
   const sortedCourses = sortCourses(filteredCourses, courseSortKey);
 
   // 「上課日期＋教室」已被占用的組合（reviewing／approved／active 才算占用，ended 視為已釋出）
@@ -470,6 +484,14 @@ export const AdminPanel: React.FC = () => {
                       ))}
                     </select>
                   </label>
+                  <label className="course-list-toolbar__checkbox">
+                    <input
+                      type="checkbox"
+                      checked={courseFilterMissingReceipt}
+                      onChange={(e) => setCourseFilterMissingReceipt(e.target.checked)}
+                    />
+                    <span>只顯示未上傳收據</span>
+                  </label>
                   <label className="course-list-toolbar__sort">
                     <span>最後上課日期：</span>
                     <input
@@ -500,7 +522,7 @@ export const AdminPanel: React.FC = () => {
                     <div key={course.class_id} className="course-row">
                       <div className="course-row__main">
                         <span className="course-row__no">{course.application_no || "-"}</span>
-                        <span className="course-row__title">
+                        <span className="course-row__title course-row__title--chip">
                           {course.subject}（{course.form}）
                         </span>
                       <span className="course-row__badge">
@@ -516,12 +538,7 @@ export const AdminPanel: React.FC = () => {
                       <span>🏁 結束日期：{course.end_date || "未設定"}</span>
                     </div>
                     <div className="course-row__receipts">
-                      {(["h1", "h2"] as const)
-                        .filter(
-                          // 開課日期已經落在下學年（6/1 以後）的課程，從未經歷過上學年，
-                          // 不需要繳交／顯示上學年收據。
-                          (half) => half !== "h1" || getSemesterInfo(course.start_date).half === "h1",
-                        )
+                      {getApplicableReceiptHalves(course)
                         .map((half) => {
                           const record = half === "h1" ? course.receipt_h1 : course.receipt_h2;
                           const halfLabel = half === "h1" ? "上學年" : "下學年";
