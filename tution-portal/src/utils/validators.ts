@@ -131,6 +131,18 @@ export const DAYS_OF_WEEK = [
 ];
 
 /**
+ * 年級中文顯示值 -> 對照代碼，供 i18n 依語言顯示（不影響既有儲存值，"form" 欄位仍存中文字串）
+ */
+export const GRADE_CODE_MAP: Record<string, string> = {
+  "初一": "F1",
+  "初二": "F2",
+  "初三": "F3",
+  "高一": "F4",
+  "高二": "F5",
+  "高三": "F6",
+};
+
+/**
  * 依日期 (YYYY-MM-DD) 換算對應的星期幾 (與 DAYS_OF_WEEK.value 對應)
  */
 export function getDayOfWeekFromDate(dateStr: string): string {

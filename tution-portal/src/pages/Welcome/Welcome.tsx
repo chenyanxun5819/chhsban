@@ -7,6 +7,7 @@ import { TutionClass, TutionStatus } from "@/types";
 import apiClient from "@/utils/api";
 import { getActiveReceiptHalf, getCurrentSemesterInfo, getSemesterInfo, type SemesterHalf } from "@/utils/semester";
 import { receiptService } from "@/services/receiptService";
+import { useGradeLabel } from "@/i18n/labels";
 import { ReceiptUploadModal } from "./ReceiptUploadModal";
 import "./welcome.css";
 
@@ -17,11 +18,13 @@ interface ApplicationRowProps {
   actions: React.ReactNode;
 }
 
-const ApplicationRow: React.FC<ApplicationRowProps> = ({ app, statusBadge, extra, actions }) => (
+const ApplicationRow: React.FC<ApplicationRowProps> = ({ app, statusBadge, extra, actions }) => {
+  const gradeLabel = useGradeLabel();
+  return (
   <div className="app-row">
     <div className="app-row__main">
       <span className="app-row__title">
-        {app.subject} ({app.form})
+        {app.subject} ({gradeLabel(app.form)})
       </span>
       <span className="app-row__badge">{statusBadge}</span>
     </div>
@@ -33,7 +36,8 @@ const ApplicationRow: React.FC<ApplicationRowProps> = ({ app, statusBadge, extra
     {extra}
     <div className="app-row__actions">{actions}</div>
   </div>
-);
+  );
+};
 
 interface ApplicationStats {
   pending: number;

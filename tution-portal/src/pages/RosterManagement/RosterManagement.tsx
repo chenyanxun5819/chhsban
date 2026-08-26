@@ -11,6 +11,7 @@ import {
 import { RosterTable, RosterStats } from "@/components/roster";
 import { Layout } from "@/components/common/Layout";
 import { useAuth } from "@/context/AuthContext";
+import { useGradeLabel, useDayLabel } from "@/i18n/labels";
 import "@/components/roster/roster.css";
 
 interface PageState {
@@ -26,6 +27,8 @@ const RosterManagement: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const readOnly = user?.permission === "super_admin";
+  const gradeLabel = useGradeLabel();
+  const dayLabel = useDayLabel();
   const [state, setState] = React.useState<PageState>({
     roster: [],
     loading: true,
@@ -117,7 +120,7 @@ const RosterManagement: React.FC = () => {
   };
 
   const classNameDisplay = state.classInfo
-    ? `${state.classInfo.subject} (${state.classInfo.form})`
+    ? `${state.classInfo.subject} (${gradeLabel(state.classInfo.form)})`
     : "課程";
   const pageTitle = readOnly ? "學生總覽" : "學生管理";
 
@@ -143,7 +146,7 @@ const RosterManagement: React.FC = () => {
               {state.classInfo && (
                 <>
                   {" ・ "}申請人: {state.classInfo.teacher_name_cn}
-                  {" ・ "}每{state.classInfo.day_of_week}
+                  {" ・ "}每{dayLabel(state.classInfo.day_of_week)}
                   {" ・ "}
                   {state.classInfo.venue || "-"}
                 </>

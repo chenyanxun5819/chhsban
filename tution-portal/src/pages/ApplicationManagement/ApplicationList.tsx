@@ -4,6 +4,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
 import { TutionClass, TutionStatus } from "@/types";
 import apiClient from "@/utils/api";
+import { useGradeLabel, useDayLabel } from "@/i18n/labels";
 import "./application-list.css";
 
 type FilterStatus = "all" | "pending" | "reviewing" | "approved" | "rejected" | "active";
@@ -11,6 +12,8 @@ type FilterStatus = "all" | "pending" | "reviewing" | "approved" | "rejected" | 
 const ApplicationList: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const gradeLabel = useGradeLabel();
+  const dayLabel = useDayLabel();
   const [applications, setApplications] = useState<TutionClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -171,7 +174,7 @@ const ApplicationList: React.FC = () => {
                           <td>
                             <strong>{app.subject}</strong>
                           </td>
-                          <td>{app.form}</td>
+                          <td>{gradeLabel(app.form)}</td>
                           <td>{new Date(app.start_date).toLocaleDateString("zh-TW")}</td>
                           <td>{app.venue}</td>
                           <td>RM {app.fees}</td>
@@ -218,7 +221,7 @@ const ApplicationList: React.FC = () => {
                       <div className="card-header">
                         <div>
                           <h3>{app.subject}</h3>
-                          <p>{app.form}</p>
+                          <p>{gradeLabel(app.form)}</p>
                         </div>
                         <span className={`badge badge-${statusInfo.color}`}>
                           {statusInfo.badge}
@@ -235,7 +238,7 @@ const ApplicationList: React.FC = () => {
                         <div className="card-row">
                           <span className="label">上課時間:</span>
                           <span className="value">
-                            {app.day_of_week} {app.time_start}-{app.time_end}
+                            {dayLabel(app.day_of_week)} {app.time_start}-{app.time_end}
                           </span>
                         </div>
                         <div className="card-row">

@@ -15,12 +15,15 @@ import ClassroomManagement from "@/pages/ClassroomManagement/ClassroomManagement
 import { useEffect, useState } from "react";
 import { TutionClass } from "@/types";
 import apiClient from "@/utils/api";
+import { useGradeLabel, useDayLabel } from "@/i18n/labels";
 import "./styles/App.css";
 
 // 課程列表頁面
 const ClassList = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const gradeLabel = useGradeLabel();
+  const dayLabel = useDayLabel();
   const [classes, setClasses] = useState<TutionClass[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -67,9 +70,9 @@ const ClassList = () => {
         {classes.length === 0 && !loading && <p>尚無批准的課程</p>}
         {classes.map((c) => (
           <div key={c.class_id} className="class-item" style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ddd", borderRadius: "5px" }}>
-            <h3>{c.subject} ({c.form})</h3>
+            <h3>{c.subject} ({gradeLabel(c.form)})</h3>
             <p>教師: {c.teacher_name_cn}</p>
-            <p>時間: {c.day_of_week} {c.time_start}-{c.time_end}</p>
+            <p>時間: {dayLabel(c.day_of_week)} {c.time_start}-{c.time_end}</p>
             <p>地點: {c.venue}</p>
             <p>學費: RM {c.fees}</p>
             <button onClick={() => navigate(`/classes/${c.class_id}/schedule`)}>查看詳情</button>

@@ -5,6 +5,7 @@ import { TutionClass, TutionRosterSnapshot } from "@/types";
 import apiClient from "@/utils/api";
 import { validateStudent, updateRoster } from "@/services/classService";
 import { FORMS, DAYS_OF_WEEK } from "@/utils/validators";
+import { useGradeLabel, useDayLabel } from "@/i18n/labels";
 import "./application-detail.css";
 
 const DETAIL_RETRY_DELAYS_MS = [600, 1200, 2000];
@@ -21,6 +22,8 @@ interface FormData {
 const ApplicationDetail: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const gradeLabel = useGradeLabel();
+  const dayLabel = useDayLabel();
 
   const [application, setApplication] = useState<TutionClass | null>(null);
   const [loading, setLoading] = useState(true);
@@ -268,7 +271,7 @@ const ApplicationDetail: React.FC = () => {
           <div className="header-info">
             <h1>{application.subject}</h1>
             <p>
-              {application.form} 班 · 申請教師：{application.teacher_name_cn}
+              {gradeLabel(application.form)} 班 · 申請教師：{application.teacher_name_cn}
             </p>
           </div>
           {getStatusBadge(application.approval_status)}
@@ -289,11 +292,11 @@ const ApplicationDetail: React.FC = () => {
               </div>
               <div className="info-item">
                 <label>年級</label>
-                <p>{application.form}</p>
+                <p>{gradeLabel(application.form)}</p>
               </div>
               <div className="info-item">
                 <label>上課日期</label>
-                <p>{application.day_of_week}</p>
+                <p>{dayLabel(application.day_of_week)}</p>
               </div>
               <div className="info-item">
                 <label>上課時間</label>
@@ -331,7 +334,7 @@ const ApplicationDetail: React.FC = () => {
                   <select name="form" value={formData.form} onChange={handleFormChange}>
                     {FORMS.map((f) => (
                       <option key={f} value={f}>
-                        {f}
+                        {gradeLabel(f)}
                       </option>
                     ))}
                   </select>
@@ -348,7 +351,7 @@ const ApplicationDetail: React.FC = () => {
                   >
                     {DAYS_OF_WEEK.map((d) => (
                       <option key={d.value} value={d.value}>
-                        {d.label}
+                        {dayLabel(d.value)}
                       </option>
                     ))}
                   </select>

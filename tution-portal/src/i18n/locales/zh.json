@@ -6,5 +6,22 @@
     "language": "語言",
     "switchToEnglish": "切換為英文",
     "switchToChinese": "切換為中文"
+  },
+  "grade": {
+    "F1": "初一",
+    "F2": "初二",
+    "F3": "初三",
+    "F4": "高一",
+    "F5": "高二",
+    "F6": "高三"
+  },
+  "day": {
+    "Monday": "星期一",
+    "Tuesday": "星期二",
+    "Wednesday": "星期三",
+    "Thursday": "星期四",
+    "Friday": "星期五",
+    "Saturday": "星期六",
+    "Sunday": "星期日"
   }
 }

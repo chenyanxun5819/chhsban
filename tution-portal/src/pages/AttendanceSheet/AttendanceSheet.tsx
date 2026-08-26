@@ -14,6 +14,7 @@ import {
 } from "@/services/attendanceQueryService";
 import { generateScheduleRows } from "@/utils/scheduleGenerator";
 import type { ClassRosterEntry, TutionClass, TutionSchedule } from "@/types";
+import { useGradeLabel, useDayLabel } from "@/i18n/labels";
 import "./attendance-sheet.css";
 
 interface DraftEntry {
@@ -114,6 +115,8 @@ export const AttendanceSheet: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
   const { user } = useAuth();
   const readOnly = user?.permission === "super_admin";
+  const gradeLabel = useGradeLabel();
+  const dayLabel = useDayLabel();
 
   const [classInfo, setClassInfo] = useState<TutionClass | null>(null);
   const [roster, setRoster] = useState<ClassRosterEntry[]>([]);
@@ -320,10 +323,10 @@ export const AttendanceSheet: React.FC = () => {
         <div className="attendance-page-header">
           <div>
             <h2>
-              {classInfo.subject}（{classInfo.form}）
+              {classInfo.subject}（{gradeLabel(classInfo.form)}）
             </h2>
             <p className="attendance-subtitle">
-              申請人: {classInfo.teacher_name_cn} ・ 每{classInfo.day_of_week}{" "}
+              申請人: {classInfo.teacher_name_cn} ・ 每{dayLabel(classInfo.day_of_week)}{" "}
               {classInfo.time_start}-{classInfo.time_end} ・ {classInfo.venue}
             </p>
           </div>

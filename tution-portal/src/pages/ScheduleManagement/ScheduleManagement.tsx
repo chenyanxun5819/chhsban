@@ -17,6 +17,7 @@ import {
   ScheduleStats,
 } from "@/components/schedule";
 import type { TutionClass, TutionSchedule } from "@/types";
+import { useGradeLabel, useDayLabel } from "@/i18n/labels";
 import "@/components/schedule/schedule.css";
 import "./schedule-management.css";
 
@@ -24,6 +25,8 @@ export const ScheduleManagement: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
   const { user } = useAuth();
   const readOnly = user?.permission === "super_admin";
+  const gradeLabel = useGradeLabel();
+  const dayLabel = useDayLabel();
 
   const [classInfo, setClassInfo] = useState<TutionClass | null>(null);
   const [exceptions, setExceptions] = useState<TutionSchedule[]>([]);
@@ -149,10 +152,10 @@ export const ScheduleManagement: React.FC = () => {
         <div className="schedule-header">
           <div className="header-title">
             <h2>
-              {classInfo.subject}（{classInfo.form}）
+              {classInfo.subject}（{gradeLabel(classInfo.form)}）
             </h2>
             <p className="subtitle">
-              申請人: {classInfo.teacher_name_cn} ・ 每{classInfo.day_of_week}{" "}
+              申請人: {classInfo.teacher_name_cn} ・ 每{dayLabel(classInfo.day_of_week)}{" "}
               {classInfo.time_start}-{classInfo.time_end} ・ {classInfo.venue}
               {classInfo.end_date ? ` ・ 結束日期 ${classInfo.end_date}` : ""}
             </p>

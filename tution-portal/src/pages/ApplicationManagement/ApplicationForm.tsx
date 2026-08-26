@@ -6,7 +6,6 @@ import { TutionRosterSnapshot } from "@/types";
 import { createApplication, validateStudents } from "@/services/classService";
 import {
   FORMS,
-  DAYS_OF_WEEK,
   FIXED_TIME_START,
   FIXED_TIME_END,
   getMinDate,
@@ -14,6 +13,7 @@ import {
   parseCSV,
   parseXLSX,
 } from "@/utils/validators";
+import { useGradeLabel, useDayLabel } from "@/i18n/labels";
 import "./application-form.css";
 
 interface FormData {
@@ -29,6 +29,8 @@ type StudentInputMethod = "csv" | "manual";
 const ApplicationForm: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const gradeLabel = useGradeLabel();
+  const dayLabel = useDayLabel();
   const [step, setStep] = useState<1 | 2>(1); // 手機: 分步 | 桌機: 全步
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -281,7 +283,7 @@ const ApplicationForm: React.FC = () => {
                     <option value="">選擇年級</option>
                     {FORMS.map((f) => (
                       <option key={f} value={f}>
-                        {f}
+                        {gradeLabel(f)}
                       </option>
                     ))}
                   </select>
@@ -317,7 +319,7 @@ const ApplicationForm: React.FC = () => {
                   <label>上課日期</label>
                   <div className="fee-display">
                     <span className="fee-value">
-                      {DAYS_OF_WEEK.find((d) => d.value === formData.day_of_week)?.label || "-"}
+                      {formData.day_of_week ? dayLabel(formData.day_of_week) : "-"}
                     </span>
                     <p className="fee-note">根據開課日期自動計算，無法修改</p>
                   </div>
@@ -531,7 +533,7 @@ const ApplicationForm: React.FC = () => {
                     <option value="">選擇年級</option>
                     {FORMS.map((f) => (
                       <option key={f} value={f}>
-                        {f}
+                        {gradeLabel(f)}
                       </option>
                     ))}
                   </select>
@@ -565,7 +567,7 @@ const ApplicationForm: React.FC = () => {
                   <label>上課日期</label>
                   <div className="fee-display">
                     <span className="fee-value">
-                      {DAYS_OF_WEEK.find((d) => d.value === formData.day_of_week)?.label || "-"}
+                      {formData.day_of_week ? dayLabel(formData.day_of_week) : "-"}
                     </span>
                     <p className="fee-note">根據開課日期自動計算，無法修改</p>
                   </div>
