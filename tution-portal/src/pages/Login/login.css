@@ -12,6 +12,7 @@
 }
 
 .login-card {
+  position: relative;
   background: white;
   border-radius: 12px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
@@ -19,6 +20,12 @@
   width: 100%;
   max-width: 400px;
   animation: slideUp 0.5s ease-out;
+}
+
+.login-lang-toggle {
+  position: absolute;
+  top: 16px;
+  right: 16px;
 }
 
 @keyframes slideUp {

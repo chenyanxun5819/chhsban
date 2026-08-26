@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
+import { LanguageToggle } from "@/components/common/LanguageToggle";
 import "./login.css";
 
 declare global {
@@ -133,6 +134,8 @@ export const Login: React.FC = () => {
   return (
     <div className="login-container">
       <div className="login-card">
+        <LanguageToggle className="login-lang-toggle" />
+
         {/* Logo 和標題 */}
         <div className="login-header">
           <div className="logo">🎓</div>

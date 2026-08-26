@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
-import { LANG_STORAGE_KEY } from "@/i18n";
+import { LanguageToggle } from "./LanguageToggle";
 import houseIcon from "../../assets/house.svg";
 import logOutIcon from "../../assets/log-out.svg";
 import "../../styles/layout.css";
@@ -16,13 +16,7 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ title, onMenuToggle, menuOpen }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { t, i18n } = useTranslation();
-
-  const toggleLanguage = () => {
-    const next = i18n.language.startsWith("en") ? "zh" : "en";
-    i18n.changeLanguage(next);
-    localStorage.setItem(LANG_STORAGE_KEY, next);
-  };
+  const { t } = useTranslation();
 
   return (
     <header className="main-header">
@@ -44,14 +38,7 @@ export const Header: React.FC<HeaderProps> = ({ title, onMenuToggle, menuOpen })
         <div className="user-info">
           <span className="user-info__name">{user?.teacherName}</span>
         </div>
-        <button
-          className="header__lang"
-          onClick={toggleLanguage}
-          aria-label={i18n.language.startsWith("en") ? t("common.switchToChinese") : t("common.switchToEnglish")}
-          title={i18n.language.startsWith("en") ? t("common.switchToChinese") : t("common.switchToEnglish")}
-        >
-          {i18n.language.startsWith("en") ? "中" : "EN"}
-        </button>
+        <LanguageToggle />
         <button
           className="header__home"
           onClick={() => navigate("/")}
