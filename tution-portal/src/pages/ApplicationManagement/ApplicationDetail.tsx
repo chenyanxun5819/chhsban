@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Layout } from "@/components/common/Layout";
 import { TutionClass, TutionRosterSnapshot } from "@/types";
 import apiClient from "@/utils/api";
 import { validateStudent, updateRoster } from "@/services/classService";
-import { FORMS, DAYS_OF_WEEK, formatDisplayDate } from "@/utils/validators";
+import { FORMS, DAYS_OF_WEEK, formatDisplayDate, formatDisplayDateTime } from "@/utils/validators";
 import { useGradeLabel, useDayLabel } from "@/i18n/labels";
 import "./application-detail.css";
 
@@ -22,6 +23,7 @@ interface FormData {
 const ApplicationDetail: React.FC = () => {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
+  const { t } = useTranslation();
   const gradeLabel = useGradeLabel();
   const dayLabel = useDayLabel();
 
@@ -58,7 +60,7 @@ const ApplicationDetail: React.FC = () => {
       setError(null);
 
       if (!id) {
-        setError("無效的申請 ID");
+        setError(t("applicationDetail.errorInvalidId"));
         return;
       }
 
@@ -99,7 +101,7 @@ const ApplicationDetail: React.FC = () => {
       });
       setRoster(appData.initial_roster || []);
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || "載入申請詳情失敗";
+      const errorMessage = err.response?.data?.error || t("applicationDetail.errorLoadFailed");
       setError(errorMessage);
       setApplication(null);
     } finally {
@@ -119,7 +121,7 @@ const ApplicationDetail: React.FC = () => {
 
   const handleSaveChanges = async () => {
     if (roster.length === 0) {
-      setError("學生名單不能為空");
+      setError(t("applicationDetail.errorRosterEmpty"));
       return;
     }
 
@@ -142,7 +144,7 @@ const ApplicationDetail: React.FC = () => {
       setRoster(updatedApp.initial_roster || []);
       setIsEditing(false);
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || "更新失敗，請重試";
+      const errorMessage = err.response?.data?.error || t("applicationDetail.errorUpdateFailed");
       setError(errorMessage);
     } finally {
       setIsUpdating(false);
@@ -152,12 +154,12 @@ const ApplicationDetail: React.FC = () => {
   // 新增學生到名單
   const handleAddRosterStudent = async () => {
     if (!newStudentId.trim()) {
-      setRosterError("請輸入學生 ID");
+      setRosterError(t("applicationDetail.errorStudentIdRequired"));
       return;
     }
 
     if (roster.find((s) => s.student_id === newStudentId.trim())) {
-      setRosterError("該學生已在名單中");
+      setRosterError(t("applicationDetail.errorStudentDuplicate"));
       return;
     }
 
@@ -167,14 +169,14 @@ const ApplicationDetail: React.FC = () => {
     try {
       const student = await validateStudent(newStudentId.trim());
       if (!student) {
-        setRosterError(`學生 ${newStudentId} 不存在`);
+        setRosterError(t("applicationDetail.errorStudentNotFound", { id: newStudentId }));
         return;
       }
 
       setRoster((prev) => [...prev, student]);
       setNewStudentId("");
     } catch (err) {
-      setRosterError("驗證失敗，請重試");
+      setRosterError(t("applicationDetail.errorVerifyFailed"));
     } finally {
       setAddingStudent(false);
     }
@@ -186,7 +188,7 @@ const ApplicationDetail: React.FC = () => {
   };
 
   const handleDeleteApplication = async () => {
-    if (!window.confirm("確認要刪除此申請嗎？")) {
+    if (!window.confirm(t("applicationDetail.confirmDelete"))) {
       return;
     }
 
@@ -199,7 +201,7 @@ const ApplicationDetail: React.FC = () => {
         navigate("/applications");
       }, 800);
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || "刪除失敗，請重試";
+      const errorMessage = err.response?.data?.error || t("applicationDetail.errorDeleteFailed");
       setError(errorMessage);
     } finally {
       setIsUpdating(false);
@@ -225,12 +227,12 @@ const ApplicationDetail: React.FC = () => {
 
   const getStatusBadge = (status: string) => {
     const statusMap: Record<string, { label: string; emoji: string; color: string }> = {
-      pending: { label: "待審批", emoji: "⏳", color: "warning" },
-      reviewing: { label: "審核中", emoji: "🔍", color: "info" },
-      approved: { label: "已批准", emoji: "✅", color: "success" },
-      rejected: { label: "已拒絕", emoji: "❌", color: "danger" },
-      active: { label: "進行中", emoji: "🚀", color: "info" },
-      ended: { label: "已結束", emoji: "🏁", color: "secondary" },
+      pending: { label: t("applicationList.status.pending"), emoji: "⏳", color: "warning" },
+      reviewing: { label: t("applicationList.status.reviewing"), emoji: "🔍", color: "info" },
+      approved: { label: t("applicationList.status.approved"), emoji: "✅", color: "success" },
+      rejected: { label: t("applicationList.status.rejected"), emoji: "❌", color: "danger" },
+      active: { label: t("applicationList.status.active"), emoji: "🚀", color: "info" },
+      ended: { label: t("applicationList.status.ended"), emoji: "🏁", color: "secondary" },
     };
     const info = statusMap[status] || statusMap.pending;
     return (
@@ -242,9 +244,9 @@ const ApplicationDetail: React.FC = () => {
 
   if (loading) {
     return (
-      <Layout title="申請詳情">
+      <Layout title={t("applicationDetail.title")}>
         <div className="empty-state">
-          <p>載入中...</p>
+          <p>{t("welcome.loading")}</p>
         </div>
       </Layout>
     );
@@ -252,11 +254,11 @@ const ApplicationDetail: React.FC = () => {
 
   if (!application) {
     return (
-      <Layout title="申請詳情">
+      <Layout title={t("applicationDetail.title")}>
         <div className="empty-state">
-          <p>📋 申請不存在或已被刪除</p>
+          <p>{t("applicationDetail.notFound")}</p>
           <button className="btn btn-primary" onClick={() => navigate("/applications")}>
-            返回列表
+            {t("applicationDetail.backToList")}
           </button>
         </div>
       </Layout>
@@ -264,14 +266,17 @@ const ApplicationDetail: React.FC = () => {
   }
 
   return (
-    <Layout title={`申請詳情 - ${application.subject}`}>
+    <Layout title={t("applicationDetail.titleWithSubject", { subject: application.subject })}>
       <div className="detail-container">
         {/* 頂部栏 */}
         <div className="detail-header">
           <div className="header-info">
             <h1>{application.subject}</h1>
             <p>
-              {gradeLabel(application.form)} 班 · 申請教師：{application.teacher_name_cn}
+              {t("applicationDetail.gradeTeacherLine", {
+                grade: gradeLabel(application.form),
+                teacher: application.teacher_name_cn,
+              })}
             </p>
           </div>
           {getStatusBadge(application.approval_status)}
@@ -282,38 +287,38 @@ const ApplicationDetail: React.FC = () => {
 
         {/* 基本信息 */}
         <div className="detail-section">
-          <h2 className="section-title">📋 基本信息</h2>
+          <h2 className="section-title">{t("applicationDetail.sectionBasicInfo")}</h2>
 
           {!isEditing ? (
             <div className="info-grid info-grid--2col">
               <div className="info-item">
-                <label>科目</label>
+                <label>{t("field.subject")}</label>
                 <p>{application.subject}</p>
               </div>
               <div className="info-item">
-                <label>年級</label>
+                <label>{t("field.grade")}</label>
                 <p>{gradeLabel(application.form)}</p>
               </div>
               <div className="info-item">
-                <label>上課日期</label>
+                <label>{t("field.classDay")}</label>
                 <p>{dayLabel(application.day_of_week)}</p>
               </div>
               <div className="info-item">
-                <label>上課時間</label>
+                <label>{t("field.classTime")}</label>
                 <p>
                   {application.time_start} - {application.time_end}
                 </p>
               </div>
               <div className="info-item">
-                <label>開課日期</label>
+                <label>{t("field.startDate")}</label>
                 <p>{formatDisplayDate(application.start_date)}</p>
               </div>
               <div className="info-item">
-                <label>學費</label>
+                <label>{t("field.fees")}</label>
                 <p>RM {application.fees}</p>
               </div>
               <div className="info-item info-item--fullwidth">
-                <label>上課地點</label>
+                <label>{t("field.venue")}</label>
                 <p>{application.venue}</p>
               </div>
             </div>
@@ -321,7 +326,7 @@ const ApplicationDetail: React.FC = () => {
             <div className="edit-form">
               <div className="form-row form-row--2col">
                 <div className="form-group">
-                  <label>科目 *</label>
+                  <label>{t("field.subject")} *</label>
                   <input
                     type="text"
                     name="subject"
@@ -330,7 +335,7 @@ const ApplicationDetail: React.FC = () => {
                   />
                 </div>
                 <div className="form-group">
-                  <label>年級 *</label>
+                  <label>{t("field.grade")} *</label>
                   <select name="form" value={formData.form} onChange={handleFormChange}>
                     {FORMS.map((f) => (
                       <option key={f} value={f}>
@@ -343,7 +348,7 @@ const ApplicationDetail: React.FC = () => {
 
               <div className="form-row form-row--2col">
                 <div className="form-group">
-                  <label>上課日期 *</label>
+                  <label>{t("field.classDay")} *</label>
                   <select
                     name="day_of_week"
                     value={formData.day_of_week}
@@ -357,7 +362,7 @@ const ApplicationDetail: React.FC = () => {
                   </select>
                 </div>
                 <div className="form-group">
-                  <label>開課日期 *</label>
+                  <label>{t("field.startDate")} *</label>
                   <input
                     type="date"
                     name="start_date"
@@ -369,12 +374,12 @@ const ApplicationDetail: React.FC = () => {
 
               <div className="form-row form-row--2col">
                 <div className="form-group">
-                  <label>學費</label>
+                  <label>{t("field.fees")}</label>
                   <p>RM {formData.fees}</p>
                 </div>
                 <div className="form-group">
-                  <label>上課地點</label>
-                  <p>{formData.venue || "由管理者指定"}</p>
+                  <label>{t("field.venue")}</label>
+                  <p>{formData.venue || t("applicationDetail.venueUnassigned")}</p>
                 </div>
               </div>
             </div>
@@ -385,7 +390,7 @@ const ApplicationDetail: React.FC = () => {
         {(roster.length > 0 || isEditing) && (
           <div className="detail-section">
             <h2 className="section-title">
-              👥 學生名單 ({roster.length} 人)
+              {t("applicationDetail.rosterSectionTitle", { count: roster.length })}
             </h2>
 
             {rosterError && <div className="alert alert-error">{rosterError}</div>}
@@ -395,10 +400,10 @@ const ApplicationDetail: React.FC = () => {
                 <table>
                   <thead>
                     <tr>
-                      <th>學號</th>
-                      <th>姓名</th>
-                      <th>狀態</th>
-                      {isEditing && <th>操作</th>}
+                      <th>{t("field.studentNo")}</th>
+                      <th>{t("field.studentName")}</th>
+                      <th>{t("field.status")}</th>
+                      {isEditing && <th>{t("field.actions")}</th>}
                     </tr>
                   </thead>
                   <tbody>
@@ -407,7 +412,7 @@ const ApplicationDetail: React.FC = () => {
                         <td>{student.student_no}</td>
                         <td>{student.name_cn}</td>
                         <td>
-                          <span className="badge badge-info">✓ 已驗證</span>
+                          <span className="badge badge-info">{t("applicationDetail.verified")}</span>
                         </td>
                         {isEditing && (
                           <td>
@@ -416,7 +421,7 @@ const ApplicationDetail: React.FC = () => {
                               className="btn btn-small btn-danger"
                               onClick={() => handleRemoveRosterStudent(student.student_id)}
                             >
-                              移除
+                              {t("applicationDetail.remove")}
                             </button>
                           </td>
                         )}
@@ -440,7 +445,7 @@ const ApplicationDetail: React.FC = () => {
                       className="btn btn-small btn-danger"
                       onClick={() => handleRemoveRosterStudent(student.student_id)}
                     >
-                      移除
+                      {t("applicationDetail.remove")}
                     </button>
                   ) : (
                     <span className="badge badge-info">✓</span>
@@ -455,7 +460,7 @@ const ApplicationDetail: React.FC = () => {
                   type="text"
                   value={newStudentId}
                   onChange={(e) => setNewStudentId(e.target.value)}
-                  placeholder="輸入學生 ID"
+                  placeholder={t("applicationDetail.studentIdPlaceholder")}
                   disabled={addingStudent}
                   onKeyPress={(e) => {
                     if (e.key === "Enter") {
@@ -469,7 +474,7 @@ const ApplicationDetail: React.FC = () => {
                   onClick={handleAddRosterStudent}
                   disabled={addingStudent}
                 >
-                  {addingStudent ? "驗證中..." : "新增學生"}
+                  {addingStudent ? t("applicationDetail.verifying") : t("applicationDetail.addStudent")}
                 </button>
               </div>
             )}
@@ -484,7 +489,7 @@ const ApplicationDetail: React.FC = () => {
                 className="btn btn-secondary"
                 onClick={() => navigate("/applications")}
               >
-                返回列表
+                {t("applicationDetail.backToList")}
               </button>
 
               {application.approval_status === "pending" && (
@@ -494,14 +499,14 @@ const ApplicationDetail: React.FC = () => {
                     onClick={() => setIsEditing(true)}
                     disabled={isUpdating}
                   >
-                    編輯
+                    {t("applicationDetail.edit")}
                   </button>
                   <button
                     className="btn btn-danger"
                     onClick={handleDeleteApplication}
                     disabled={isUpdating}
                   >
-                    刪除
+                    {t("applicationDetail.delete")}
                   </button>
                 </>
               )}
@@ -513,14 +518,14 @@ const ApplicationDetail: React.FC = () => {
                 onClick={handleCancelEdit}
                 disabled={isUpdating}
               >
-                取消
+                {t("applicationDetail.cancel")}
               </button>
               <button
                 className="btn btn-primary"
                 onClick={handleSaveChanges}
                 disabled={isUpdating}
               >
-                {isUpdating ? "保存中..." : "保存"}
+                {isUpdating ? t("applicationDetail.saving") : t("applicationDetail.save")}
               </button>
             </>
           )}
@@ -528,9 +533,9 @@ const ApplicationDetail: React.FC = () => {
 
         {/* 時間戳 */}
         <div className="detail-footer">
-          <p>建立時間: {new Date(application.created_at).toLocaleString("zh-TW")}</p>
+          <p>{t("applicationDetail.createdAt", { time: formatDisplayDateTime(application.created_at) })}</p>
           {application.updated_at && (
-            <p>最後修改: {new Date(application.updated_at).toLocaleString("zh-TW")}</p>
+            <p>{t("applicationDetail.updatedAt", { time: formatDisplayDateTime(application.updated_at) })}</p>
           )}
         </div>
       </div>

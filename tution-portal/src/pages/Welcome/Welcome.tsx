@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
 import { ResponsiveCard } from "@/components/common/ResponsiveCard";
@@ -49,6 +50,7 @@ interface ApplicationStats {
 
 const Welcome: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const [stats, setStats] = useState<ApplicationStats>({
     pending: 0,
@@ -116,12 +118,12 @@ const Welcome: React.FC = () => {
 
   const getStatusBadge = (status: TutionStatus) => {
     const statusMap: Record<TutionStatus, string> = {
-      pending: "⏳ 待審批",
-      reviewing: "🔍 審核中",
-      approved: "✅ 已批准",
-      rejected: "❌ 已拒絕",
-      active: "🚀 進行中",
-      ended: "🏁 已結束",
+      pending: t("welcome.status.pending"),
+      reviewing: t("welcome.status.reviewing"),
+      approved: t("welcome.status.approved"),
+      rejected: t("welcome.status.rejected"),
+      active: t("welcome.status.active"),
+      ended: t("welcome.status.ended"),
     };
     return statusMap[status] || status;
   };
@@ -130,7 +132,7 @@ const Welcome: React.FC = () => {
   const handleSetEndDate = async (classId: string) => {
     const value = endDateDrafts[classId];
     if (!value) {
-      alert("請先選擇結束日期");
+      alert(t("welcome.endDatePrompt"));
       return;
     }
 
@@ -138,9 +140,9 @@ const Welcome: React.FC = () => {
     try {
       await apiClient.put(`/v1/classes/${classId}`, { end_date: value });
       await fetchApplications();
-      alert("✅ 結束日期已更新");
+      alert(t("welcome.endDateUpdated"));
     } catch (err) {
-      const errMsg = err instanceof Error ? err.message : "更新結束日期失敗";
+      const errMsg = err instanceof Error ? err.message : t("welcome.endDateUpdateFailed");
       alert(`❌ ${errMsg}`);
       console.error("Set end date error:", err);
     } finally {
@@ -150,7 +152,7 @@ const Welcome: React.FC = () => {
 
   const renderEndDateEditor = (app: TutionClass) => (
     <div className="app-row__end-date">
-      <span className="app-row__end-date-label">🏁 結束日期</span>
+      <span className="app-row__end-date-label">{t("welcome.endDateLabel")}</span>
       <input
         type="date"
         className="app-row__end-date-input"
@@ -164,13 +166,13 @@ const Welcome: React.FC = () => {
         disabled={savingEndDateId === app.class_id}
         onClick={() => handleSetEndDate(app.class_id)}
       >
-        {savingEndDateId === app.class_id ? "儲存中..." : "確定"}
+        {savingEndDateId === app.class_id ? t("welcome.saving") : t("welcome.save")}
       </button>
     </div>
   );
 
   const activeHalf = getActiveReceiptHalf();
-  const activeHalfLabel = activeHalf === "h1" ? "上學期" : "下學期";
+  const activeHalfLabel = activeHalf === "h1" ? t("welcome.semesterH1") : t("welcome.semesterH2");
 
   const handleViewReceipt = async (classId: string, half: SemesterHalf) => {
     const viewWindow = window.open("", "_blank");
@@ -184,7 +186,7 @@ const Welcome: React.FC = () => {
       }
     } catch (err) {
       viewWindow?.close();
-      alert(`❌ ${err instanceof Error ? err.message : "下載失敗"}`);
+      alert(`❌ ${err instanceof Error ? err.message : t("welcome.downloadFailed")}`);
       console.error("View receipt error:", err);
     }
   };
@@ -197,13 +199,13 @@ const Welcome: React.FC = () => {
       return (
         <React.Fragment key="receipt">
           {record?.status === "rejected" && (
-            <span className="receipt-rejected-tag">❌ 收據被退回，請重新上傳</span>
+            <span className="receipt-rejected-tag">{t("welcome.receiptRejected")}</span>
           )}
           <button
             className="btn btn-small"
             onClick={() => setReceiptModalTarget({ classId: app.class_id, half: activeHalf })}
           >
-            📎 上傳{activeHalfLabel}收據
+            {t("welcome.uploadReceipt", { half: activeHalfLabel })}
           </button>
         </React.Fragment>
       );
@@ -212,7 +214,7 @@ const Welcome: React.FC = () => {
     if (record.status === "pending") {
       return (
         <span key="receipt" className="receipt-inline-status">
-          ⏳ {activeHalfLabel}收據審核中
+          {t("welcome.receiptPending", { half: activeHalfLabel })}
         </span>
       );
     }
@@ -224,24 +226,24 @@ const Welcome: React.FC = () => {
         className="btn-link"
         onClick={() => handleViewReceipt(app.class_id, activeHalf)}
       >
-        📄 {activeHalfLabel}收據（已通過）
+        {t("welcome.receiptApproved", { half: activeHalfLabel })}
       </button>
     );
   };
 
   return (
-    <Layout title="歡迎">
+    <Layout title={t("welcome.title")}>
       <div className="welcome-container">
         {/* 歡迎標題 */}
         <div className="welcome-header">
-          <h1>歡迎, {user?.teacherName}!</h1>
-          <p>補習班系統 - 教師管理平台</p>
+          <h1>{t("welcome.greeting", { name: user?.teacherName })}</h1>
+          <p>{t("welcome.subtitle")}</p>
         </div>
 
         {/* 待審批申請 */}
         {stats.pending > 0 && (
           <section className="welcome-section">
-            <h2 className="section-title">📋 待審批申請</h2>
+            <h2 className="section-title">{t("welcome.pendingSection")}</h2>
             <div className="app-list">
               {applications
                 .filter((app) => app.approval_status === "pending")
@@ -255,7 +257,7 @@ const Welcome: React.FC = () => {
                         className="btn btn-small"
                         onClick={() => navigate(`/applications/${app.class_id}`)}
                       >
-                        查看
+                        {t("welcome.view")}
                       </button>
                     }
                   />
@@ -267,7 +269,7 @@ const Welcome: React.FC = () => {
         {/* 審核中 */}
         {stats.reviewing > 0 && (
           <section className="welcome-section">
-            <h2 className="section-title">🔍 審核中</h2>
+            <h2 className="section-title">{t("welcome.reviewingSection")}</h2>
             <div className="app-list">
               {applications
                 .filter((app) => app.approval_status === "reviewing")
@@ -281,7 +283,7 @@ const Welcome: React.FC = () => {
                         className="btn btn-small"
                         onClick={() => navigate(`/applications/${app.class_id}`)}
                       >
-                        查看
+                        {t("welcome.view")}
                       </button>
                     }
                   />
@@ -293,7 +295,7 @@ const Welcome: React.FC = () => {
         {/* 已批准課程 */}
         {stats.approved > 0 && (
           <section className="welcome-section">
-            <h2 className="section-title">✅ 已批准課程</h2>
+            <h2 className="section-title">{t("welcome.approvedSection")}</h2>
             <div className="app-list">
               {applications
                 .filter(
@@ -312,19 +314,19 @@ const Welcome: React.FC = () => {
                           className="btn btn-small"
                           onClick={() => navigate(`/classes/${app.class_id}/roster`)}
                         >
-                          👥 管理學生
+                          {t("welcome.manageStudents")}
                         </button>
                         <button
                           className="btn btn-small"
                           onClick={() => navigate(`/classes/${app.class_id}/schedule`)}
                         >
-                          📅 開課記錄
+                          {t("welcome.classRecords")}
                         </button>
                         <button
                           className="btn btn-small"
                           onClick={() => navigate(`/classes/${app.class_id}/attendance`)}
                         >
-                          ✓ 點名
+                          {t("welcome.attendance")}
                         </button>
                         {renderReceiptAction(app)}
                       </>
@@ -340,12 +342,12 @@ const Welcome: React.FC = () => {
           <ResponsiveCard>
             <div className="empty-state__content">
               <p className="empty-state__icon">📝</p>
-              <p className="empty-state__text">尚無申請，請提出新申請</p>
+              <p className="empty-state__text">{t("welcome.emptyText")}</p>
               <button
                 className="btn btn-primary"
                 onClick={() => navigate("/applications/new")}
               >
-                + 提出新申請
+                {t("welcome.newApplication")}
               </button>
             </div>
           </ResponsiveCard>
@@ -358,14 +360,17 @@ const Welcome: React.FC = () => {
               className="btn btn-primary btn-lg"
               onClick={() => navigate("/applications/new")}
             >
-              + 提出新申請
+              {t("welcome.newApplication")}
             </button>
           </div>
         )}
 
         {!loading && stats.total > 0 && !canApplyNew && (
           <p className="welcome-quota-hint">
-            {currentSemester.label}已有 {approvedThisSemesterCount} 堂已批准課程，達本學年申請上限（2 堂）
+            {t("welcome.quotaHint", {
+              semester: currentSemester.label,
+              count: approvedThisSemesterCount,
+            })}
           </p>
         )}
 
@@ -374,7 +379,7 @@ const Welcome: React.FC = () => {
             isOpen={true}
             classId={receiptModalTarget.classId}
             half={receiptModalTarget.half}
-            halfLabel={receiptModalTarget.half === "h1" ? "上學期" : "下學期"}
+            halfLabel={receiptModalTarget.half === "h1" ? t("welcome.semesterH1") : t("welcome.semesterH2")}
             onClose={() => setReceiptModalTarget(null)}
             onUploaded={fetchApplications}
           />
@@ -383,7 +388,7 @@ const Welcome: React.FC = () => {
         {/* Loading 狀態 */}
         {loading && (
           <div className="welcome-loading">
-            <p>載入中...</p>
+            <p>{t("welcome.loading")}</p>
           </div>
         )}
       </div>

@@ -14,7 +14,9 @@ import {
 } from "@/services/attendanceQueryService";
 import { generateScheduleRows } from "@/utils/scheduleGenerator";
 import type { ClassRosterEntry, TutionClass, TutionSchedule } from "@/types";
-import { useGradeLabel, useDayLabel } from "@/i18n/labels";
+import { useTranslation } from "react-i18next";
+import { useGradeLabel, useDayLabel, useAttendanceStatusLabel, useExcuseReasonLabel, useWeekdayShort } from "@/i18n/labels";
+import { formatDisplayDate } from "@/utils/validators";
 import "./attendance-sheet.css";
 
 interface DraftEntry {
@@ -29,13 +31,6 @@ function todayStr(): string {
   return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
     .toISOString()
     .slice(0, 10);
-}
-
-function formatDateWithWeekday(dateStr: string): string {
-  const WEEKDAY_CN = ["日", "一", "二", "三", "四", "五", "六"];
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  return `${dateStr}（${WEEKDAY_CN[date.getUTCDay()]}）`;
 }
 
 function emptyDraftEntry(): DraftEntry {
@@ -67,13 +62,6 @@ function formatMonthDayParts(dateStr: string): { month: string; day: string } {
 function formatMonthLabel(monthKey: string): string {
   const [y, m] = monthKey.split("-").map(Number);
   return `${MONTH_FULL[m - 1] || m} ${y}`;
-}
-
-/** 排課狀態條列：依 row.status 組成一行文字，例如「2026-07-14 上課」「2026-07-29 調至 2026-07-30」。 */
-function formatScheduleStatusLine(row: ReturnType<typeof generateScheduleRows>[number]): string {
-  if (row.status === "cancelled") return `${row.scheduled_date} 停課`;
-  if (row.status === "rescheduled") return `${row.scheduled_date} 調至 ${row.rescheduled_to}`;
-  return `${row.scheduled_date} 上課`;
 }
 
 /** 手機斷點與桌機共用（見 attendance-sheet.css 的 @media max-width: 767px）。 */
@@ -115,8 +103,17 @@ export const AttendanceSheet: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
   const { user } = useAuth();
   const readOnly = user?.permission === "super_admin";
+  const { t } = useTranslation();
   const gradeLabel = useGradeLabel();
   const dayLabel = useDayLabel();
+  const statusLabel = useAttendanceStatusLabel();
+  const reasonLabel = useExcuseReasonLabel();
+  const weekdayShort = useWeekdayShort();
+  const formatDateWithWeekday = (dateStr: string): string => {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d));
+    return `${dateStr}（${weekdayShort(date.getUTCDay())}）`;
+  };
 
   const [classInfo, setClassInfo] = useState<TutionClass | null>(null);
   const [roster, setRoster] = useState<ClassRosterEntry[]>([]);
@@ -133,7 +130,7 @@ export const AttendanceSheet: React.FC = () => {
 
   const loadStaticData = useCallback(async () => {
     if (!classId) {
-      setError("課程 ID 未找到");
+      setError(t("attendanceSheet.errorNoClassId"));
       setLoading(false);
       return;
     }
@@ -154,7 +151,7 @@ export const AttendanceSheet: React.FC = () => {
       setExceptions(scheduleList);
       setAttendanceRecords(attendanceList);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "載入點名資料失敗");
+      setError(err instanceof Error ? err.message : t("attendanceSheet.errorLoadFailed"));
     } finally {
       setLoading(false);
     }
@@ -269,7 +266,7 @@ export const AttendanceSheet: React.FC = () => {
     for (const student of enrolledRoster) {
       const entry = draft.get(student.student_id);
       if (entry?.status === "excuse" && !composeReason(entry)) {
-        setError(`「${student.name_cn}」的請假原因尚未填寫`);
+        setError(t("attendanceSheet.errorReasonRequired", { name: student.name_cn }));
         return;
       }
     }
@@ -289,19 +286,19 @@ export const AttendanceSheet: React.FC = () => {
       await attendanceQueryService.saveBulk(classId, selectedDate, records);
       await refreshAttendance();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "儲存點名失敗");
+      setError(err instanceof Error ? err.message : t("attendanceSheet.errorSaveFailed"));
     } finally {
       setSaving(false);
     }
   };
 
-  const pageTitle = readOnly ? "出席狀況" : "點名";
+  const pageTitle = readOnly ? t("attendanceSheet.readOnlyTitle") : t("attendanceSheet.title");
 
   if (loading) {
     return (
       <Layout title={pageTitle}>
         <div className="attendance-sheet">
-          <div className="attendance-empty">正在載入點名資料...</div>
+          <div className="attendance-empty">{t("attendanceSheet.loadingText")}</div>
         </div>
       </Layout>
     );
@@ -311,7 +308,7 @@ export const AttendanceSheet: React.FC = () => {
     return (
       <Layout title={pageTitle}>
         <div className="attendance-sheet">
-          <div className="alert alert-danger">{error || "找不到課程"}</div>
+          <div className="alert alert-danger">{error || t("attendanceSheet.notFound")}</div>
         </div>
       </Layout>
     );
@@ -326,7 +323,7 @@ export const AttendanceSheet: React.FC = () => {
               {classInfo.subject}（{gradeLabel(classInfo.form)}）
             </h2>
             <p className="attendance-subtitle">
-              申請人: {classInfo.teacher_name_cn} ・ 每{dayLabel(classInfo.day_of_week)}{" "}
+              {t("schedule.applicantLabel")}: {classInfo.teacher_name_cn} ・ 每{dayLabel(classInfo.day_of_week)}{" "}
               {classInfo.time_start}-{classInfo.time_end} ・ {classInfo.venue}
             </p>
           </div>
@@ -336,7 +333,7 @@ export const AttendanceSheet: React.FC = () => {
               className="btn btn-secondary"
               onClick={() => setShowOverview((v) => !v)}
             >
-              {showOverview ? "返回點名" : "查看總覽表格"}
+              {showOverview ? t("attendanceSheet.backToMarking") : t("attendanceSheet.viewOverview")}
             </button>
           )}
         </div>
@@ -351,7 +348,7 @@ export const AttendanceSheet: React.FC = () => {
         )}
 
         {markableRows.length === 0 ? (
-          <div className="attendance-empty">目前沒有可點名的上課日期（尚未開課或全部已停課）</div>
+          <div className="attendance-empty">{t("attendanceSheet.noMarkableDates")}</div>
         ) : showOverview ? (
           <AttendanceOverview
             rows={markableRows}
@@ -363,7 +360,7 @@ export const AttendanceSheet: React.FC = () => {
           <>
             <div className="attendance-toolbar">
               <label className="attendance-date-picker">
-                <span>點名日期</span>
+                <span>{t("attendanceSheet.datePickerLabel")}</span>
                 <select
                   className="form-control"
                   value={selectedDate}
@@ -372,20 +369,20 @@ export const AttendanceSheet: React.FC = () => {
                   {markableRows.map((row) => (
                     <option key={row.actual_date} value={row.actual_date}>
                       {formatDateWithWeekday(row.actual_date)}
-                      {attendedDateSet.has(row.actual_date) ? "（已點名）" : "（未點名）"}
+                      {attendedDateSet.has(row.actual_date) ? t("attendanceSheet.markedSuffix") : t("attendanceSheet.unmarkedSuffix")}
                     </option>
                   ))}
                 </select>
               </label>
               {!readOnly && (
                 <button type="button" className="btn btn-secondary" onClick={handleMarkAllPresent}>
-                  全部到課
+                  {t("attendanceSheet.markAllPresent")}
                 </button>
               )}
             </div>
 
             {activeRoster.length === 0 ? (
-              <div className="attendance-empty">此班目前沒有在讀學生</div>
+              <div className="attendance-empty">{t("attendanceSheet.noActiveStudents")}</div>
             ) : (
               <div className="attendance-list">
                 {activeRoster.map((student) => {
@@ -397,8 +394,8 @@ export const AttendanceSheet: React.FC = () => {
                             <span className="attendance-row-name">{student.name_cn}</span>
                             <span className="attendance-row-no">{student.student_no}</span>
                           </div>
-                          <span className="attendance-not-joined-badge" title={`加入日期：${student.enrollment_date}`}>
-                            未加入
+                          <span className="attendance-not-joined-badge" title={t("attendanceSheet.joinedDateTitle", { date: formatDisplayDate(student.enrollment_date) })}>
+                            {t("attendanceSheet.notJoined")}
                           </span>
                         </div>
                       </div>
@@ -427,7 +424,7 @@ export const AttendanceSheet: React.FC = () => {
                           {(Object.keys(ATTENDANCE_STATUS_META) as AttendanceStatusCode[]).map(
                             (status) => (
                               <option key={status} value={status}>
-                                {ATTENDANCE_STATUS_META[status].label} (
+                                {statusLabel(ATTENDANCE_STATUS_META[status].label)} (
                                 {ATTENDANCE_STATUS_META[status].code})
                               </option>
                             )
@@ -447,7 +444,7 @@ export const AttendanceSheet: React.FC = () => {
                           >
                             {EXCUSE_REASON_OPTIONS.map((option) => (
                               <option key={option} value={option}>
-                                {option}
+                                {reasonLabel(option)}
                               </option>
                             ))}
                           </select>
@@ -455,7 +452,7 @@ export const AttendanceSheet: React.FC = () => {
                             <input
                               type="text"
                               className="form-control"
-                              placeholder="請填寫具體原因"
+                              placeholder={t("attendanceSheet.reasonPlaceholder")}
                               value={entry.reasonOther}
                               disabled={readOnly}
                               onChange={(e) =>
@@ -479,7 +476,7 @@ export const AttendanceSheet: React.FC = () => {
                   disabled={saving || activeRoster.length === 0}
                   onClick={handleSave}
                 >
-                  {saving ? "儲存中..." : "儲存點名"}
+                  {saving ? t("attendanceSheet.saving") : t("attendanceSheet.save")}
                 </button>
               </div>
             )}
@@ -511,6 +508,15 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
   roster,
   recordsByKey,
 }) => {
+  const { t } = useTranslation();
+  const statusLabel = useAttendanceStatusLabel();
+  const reasonLabel = useExcuseReasonLabel();
+  const formatScheduleStatusLine = (row: ReturnType<typeof generateScheduleRows>[number]): string => {
+    if (row.status === "cancelled") return t("attendanceSheet.scheduleCancelled", { date: row.scheduled_date });
+    if (row.status === "rescheduled")
+      return t("attendanceSheet.scheduleRescheduled", { date: row.scheduled_date, newDate: row.rescheduled_to });
+    return t("attendanceSheet.scheduleHeld", { date: row.scheduled_date });
+  };
   const chronological = useMemo(() => [...rows].reverse(), [rows]);
   const isMobile = useIsMobile();
 
@@ -573,7 +579,7 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
   const dateColStyle = isMobile ? { width: `${(100 - NAME_COL_PERCENT) / totalCols}%` } : undefined;
 
   if (roster.length === 0) {
-    return <div className="attendance-empty">此班目前沒有在讀學生</div>;
+    return <div className="attendance-empty">{t("attendanceSheet.noActiveStudents")}</div>;
   }
 
   return (
@@ -586,7 +592,7 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
             onClick={() => setPageIndex(Math.max(0, currentPageIndex - 1))}
             disabled={currentPageIndex === 0}
           >
-            ← 上個月
+            {t("attendanceSheet.prevMonth")}
           </button>
           <span className="attendance-matrix-page-info">{currentMonth?.label}</span>
           <button
@@ -595,7 +601,7 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
             onClick={() => setPageIndex(Math.min(totalPages - 1, currentPageIndex + 1))}
             disabled={currentPageIndex === totalPages - 1}
           >
-            下個月 →
+            {t("attendanceSheet.nextMonth")}
           </button>
         </div>
       )}
@@ -605,7 +611,7 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
           <thead>
             <tr>
               <th className="attendance-matrix-student-col" style={studentColStyle}>
-                學生
+                {t("attendanceSheet.studentCol")}
               </th>
               {visibleColumns.map((row) => {
                 const { month, day } = formatMonthDayParts(row.actual_date);
@@ -648,7 +654,10 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
                       <td
                         key={row.actual_date}
                         className="attendance-matrix-cell attendance-matrix-cell-not-joined"
-                        title={`${row.actual_date} 尚未加入班級（加入日期：${student.enrollment_date}）`}
+                        title={t("attendanceSheet.notJoinedCellTitle", {
+                          date: formatDisplayDate(row.actual_date),
+                          joinDate: formatDisplayDate(student.enrollment_date),
+                        })}
                         style={dateColStyle}
                       >
                         -
@@ -659,10 +668,10 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
                   const record = recordsByKey.get(`${student.student_id}|${row.actual_date}`);
                   const meta = record ? ATTENDANCE_STATUS_META[record.status] : null;
                   const title = meta
-                    ? `${row.actual_date} ${meta.label}${
-                        record?.absence_reason ? `：${record.absence_reason}` : ""
+                    ? `${formatDisplayDate(row.actual_date)} ${statusLabel(meta.label)}${
+                        record?.absence_reason ? `：${reasonLabel(record.absence_reason)}` : ""
                       }`
-                    : `${row.actual_date} 尚未點名`;
+                    : t("attendanceSheet.notMarkedCellTitle", { date: formatDisplayDate(row.actual_date) });
                   return (
                     <td
                       key={row.actual_date}
@@ -694,10 +703,10 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
       {visibleScheduleGroups.map((group) => (
         <div className="attendance-schedule-log" key={group.key}>
           <h4 className="attendance-schedule-log-title">
-            {isMobile ? "本月排課紀錄" : `${group.label} 排課紀錄`}
+            {isMobile ? t("attendanceSheet.thisMonthScheduleLog") : t("attendanceSheet.monthScheduleLog", { month: group.label })}
           </h4>
           {group.rows.length === 0 ? (
-            <p className="attendance-schedule-log-empty">本月尚無排課紀錄</p>
+            <p className="attendance-schedule-log-empty">{t("attendanceSheet.noScheduleLog")}</p>
           ) : (
             <ul className="attendance-schedule-log-list">
               {group.rows.map((row) => (
@@ -719,7 +728,7 @@ const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
             >
               {ATTENDANCE_STATUS_META[status].code}
             </span>
-            {ATTENDANCE_STATUS_META[status].label}
+            {statusLabel(ATTENDANCE_STATUS_META[status].label)}
           </span>
         ))}
       </div>

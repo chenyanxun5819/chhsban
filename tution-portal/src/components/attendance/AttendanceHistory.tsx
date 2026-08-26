@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { TutionAttendance } from "@/types";
 import { formatDisplayDate } from "@/utils/validators";
 
@@ -19,6 +20,7 @@ const AttendanceHistory: React.FC<AttendanceHistoryProps> = ({
   records,
   studentStats,
 }) => {
+  const { t } = useTranslation();
   const [viewMode, setViewMode] = React.useState<"by-date" | "by-student">(
     "by-date"
   );
@@ -53,19 +55,19 @@ const AttendanceHistory: React.FC<AttendanceHistoryProps> = ({
   return (
     <div className="attendance-history-container">
       <div className="history-header">
-        <h3>出勤詳細記錄</h3>
+        <h3>{t("attendanceStatsPage.detailTitle")}</h3>
         <div className="view-toggle">
           <button
             className={`toggle-btn ${viewMode === "by-date" ? "active" : ""}`}
             onClick={() => setViewMode("by-date")}
           >
-            📅 按日期
+            {t("attendanceStatsPage.byDate")}
           </button>
           <button
             className={`toggle-btn ${viewMode === "by-student" ? "active" : ""}`}
             onClick={() => setViewMode("by-student")}
           >
-            👥 按學生
+            {t("attendanceStatsPage.byStudent")}
           </button>
         </div>
       </div>
@@ -73,13 +75,13 @@ const AttendanceHistory: React.FC<AttendanceHistoryProps> = ({
       {viewMode === "by-date" ? (
         <div className="history-by-date">
           {recordsByDate.length === 0 ? (
-            <div className="empty-message">暫無出勤記錄</div>
+            <div className="empty-message">{t("attendanceStatsPage.noRecords")}</div>
           ) : (
             recordsByDate.map(([date, dateRecords]) => (
               <div key={date} className="date-group">
                 <div className="date-header">
                   <span className="date-label">{date}</span>
-                  <span className="record-count">({dateRecords.length} 筆)</span>
+                  <span className="record-count">{t("attendanceStatsPage.recordCount", { count: dateRecords.length })}</span>
                 </div>
 
                 <div className="records-list">
@@ -90,13 +92,13 @@ const AttendanceHistory: React.FC<AttendanceHistoryProps> = ({
                       </div>
                       <div className="record-status">
                         {record.status === "present" && (
-                          <span className="status-badge success">✅ 出席</span>
+                          <span className="status-badge success">✅ {t("attendanceStatsPage.present")}</span>
                         )}
                         {record.status === "late" && (
-                          <span className="status-badge warning">⏰ 遲到</span>
+                          <span className="status-badge warning">⏰ {t("attendanceStatsPage.late")}</span>
                         )}
                         {record.status === "absent" && (
-                          <span className="status-badge danger">❌ 缺席</span>
+                          <span className="status-badge danger">❌ {t("attendanceStatsPage.absent")}</span>
                         )}
                       </div>
                       <div className="record-time">
@@ -116,7 +118,7 @@ const AttendanceHistory: React.FC<AttendanceHistoryProps> = ({
           <div className="search-box">
             <input
               type="text"
-              placeholder="搜尋學生名字..."
+              placeholder={t("attendanceStatsPage.searchStudentPlaceholder")}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="search-input"
@@ -125,17 +127,17 @@ const AttendanceHistory: React.FC<AttendanceHistoryProps> = ({
 
           {filteredStudentStats.length === 0 ? (
             <div className="empty-message">
-              {searchTerm ? "未找到符合條件的學生" : "暫無學生出勤記錄"}
+              {searchTerm ? t("attendanceStatsPage.noMatchingStudent") : t("attendanceStatsPage.noStudentRecords")}
             </div>
           ) : (
             <div className="student-stats-table">
               <div className="table-header">
-                <div className="col-name">學生名字</div>
-                <div className="col-stat">出席</div>
-                <div className="col-stat">遲到</div>
-                <div className="col-stat">缺席</div>
-                <div className="col-stat">總計</div>
-                <div className="col-rate">出勤率</div>
+                <div className="col-name">{t("attendanceStatsPage.studentNameCol")}</div>
+                <div className="col-stat">{t("attendanceStatsPage.present")}</div>
+                <div className="col-stat">{t("attendanceStatsPage.late")}</div>
+                <div className="col-stat">{t("attendanceStatsPage.absent")}</div>
+                <div className="col-stat">{t("attendanceStatsPage.totalCol")}</div>
+                <div className="col-rate">{t("attendanceStatsPage.attendanceRate")}</div>
               </div>
 
               {filteredStudentStats.map((stat, idx) => {

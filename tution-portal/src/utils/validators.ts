@@ -118,6 +118,16 @@ export function formatDisplayDate(date: string | number | Date): string {
 }
 
 /**
+ * 格式化日期時間為顯示用的 DD/MM/YYYY HH:mm
+ */
+export function formatDisplayDateTime(date: string | number | Date): string {
+  const d = new Date(date);
+  const hours = String(d.getHours()).padStart(2, "0");
+  const minutes = String(d.getMinutes()).padStart(2, "0");
+  return `${formatDisplayDate(d)} ${hours}:${minutes}`;
+}
+
+/**
  * 常用常數
  */
 export const FORMS = ["初一", "初二", "初三", "高一", "高二", "高三"];

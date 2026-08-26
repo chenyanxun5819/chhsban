@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { GeneratedScheduleRow } from "@/utils/scheduleGenerator";
 
 interface CancelModalProps {
@@ -16,6 +17,7 @@ const CancelModal: React.FC<CancelModalProps> = ({
   onConfirm,
   onClose,
 }) => {
+  const { t } = useTranslation();
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -24,7 +26,7 @@ const CancelModal: React.FC<CancelModalProps> = ({
     setError(null);
 
     if (!reason.trim()) {
-      setError("請輸入停課原因");
+      setError(t("cancelModal.errorReasonRequired"));
       return;
     }
 
@@ -33,7 +35,7 @@ const CancelModal: React.FC<CancelModalProps> = ({
       setReason("");
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "標記失敗");
+      setError(err instanceof Error ? err.message : t("cancelModal.errorMarkFailed"));
     }
   };
 
@@ -43,7 +45,7 @@ const CancelModal: React.FC<CancelModalProps> = ({
     <div className="modal-overlay">
       <div className="modal-dialog">
         <div className="modal-header">
-          <h2 className="modal-title">標記停課</h2>
+          <h2 className="modal-title">{t("cancelModal.title")}</h2>
           <button
             type="button"
             className="modal-close-btn"
@@ -58,11 +60,11 @@ const CancelModal: React.FC<CancelModalProps> = ({
           {error && <div className="alert alert-danger">{error}</div>}
 
           <div className="alert alert-warning">
-            ⚠️ 確認停課後，將無法再修改，請確認！
+            {t("cancelModal.warning")}
           </div>
 
           <div className="form-group">
-            <label className="form-label">日期</label>
+            <label className="form-label">{t("cancelModal.dateLabel")}</label>
             <input
               type="date"
               value={row.scheduled_date}
@@ -73,14 +75,14 @@ const CancelModal: React.FC<CancelModalProps> = ({
 
           <div className="form-group">
             <label className="form-label">
-              停課原因 <span className="required">*</span>
+              {t("cancelModal.reasonLabel")} <span className="required">*</span>
             </label>
             <textarea
               value={reason}
               onChange={(e) => setReason(e.target.value)}
               className="form-control"
               rows={3}
-              placeholder="輸入停課原因..."
+              placeholder={t("cancelModal.reasonPlaceholder")}
               required
               autoFocus
               disabled={loading}
@@ -94,10 +96,10 @@ const CancelModal: React.FC<CancelModalProps> = ({
               disabled={loading}
               className="btn btn-secondary"
             >
-              取消
+              {t("applicationDetail.cancel")}
             </button>
             <button type="submit" disabled={loading} className="btn btn-danger">
-              {loading ? "正在標記..." : "確認停課"}
+              {loading ? t("cancelModal.marking") : t("cancelModal.confirm")}
             </button>
           </div>
         </form>

@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { ClassRosterEntry } from "@/types";
 import RosterRow from "./RosterRow";
 
@@ -24,6 +25,7 @@ const RosterTable: React.FC<RosterTableProps> = ({
   loading = false,
   readOnly = false,
 }) => {
+  const { t } = useTranslation();
   const [searchTerm, setSearchTerm] = React.useState("");
   const [filterStatus, setFilterStatus] = React.useState<FilterStatus>("active");
   const [currentPage, setCurrentPage] = React.useState(1);
@@ -88,24 +90,24 @@ const RosterTable: React.FC<RosterTableProps> = ({
               type="text"
               value={newStudentId}
               onChange={(e) => setNewStudentId(e.target.value)}
-              placeholder="輸入學生 ID 新增"
+              placeholder={t("roster.addStudentPlaceholder")}
               disabled={loading || adding}
               onKeyPress={(e) => {
                 if (e.key === "Enter") handleAddStudent();
               }}
             />
             <button className="btn btn-primary" onClick={handleAddStudent} disabled={loading || adding}>
-              {adding ? "新增中..." : "+ 新增學生"}
+              {adding ? t("roster.adding") : t("roster.addStudent")}
             </button>
           </div>
         )}
 
         <div className="toolbar-right">
           <button className="btn btn-secondary" onClick={onExport} disabled={loading || roster.length === 0}>
-            📥 匯出 Excel
+            {t("roster.exportExcel")}
           </button>
           <button className="btn btn-outline-secondary" onClick={onRefresh} disabled={loading}>
-            {loading ? "重新加載中..." : "🔄 重新加載"}
+            {loading ? t("roster.reloading") : t("roster.reload")}
           </button>
         </div>
       </div>
@@ -114,7 +116,7 @@ const RosterTable: React.FC<RosterTableProps> = ({
       <div className="search-bar">
         <input
           type="text"
-          placeholder="搜尋學生 (姓名或學號)..."
+          placeholder={t("roster.searchPlaceholder")}
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           className="search-input"
@@ -134,21 +136,21 @@ const RosterTable: React.FC<RosterTableProps> = ({
           onClick={() => setFilterStatus("active")}
           disabled={loading}
         >
-          在讀 ({activeCount})
+          {t("roster.filterActive", { count: activeCount })}
         </button>
         <button
           className={`filter-tag ${filterStatus === "withdrawn" ? "active" : ""}`}
           onClick={() => setFilterStatus("withdrawn")}
           disabled={loading}
         >
-          已退出 ({withdrawnCount})
+          {t("roster.filterWithdrawn", { count: withdrawnCount })}
         </button>
         <button
           className={`filter-tag ${filterStatus === "all" ? "active" : ""}`}
           onClick={() => setFilterStatus("all")}
           disabled={loading}
         >
-          全部 ({roster.length})
+          {t("roster.filterAll", { count: roster.length })}
         </button>
       </div>
 
@@ -168,7 +170,7 @@ const RosterTable: React.FC<RosterTableProps> = ({
           </div>
         ) : (
           <div className="empty-state">
-            <p>{roster.length === 0 ? "尚無學生名單" : "沒有符合條件的學生"}</p>
+            <p>{roster.length === 0 ? t("roster.emptyNone") : t("roster.emptyFiltered")}</p>
           </div>
         )}
       </div>
@@ -181,24 +183,25 @@ const RosterTable: React.FC<RosterTableProps> = ({
             onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
             disabled={currentPage === 1 || loading}
           >
-            ← 上一頁
+            {t("roster.prevPage")}
           </button>
           <span className="page-info">
-            第 {currentPage} / {totalPages} 頁
+            {t("roster.pageInfo", { current: currentPage, total: totalPages })}
           </span>
           <button
             className="btn btn-outline-secondary"
             onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
             disabled={currentPage === totalPages || loading}
           >
-            下一頁 →
+            {t("roster.nextPage")}
           </button>
         </div>
       )}
 
       <div className="table-footer">
         <p>
-          共 <strong>{filtered.length}</strong> 筆記錄{searchTerm && ` (搜尋結果)`}
+          {t("roster.totalRecords", { count: filtered.length })}
+          {searchTerm && t("roster.searchResultSuffix")}
         </p>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
 import { TutionRosterSnapshot } from "@/types";
@@ -29,6 +30,7 @@ type StudentInputMethod = "csv" | "manual";
 const ApplicationForm: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const gradeLabel = useGradeLabel();
   const dayLabel = useDayLabel();
   const [step, setStep] = useState<1 | 2>(1); // 手機: 分步 | 桌機: 全步
@@ -114,21 +116,21 @@ const ApplicationForm: React.FC = () => {
           setCsvContent(content);
         };
         reader.onerror = () => {
-          setError("讀取 CSV 文件失敗");
+          setError(t("applicationForm.errorReadCsvFailed"));
         };
         reader.readAsText(file, "UTF-8");
       } else {
-        setError("只支持 CSV、TXT 或 XLSX 檔案");
+        setError(t("applicationForm.errorUnsupportedFile"));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "上傳失敗");
+      setError(err instanceof Error ? err.message : t("applicationForm.errorUploadFailed"));
     }
   };
 
   // 新增學生 (手動輸入)
   const addManualStudent = async () => {
     if (!newStudentId.trim()) {
-      setError("請輸入學生 ID");
+      setError(t("applicationDetail.errorStudentIdRequired"));
       return;
     }
 
@@ -142,13 +144,13 @@ const ApplicationForm: React.FC = () => {
           setNewStudentId("");
           setError(null);
         } else {
-          setError("該學生已在列表中");
+          setError(t("applicationForm.errorStudentDuplicate"));
         }
       } else {
-        setError(`學生 ${newStudentId} 不存在`);
+        setError(t("applicationDetail.errorStudentNotFound", { id: newStudentId }));
       }
     } catch (err) {
-      setError("驗證失敗，請重試");
+      setError(t("applicationDetail.errorVerifyFailed"));
     } finally {
       setValidating(false);
     }
@@ -162,12 +164,12 @@ const ApplicationForm: React.FC = () => {
   // 驗證學生名單
   const validateStudentList = async () => {
     if (studentInputMethod === "csv" && !csvContent.trim()) {
-      setError("請上傳 CSV 文件或輸入學生 ID");
+      setError(t("applicationForm.errorNoCsv"));
       return;
     }
 
     if (studentInputMethod === "manual" && manualStudents.length === 0) {
-      setError("請至少新增一名學生");
+      setError(t("applicationForm.errorNoManualStudents"));
       return;
     }
 
@@ -187,11 +189,14 @@ const ApplicationForm: React.FC = () => {
 
       if (result.invalid.length > 0) {
         setError(
-          `${result.invalid.length} 名學生不存在: ${result.invalid.join(", ")}`
+          t("applicationForm.errorInvalidStudentsList", {
+            count: result.invalid.length,
+            list: result.invalid.join(", "),
+          })
         );
       }
     } catch (err) {
-      setError("驗證失敗，請重試");
+      setError(t("applicationDetail.errorVerifyFailed"));
     } finally {
       setValidating(false);
     }
@@ -207,13 +212,13 @@ const ApplicationForm: React.FC = () => {
       !formData.start_date ||
       formData.fees <= 0
     ) {
-      setError("請填寫所有必填字段");
+      setError(t("applicationForm.errorRequiredFields"));
       return;
     }
 
     // 驗證學生名單
     if (!validationResult || validationResult.valid.length === 0) {
-      setError("請選擇至少一名學生");
+      setError(t("applicationForm.errorNoValidStudent"));
       return;
     }
 
@@ -245,7 +250,7 @@ const ApplicationForm: React.FC = () => {
         }
       }, 1500);
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || "提交失敗，請重試";
+      const errorMessage = err.response?.data?.error || t("applicationForm.errorSubmitFailed");
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -256,12 +261,12 @@ const ApplicationForm: React.FC = () => {
   const isDesktop = typeof window !== "undefined" && window.innerWidth >= 1024;
 
   return (
-    <Layout title="提出新申請">
+    <Layout title={t("applicationForm.title")}>
       <div className="form-container">
         {/* 提示訊息 */}
         {error && <div className="alert alert-error">{error}</div>}
         {success && (
-          <div className="alert alert-success">✅ 申請已提交，即將跳轉...</div>
+          <div className="alert alert-success">{t("applicationForm.successSubmitted")}</div>
         )}
 
         {/* 桌機版: 完整表單 */}
@@ -269,18 +274,18 @@ const ApplicationForm: React.FC = () => {
           <div className="form-full">
             {/* 基本信息 */}
             <section className="form-section">
-              <h2 className="form-section__title">📋 基本信息</h2>
+              <h2 className="form-section__title">{t("applicationDetail.sectionBasicInfo")}</h2>
 
               <div className="form-row form-row--2col">
                 <div className="form-group">
-                  <label>年級 *</label>
+                  <label>{t("field.grade")} *</label>
                   <select
                     name="form"
                     value={formData.form}
                     onChange={handleFormChange}
                     required
                   >
-                    <option value="">選擇年級</option>
+                    <option value="">{t("applicationForm.selectGrade")}</option>
                     {FORMS.map((f) => (
                       <option key={f} value={f}>
                         {gradeLabel(f)}
@@ -290,13 +295,13 @@ const ApplicationForm: React.FC = () => {
                 </div>
 
                 <div className="form-group">
-                  <label>科目 *</label>
+                  <label>{t("field.subject")} *</label>
                   <input
                     type="text"
                     name="subject"
                     value={formData.subject}
                     onChange={handleFormChange}
-                    placeholder="例: 數學、英文"
+                    placeholder={t("applicationForm.subjectPlaceholder")}
                     required
                   />
                 </div>
@@ -304,7 +309,7 @@ const ApplicationForm: React.FC = () => {
 
               <div className="form-row form-row--2col">
                 <div className="form-group">
-                  <label>開課日期 *</label>
+                  <label>{t("field.startDate")} *</label>
                   <input
                     type="date"
                     name="start_date"
@@ -316,32 +321,32 @@ const ApplicationForm: React.FC = () => {
                 </div>
 
                 <div className="form-group">
-                  <label>上課日期</label>
+                  <label>{t("field.classDay")}</label>
                   <div className="fee-display">
                     <span className="fee-value">
                       {formData.day_of_week ? dayLabel(formData.day_of_week) : "-"}
                     </span>
-                    <p className="fee-note">根據開課日期自動計算，無法修改</p>
+                    <p className="fee-note">{t("applicationForm.classDayAutoNote")}</p>
                   </div>
                 </div>
               </div>
 
               <div className="form-row form-row--2col">
                 <div className="form-group">
-                  <label>學費 (RM) *</label>
+                  <label>{t("field.fees")} (RM) *</label>
                   <div className="fee-display">
                     <span className="fee-value">RM {formData.fees}</span>
-                    <p className="fee-note">系統自動根據年級填寫，無法修改</p>
+                    <p className="fee-note">{t("applicationForm.feesAutoNote")}</p>
                   </div>
                 </div>
               </div>
 
-              <p className="form-note">⏰ 上課時間: {FIXED_TIME_START} - {FIXED_TIME_END}</p>
+              <p className="form-note">{t("applicationForm.classTimeNote", { start: FIXED_TIME_START, end: FIXED_TIME_END })}</p>
             </section>
 
             {/* 學生名單 */}
             <section className="form-section">
-              <h2 className="form-section__title">👥 學生名單</h2>
+              <h2 className="form-section__title">{t("applicationForm.sectionStudentList")}</h2>
 
               <div className="student-method">
                 <label>
@@ -351,7 +356,7 @@ const ApplicationForm: React.FC = () => {
                     checked={studentInputMethod === "csv"}
                     onChange={(e) => setStudentInputMethod(e.target.value as StudentInputMethod)}
                   />
-                  上傳 CSV 文件
+                  {t("applicationForm.uploadCsv")}
                 </label>
                 <label>
                   <input
@@ -360,38 +365,38 @@ const ApplicationForm: React.FC = () => {
                     checked={studentInputMethod === "manual"}
                     onChange={(e) => setStudentInputMethod(e.target.value as StudentInputMethod)}
                   />
-                  逐個輸入
+                  {t("applicationForm.manualInput")}
                 </label>
               </div>
 
               {studentInputMethod === "csv" ? (
                 <div className="form-group">
-                  <label>上傳 CSV 文件 *</label>
+                  <label>{t("applicationForm.uploadCsvLabel")}</label>
                   <input
                     type="file"
                     accept=".csv,.txt"
                     onChange={handleCsvUpload}
                   />
-                  <p className="form-hint">格式: 每行一個學生 ID</p>
+                  <p className="form-hint">{t("applicationForm.csvFormatHint")}</p>
                   {csvContent && (
                     <div className="csv-preview">
-                      <p>預覽:</p>
+                      <p>{t("applicationForm.previewLabel")}</p>
                       <pre>{csvContent.split("\n").slice(0, 5).join("\n")}</pre>
                       {csvContent.split("\n").length > 5 && (
-                        <p>... 共 {csvContent.split("\n").length} 行</p>
+                        <p>{t("applicationForm.totalLines", { count: csvContent.split("\n").length })}</p>
                       )}
                     </div>
                   )}
                 </div>
               ) : (
                 <div className="form-group">
-                  <label>逐個輸入學生 *</label>
+                  <label>{t("applicationForm.manualInputLabel")}</label>
                   <div className="student-input-row">
                     <input
                       type="text"
                       value={newStudentId}
                       onChange={(e) => setNewStudentId(e.target.value)}
-                      placeholder="輸入學生 ID"
+                      placeholder={t("applicationDetail.studentIdPlaceholder")}
                       onKeyPress={(e) => {
                         if (e.key === "Enter") {
                           addManualStudent();
@@ -404,7 +409,7 @@ const ApplicationForm: React.FC = () => {
                       onClick={addManualStudent}
                       disabled={validating}
                     >
-                      {validating ? "驗證中..." : "新增"}
+                      {validating ? t("applicationDetail.verifying") : t("applicationForm.add")}
                     </button>
                   </div>
 
@@ -418,7 +423,7 @@ const ApplicationForm: React.FC = () => {
                             className="btn btn-small btn-danger"
                             onClick={() => removeManualStudent(student.student_id)}
                           >
-                            移除
+                            {t("applicationDetail.remove")}
                           </button>
                         </div>
                       ))}
@@ -436,7 +441,7 @@ const ApplicationForm: React.FC = () => {
                     onClick={validateStudentList}
                     disabled={validating || loading}
                   >
-                    {validating ? "驗證中..." : "驗證名單"}
+                    {validating ? t("applicationDetail.verifying") : t("applicationForm.verifyList")}
                   </button>
                 </div>
               )}
@@ -444,19 +449,19 @@ const ApplicationForm: React.FC = () => {
               {/* 驗證結果 */}
               {validationResult && (
                 <div className="validation-result">
-                  <p className="success">✅ {validationResult.valid.length} 名學生驗證成功</p>
-                  
+                  <p className="success">{t("applicationForm.verifySuccess", { count: validationResult.valid.length })}</p>
+
                   {/* 學生詳細信息表 */}
                   {validationResult.valid.length > 0 && (
                     <div className="student-details-table">
                       <table>
                         <thead>
                           <tr>
-                            <th>學號</th>
-                            <th>中文姓名</th>
+                            <th>{t("field.studentNo")}</th>
+                            <th>{t("applicationForm.col.nameCn")}</th>
                             <th>Name</th>
-                            <th>班級</th>
-                            <th>性別/走宿</th>
+                            <th>{t("applicationForm.col.className")}</th>
+                            <th>{t("applicationForm.col.genderBoarding")}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -473,10 +478,10 @@ const ApplicationForm: React.FC = () => {
                       </table>
                     </div>
                   )}
-                  
+
                   {validationResult.invalid.length > 0 && (
                     <p className="warning">
-                      ⚠️ {validationResult.invalid.length} 名學生不存在
+                      {t("applicationForm.invalidStudents", { count: validationResult.invalid.length })}
                     </p>
                   )}
                 </div>
@@ -491,7 +496,7 @@ const ApplicationForm: React.FC = () => {
                 onClick={() => navigate("/applications")}
                 disabled={loading}
               >
-                取消
+                {t("applicationDetail.cancel")}
               </button>
               <button
                 type="button"
@@ -499,7 +504,7 @@ const ApplicationForm: React.FC = () => {
                 onClick={submitApplication}
                 disabled={loading || !validationResult}
               >
-                {loading ? "提交中..." : "提交申請"}
+                {loading ? t("applicationForm.submitting") : t("applicationForm.submit")}
               </button>
             </div>
           </div>
@@ -509,28 +514,28 @@ const ApplicationForm: React.FC = () => {
             <div className="stepper-header">
               <div className={`stepper-step ${step >= 1 ? "active" : ""}`}>
                 <span>1</span>
-                <p>基本信息</p>
+                <p>{t("applicationForm.stepBasicInfo")}</p>
               </div>
               <div className={`stepper-step ${step >= 2 ? "active" : ""}`}>
                 <span>2</span>
-                <p>學生名單</p>
+                <p>{t("applicationForm.stepStudentList")}</p>
               </div>
             </div>
 
             {/* Step 1: 基本信息 */}
             {step === 1 && (
               <section className="form-section mobile-section">
-                <h2 className="form-section__title">📋 基本信息</h2>
+                <h2 className="form-section__title">{t("applicationDetail.sectionBasicInfo")}</h2>
 
                 <div className="form-group">
-                  <label>年級 *</label>
+                  <label>{t("field.grade")} *</label>
                   <select
                     name="form"
                     value={formData.form}
                     onChange={handleFormChange}
                     required
                   >
-                    <option value="">選擇年級</option>
+                    <option value="">{t("applicationForm.selectGrade")}</option>
                     {FORMS.map((f) => (
                       <option key={f} value={f}>
                         {gradeLabel(f)}
@@ -540,19 +545,19 @@ const ApplicationForm: React.FC = () => {
                 </div>
 
                 <div className="form-group">
-                  <label>科目 *</label>
+                  <label>{t("field.subject")} *</label>
                   <input
                     type="text"
                     name="subject"
                     value={formData.subject}
                     onChange={handleFormChange}
-                    placeholder="例: 數學、英文"
+                    placeholder={t("applicationForm.subjectPlaceholder")}
                     required
                   />
                 </div>
 
                 <div className="form-group">
-                  <label>開課日期 *</label>
+                  <label>{t("field.startDate")} *</label>
                   <input
                     type="date"
                     name="start_date"
@@ -564,24 +569,24 @@ const ApplicationForm: React.FC = () => {
                 </div>
 
                 <div className="form-group">
-                  <label>上課日期</label>
+                  <label>{t("field.classDay")}</label>
                   <div className="fee-display">
                     <span className="fee-value">
                       {formData.day_of_week ? dayLabel(formData.day_of_week) : "-"}
                     </span>
-                    <p className="fee-note">根據開課日期自動計算，無法修改</p>
+                    <p className="fee-note">{t("applicationForm.classDayAutoNote")}</p>
                   </div>
                 </div>
 
                 <div className="form-group">
-                  <label>學費 (RM) *</label>
+                  <label>{t("field.fees")} (RM) *</label>
                   <div className="fee-display">
                     <span className="fee-value">RM {formData.fees}</span>
-                    <p className="fee-note">系統自動根據年級填寫，無法修改</p>
+                    <p className="fee-note">{t("applicationForm.feesAutoNote")}</p>
                   </div>
                 </div>
 
-                <p className="form-note">⏰ 上課時間: {FIXED_TIME_START} - {FIXED_TIME_END}</p>
+                <p className="form-note">{t("applicationForm.classTimeNote", { start: FIXED_TIME_START, end: FIXED_TIME_END })}</p>
 
                 <button
                   className="btn btn-primary btn-block"
@@ -589,11 +594,11 @@ const ApplicationForm: React.FC = () => {
                     if (formData.form && formData.subject && formData.day_of_week) {
                       setStep(2);
                     } else {
-                      setError("請填寫所有必填字段");
+                      setError(t("applicationForm.errorRequiredFields"));
                     }
                   }}
                 >
-                  下一步
+                  {t("applicationForm.nextStep")}
                 </button>
               </section>
             )}
@@ -601,7 +606,7 @@ const ApplicationForm: React.FC = () => {
             {/* Step 2: 學生名單 */}
             {step === 2 && (
               <section className="form-section mobile-section">
-                <h2 className="form-section__title">👥 學生名單</h2>
+                <h2 className="form-section__title">{t("applicationForm.sectionStudentList")}</h2>
 
                 <div className="student-method">
                   <label>
@@ -611,7 +616,7 @@ const ApplicationForm: React.FC = () => {
                       checked={studentInputMethod === "csv"}
                       onChange={(e) => setStudentInputMethod(e.target.value as StudentInputMethod)}
                     />
-                    上傳 CSV 文件
+                    {t("applicationForm.uploadCsv")}
                   </label>
                   <label>
                     <input
@@ -620,29 +625,29 @@ const ApplicationForm: React.FC = () => {
                       checked={studentInputMethod === "manual"}
                       onChange={(e) => setStudentInputMethod(e.target.value as StudentInputMethod)}
                     />
-                    逐個輸入
+                    {t("applicationForm.manualInput")}
                   </label>
                 </div>
 
                 {studentInputMethod === "csv" ? (
                   <div className="form-group">
-                    <label>上傳 CSV 文件 *</label>
+                    <label>{t("applicationForm.uploadCsvLabel")}</label>
                     <input
                       type="file"
                       accept=".csv,.txt"
                       onChange={handleCsvUpload}
                     />
-                    <p className="form-hint">格式: 每行一個學生 ID</p>
+                    <p className="form-hint">{t("applicationForm.csvFormatHint")}</p>
                   </div>
                 ) : (
                   <div className="form-group">
-                    <label>逐個輸入學生 *</label>
+                    <label>{t("applicationForm.manualInputLabel")}</label>
                     <div className="student-input-row">
                       <input
                         type="text"
                         value={newStudentId}
                         onChange={(e) => setNewStudentId(e.target.value)}
-                        placeholder="輸入學生 ID"
+                        placeholder={t("applicationDetail.studentIdPlaceholder")}
                       />
                       <button
                         type="button"
@@ -650,7 +655,7 @@ const ApplicationForm: React.FC = () => {
                         onClick={addManualStudent}
                         disabled={validating}
                       >
-                        新增
+                        {t("applicationForm.add")}
                       </button>
                     </div>
 
@@ -664,7 +669,7 @@ const ApplicationForm: React.FC = () => {
                               className="btn btn-small btn-danger"
                               onClick={() => removeManualStudent(student.student_id)}
                             >
-                              移除
+                              {t("applicationDetail.remove")}
                             </button>
                           </div>
                         ))}
@@ -681,26 +686,26 @@ const ApplicationForm: React.FC = () => {
                       onClick={validateStudentList}
                       disabled={validating || loading}
                     >
-                      {validating ? "驗證中..." : "驗證名單"}
+                      {validating ? t("applicationDetail.verifying") : t("applicationForm.verifyList")}
                     </button>
                   </div>
                 )}
 
                 {validationResult && (
                   <div className="validation-result">
-                    <p className="success">✅ {validationResult.valid.length} 名學生驗證成功</p>
-                    
+                    <p className="success">{t("applicationForm.verifySuccess", { count: validationResult.valid.length })}</p>
+
                     {/* 學生詳細信息表 */}
                     {validationResult.valid.length > 0 && (
                       <div className="student-details-table mobile">
                         <table>
                           <thead>
                             <tr>
-                              <th>學號</th>
-                              <th>中文姓名</th>
+                              <th>{t("field.studentNo")}</th>
+                              <th>{t("applicationForm.col.nameCn")}</th>
                               <th>Name</th>
-                              <th>班級</th>
-                              <th>性別/走宿</th>
+                              <th>{t("applicationForm.col.className")}</th>
+                              <th>{t("applicationForm.col.genderBoarding")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -717,10 +722,10 @@ const ApplicationForm: React.FC = () => {
                         </table>
                       </div>
                     )}
-                    
+
                     {validationResult.invalid.length > 0 && (
                       <p className="warning">
-                        ⚠️ {validationResult.invalid.length} 名學生不存在
+                        {t("applicationForm.invalidStudents", { count: validationResult.invalid.length })}
                       </p>
                     )}
                   </div>
@@ -733,7 +738,7 @@ const ApplicationForm: React.FC = () => {
                     onClick={() => setStep(1)}
                     disabled={loading}
                   >
-                    上一步
+                    {t("applicationForm.prevStep")}
                   </button>
                   <button
                     type="button"
@@ -741,7 +746,7 @@ const ApplicationForm: React.FC = () => {
                     onClick={submitApplication}
                     disabled={loading || !validationResult}
                   >
-                    {loading ? "提交中..." : "提交申請"}
+                    {loading ? t("applicationForm.submitting") : t("applicationForm.submit")}
                   </button>
                 </div>
               </section>

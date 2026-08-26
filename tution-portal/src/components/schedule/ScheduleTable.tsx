@@ -1,13 +1,7 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import type { GeneratedScheduleRow } from "@/utils/scheduleGenerator";
-
-const WEEKDAY_CN = ["日", "一", "二", "三", "四", "五", "六"];
-
-function formatDateWithWeekday(dateStr: string): string {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  return `${dateStr}（${WEEKDAY_CN[date.getUTCDay()]}）`;
-}
+import { useWeekdayShort } from "@/i18n/labels";
 
 function todayStr(): string {
   const now = new Date();
@@ -26,18 +20,14 @@ interface ScheduleTableProps {
   readOnly?: boolean;
 }
 
-const STATUS_LABEL: Record<GeneratedScheduleRow["status"], string> = {
-  held: "✅ 上課",
-  cancelled: "🚫 停課",
-  rescheduled: "🔄 調課",
-};
-
-const AttendanceBadge: React.FC<{ attended: boolean }> = ({ attended }) =>
-  attended ? (
-    <span className="attendance-ok">已點名</span>
+const AttendanceBadge: React.FC<{ attended: boolean }> = ({ attended }) => {
+  const { t } = useTranslation();
+  return attended ? (
+    <span className="attendance-ok">{t("schedule.attended")}</span>
   ) : (
-    <span className="attendance-warn">⚠️ 未點名</span>
+    <span className="attendance-warn">{t("schedule.notAttended")}</span>
   );
+};
 
 const ScheduleTable: React.FC<ScheduleTableProps> = ({
   rows,
@@ -47,14 +37,28 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
   onReschedule,
   readOnly = false,
 }) => {
+  const { t } = useTranslation();
+  const weekdayShort = useWeekdayShort();
   const today = todayStr();
 
+  const formatDateWithWeekday = (dateStr: string): string => {
+    const [y, m, d] = dateStr.split("-").map(Number);
+    const date = new Date(Date.UTC(y, m - 1, d));
+    return `${dateStr}（${weekdayShort(date.getUTCDay())}）`;
+  };
+
+  const STATUS_LABEL: Record<GeneratedScheduleRow["status"], string> = {
+    held: t("schedule.statusHeld"),
+    cancelled: t("schedule.statusCancelled"),
+    rescheduled: t("schedule.statusRescheduled"),
+  };
+
   if (loading) {
-    return <div className="schedule-table-empty">正在載入排課資料...</div>;
+    return <div className="schedule-table-empty">{t("schedule.loadingText")}</div>;
   }
 
   if (rows.length === 0) {
-    return <div className="schedule-table-empty">此區間內沒有上課日</div>;
+    return <div className="schedule-table-empty">{t("schedule.noRows")}</div>;
   }
 
   return (
@@ -107,14 +111,14 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                     className="btn btn-sm btn-danger"
                     onClick={() => onCancel(row)}
                   >
-                    停課
+                    {t("schedule.cancelAction")}
                   </button>
                   <button
                     type="button"
                     className="btn btn-sm btn-warning"
                     onClick={() => onReschedule(row)}
                   >
-                    調課
+                    {t("schedule.rescheduleAction")}
                   </button>
                 </span>
               )}

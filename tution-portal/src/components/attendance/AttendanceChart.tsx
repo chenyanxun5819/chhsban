@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 
 interface AttendanceChartProps {
   data: {
@@ -9,6 +10,7 @@ interface AttendanceChartProps {
 }
 
 const AttendanceChart: React.FC<AttendanceChartProps> = ({ data }) => {
+  const { t } = useTranslation();
   const total = data.present + data.late + data.absent;
   const presentPct = total > 0 ? (data.present / total) * 100 : 0;
   const latePct = total > 0 ? (data.late / total) * 100 : 0;
@@ -17,7 +19,7 @@ const AttendanceChart: React.FC<AttendanceChartProps> = ({ data }) => {
   return (
     <div className="attendance-chart-container">
       <div className="chart-wrapper">
-        <h3>出勤分佈</h3>
+        <h3>{t("attendanceStatsPage.distributionTitle")}</h3>
 
         {/* 簡易圓形進度圖 */}
         <div className="pie-chart">
@@ -75,7 +77,7 @@ const AttendanceChart: React.FC<AttendanceChartProps> = ({ data }) => {
               {total}
             </text>
             <text x="100" y="115" textAnchor="middle" fontSize="12" fill="#999">
-              筆記錄
+              {t("attendanceStatsPage.recordsUnit")}
             </text>
           </svg>
 
@@ -83,25 +85,25 @@ const AttendanceChart: React.FC<AttendanceChartProps> = ({ data }) => {
           <div className="chart-legend">
             <div className="legend-item">
               <span className="legend-color" style={{ backgroundColor: "#28a745" }}></span>
-              <span className="legend-label">出席 {data.present} ({presentPct.toFixed(1)}%)</span>
+              <span className="legend-label">{t("attendanceStatsPage.legendPresent", { count: data.present, pct: presentPct.toFixed(1) })}</span>
             </div>
             <div className="legend-item">
               <span className="legend-color" style={{ backgroundColor: "#ffc107" }}></span>
-              <span className="legend-label">遲到 {data.late} ({latePct.toFixed(1)}%)</span>
+              <span className="legend-label">{t("attendanceStatsPage.legendLate", { count: data.late, pct: latePct.toFixed(1) })}</span>
             </div>
             <div className="legend-item">
               <span className="legend-color" style={{ backgroundColor: "#dc3545" }}></span>
-              <span className="legend-label">缺席 {data.absent} ({absentPct.toFixed(1)}%)</span>
+              <span className="legend-label">{t("attendanceStatsPage.legendAbsent", { count: data.absent, pct: absentPct.toFixed(1) })}</span>
             </div>
           </div>
         </div>
 
         {/* 橫條圖 */}
         <div className="bar-chart">
-          <h4>出勤比例</h4>
+          <h4>{t("attendanceStatsPage.barChartTitle")}</h4>
           <div className="bar-container">
             <div className="bar-item">
-              <div className="bar-label">出席</div>
+              <div className="bar-label">{t("attendanceStatsPage.present")}</div>
               <div className="bar-track">
                 <div
                   className="bar-fill success"
@@ -112,7 +114,7 @@ const AttendanceChart: React.FC<AttendanceChartProps> = ({ data }) => {
             </div>
 
             <div className="bar-item">
-              <div className="bar-label">遲到</div>
+              <div className="bar-label">{t("attendanceStatsPage.late")}</div>
               <div className="bar-track">
                 <div
                   className="bar-fill warning"
@@ -123,7 +125,7 @@ const AttendanceChart: React.FC<AttendanceChartProps> = ({ data }) => {
             </div>
 
             <div className="bar-item">
-              <div className="bar-label">缺席</div>
+              <div className="bar-label">{t("attendanceStatsPage.absent")}</div>
               <div className="bar-track">
                 <div
                   className="bar-fill danger"

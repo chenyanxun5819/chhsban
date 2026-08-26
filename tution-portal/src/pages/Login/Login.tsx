@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
 import "./login.css";
 
@@ -11,6 +12,7 @@ declare global {
 
 export const Login: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { login, isAuthenticated } = useAuth();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -38,7 +40,7 @@ export const Login: React.FC = () => {
       await login(googleEmail);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "Google 登入失敗，請重試"
+        err instanceof Error ? err.message : t("login.errorGoogleLoginFailed")
       );
     } finally {
       setLoading(false);
@@ -107,7 +109,7 @@ export const Login: React.FC = () => {
     e.preventDefault();
 
     if (!email) {
-      setError("請輸入 Email 地址");
+      setError(t("login.errorEmailRequired"));
       return;
     }
 
@@ -121,7 +123,7 @@ export const Login: React.FC = () => {
         error: err,
       });
       setError(
-        err instanceof Error ? err.message : "登入失敗，請檢查 Email 是否正確"
+        err instanceof Error ? err.message : t("login.errorLoginFailed")
       );
     } finally {
       setLoading(false);
@@ -134,7 +136,7 @@ export const Login: React.FC = () => {
         {/* Logo 和標題 */}
         <div className="login-header">
           <div className="logo">🎓</div>
-          <h1>補習班管理系統</h1>
+          <h1>{t("login.title")}</h1>
           <p className="subtitle">CHHSBAN Tution Portal</p>
         </div>
 
@@ -147,13 +149,13 @@ export const Login: React.FC = () => {
             className={`toggle-btn ${!useManualInput ? "active" : ""}`}
             onClick={() => setUseManualInput(false)}
           >
-            Google 登入
+            {t("login.googleLogin")}
           </button>
           <button
             className={`toggle-btn ${useManualInput ? "active" : ""}`}
             onClick={() => setUseManualInput(true)}
           >
-            手動登入
+            {t("login.manualLogin")}
           </button>
         </div>
 
@@ -161,7 +163,7 @@ export const Login: React.FC = () => {
         {!useManualInput && (
           <div className="login-section">
             <div id="google-signin-button" className="google-button-wrapper"></div>
-            <div className="divider">或</div>
+            <div className="divider">{t("login.or")}</div>
           </div>
         )}
 
@@ -169,7 +171,7 @@ export const Login: React.FC = () => {
         {useManualInput && (
           <form onSubmit={handleManualLogin} className="login-section">
             <div className="form-group">
-              <label htmlFor="email">學校 Email 地址</label>
+              <label htmlFor="email">{t("login.emailLabel")}</label>
               <input
                 id="email"
                 type="email"
@@ -189,24 +191,24 @@ export const Login: React.FC = () => {
               disabled={loading}
               className="submit-btn"
             >
-              {loading ? "驗證中..." : "驗證並登入"}
+              {loading ? t("login.verifying") : t("login.verifyAndLogin")}
             </button>
           </form>
         )}
 
         {/* 提示訊息 */}
         <div className="login-help">
-          <p>💡 提示：</p>
+          <p>{t("login.tipsTitle")}</p>
           <ul>
-            <li>使用已註冊的教師 Email 進行登入</li>
-            <li>支持 Google 帳戶和手動 Email 驗證</li>
-            <li>支持 mybazaar.my 和 chhsban.edu.my 域名</li>
+            <li>{t("login.tip1")}</li>
+            <li>{t("login.tip2")}</li>
+            <li>{t("login.tip3")}</li>
           </ul>
         </div>
 
         {/* 底部信息 */}
         <div className="login-footer">
-          <p>© 2026 CHHSBAN | 補習班管理系統 v1.0</p>
+          <p>{t("login.footer")}</p>
         </div>
       </div>
     </div>

@@ -1,5 +1,7 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { ClassRosterEntry } from "@/types";
+import { formatDisplayDate } from "@/utils/validators";
 
 interface RosterRowProps {
   student: ClassRosterEntry;
@@ -15,13 +17,14 @@ const RosterRow: React.FC<RosterRowProps> = ({
   loading = false,
   readOnly = false,
 }) => {
+  const { t } = useTranslation();
   const [withdrawing, setWithdrawing] = React.useState(false);
 
   const handleWithdraw = async () => {
-    if (!confirm(`確認讓 ${student.name_cn} 退出此課程嗎？`)) {
+    if (!confirm(t("roster.confirmWithdraw", { name: student.name_cn }))) {
       return;
     }
-    const reason = window.prompt("請輸入退出原因（可留空）") || "";
+    const reason = window.prompt(t("roster.withdrawReasonPrompt")) || "";
     setWithdrawing(true);
     try {
       await onWithdraw({ ...student, withdrawal_reason: reason });
@@ -47,23 +50,27 @@ const RosterRow: React.FC<RosterRowProps> = ({
           <span className="gender-code">{student.gender_boarding}</span>
           <span className="separator-tab"></span>
           <span className={`status-badge ${student.is_active ? "success" : "danger"}`}>
-            {student.is_active ? "在讀" : "已退出"}
+            {student.is_active ? t("roster.active") : t("roster.statusWithdrawn")}
           </span>
           {student.is_active && !readOnly && (
             <button
               className="btn btn-outline-danger btn-withdraw"
               onClick={handleWithdraw}
               disabled={loading || withdrawing}
-              aria-label={`讓 ${student.name_cn} 退出`}
+              aria-label={t("roster.withdrawAriaLabel", { name: student.name_cn })}
             >
-              {withdrawing ? "處理中..." : "退出"}
+              {withdrawing ? t("roster.withdrawing") : t("roster.withdrawAction")}
             </button>
           )}
         </div>
 
         <div className="student-line-3">
           <span className="date-info">
-            {student.is_active ? `加入: ${student.enrollment_date}` : `退出: ${student.withdrawal_date}`}
+            {student.is_active
+              ? t("roster.enrolledLabel", { date: formatDisplayDate(student.enrollment_date) })
+              : t("roster.withdrawnLabel", {
+                  date: student.withdrawal_date ? formatDisplayDate(student.withdrawal_date) : "-",
+                })}
           </span>
         </div>
       </div>

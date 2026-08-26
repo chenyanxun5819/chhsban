@@ -17,7 +17,9 @@ import {
   ScheduleStats,
 } from "@/components/schedule";
 import type { TutionClass, TutionSchedule } from "@/types";
+import { useTranslation } from "react-i18next";
 import { useGradeLabel, useDayLabel } from "@/i18n/labels";
+import { formatDisplayDate } from "@/utils/validators";
 import "@/components/schedule/schedule.css";
 import "./schedule-management.css";
 
@@ -25,6 +27,7 @@ export const ScheduleManagement: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
   const { user } = useAuth();
   const readOnly = user?.permission === "super_admin";
+  const { t } = useTranslation();
   const gradeLabel = useGradeLabel();
   const dayLabel = useDayLabel();
 
@@ -40,7 +43,7 @@ export const ScheduleManagement: React.FC = () => {
 
   const loadData = useCallback(async () => {
     if (!classId) {
-      setError("課程 ID 未找到");
+      setError(t("schedule.errorNoClassId"));
       setLoading(false);
       return;
     }
@@ -59,7 +62,7 @@ export const ScheduleManagement: React.FC = () => {
       setExceptions(scheduleList);
       setAttendedDates(new Set(attendanceList.map((a) => a.class_date)));
     } catch (err) {
-      const message = err instanceof Error ? err.message : "載入排課資料失敗";
+      const message = err instanceof Error ? err.message : t("schedule.errorLoadFailed");
       setError(message);
     } finally {
       setLoading(false);
@@ -124,13 +127,13 @@ export const ScheduleManagement: React.FC = () => {
     }
   };
 
-  const pageTitle = readOnly ? "排課狀態" : "排課管理";
+  const pageTitle = readOnly ? t("schedule.readOnlyTitle") : t("schedule.title");
 
   if (loading) {
     return (
       <Layout title={pageTitle}>
         <div className="schedule-management">
-          <div className="schedule-table-empty">正在載入排課資料...</div>
+          <div className="schedule-table-empty">{t("schedule.loadingText")}</div>
         </div>
       </Layout>
     );
@@ -140,7 +143,7 @@ export const ScheduleManagement: React.FC = () => {
     return (
       <Layout title={pageTitle}>
         <div className="schedule-management">
-          <div className="alert alert-danger">{error || "找不到課程"}</div>
+          <div className="alert alert-danger">{error || t("schedule.notFound")}</div>
         </div>
       </Layout>
     );
@@ -155,9 +158,9 @@ export const ScheduleManagement: React.FC = () => {
               {classInfo.subject}（{gradeLabel(classInfo.form)}）
             </h2>
             <p className="subtitle">
-              申請人: {classInfo.teacher_name_cn} ・ 每{dayLabel(classInfo.day_of_week)}{" "}
+              {t("schedule.applicantLabel")}: {classInfo.teacher_name_cn} ・ 每{dayLabel(classInfo.day_of_week)}{" "}
               {classInfo.time_start}-{classInfo.time_end} ・ {classInfo.venue}
-              {classInfo.end_date ? ` ・ 結束日期 ${classInfo.end_date}` : ""}
+              {classInfo.end_date ? ` ・ ${t("schedule.endDateLabel")} ${formatDisplayDate(classInfo.end_date)}` : ""}
             </p>
           </div>
         </div>

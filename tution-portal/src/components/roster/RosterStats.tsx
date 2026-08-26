@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import { ClassRosterEntry } from "@/types";
 
 interface RosterStatsProps {
@@ -6,6 +7,7 @@ interface RosterStatsProps {
 }
 
 const RosterStats: React.FC<RosterStatsProps> = ({ roster }) => {
+  const { t } = useTranslation();
   const stats = React.useMemo(() => {
     const active = roster.filter((s) => s.is_active);
     const withdrawn = roster.filter((s) => !s.is_active);
@@ -27,12 +29,12 @@ const RosterStats: React.FC<RosterStatsProps> = ({ roster }) => {
     <div className="roster-stats-container">
       <div className="roster-stats-row">
         <div className="stat-item">
-          <span className="stat-code">在讀</span>
+          <span className="stat-code">{t("roster.active")}</span>
           <span className="stat-amount">{stats.activeCount}</span>
         </div>
         <div className="stat-separator"></div>
         <div className="stat-item">
-          <span className="stat-code">退出</span>
+          <span className="stat-code">{t("roster.statWithdrawn")}</span>
           <span className="stat-amount">{stats.withdrawnCount}</span>
         </div>
       </div>

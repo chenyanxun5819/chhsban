@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { receiptService } from "@/services/receiptService";
 import type { SemesterHalf } from "@/utils/semester";
 
@@ -19,6 +20,7 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
   onClose,
   onUploaded,
 }) => {
+  const { t } = useTranslation();
   const [file, setFile] = useState<File | null>(null);
   const [receiptNo, setReceiptNo] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -38,11 +40,11 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
 
   const handleSubmit = async () => {
     if (!file) {
-      setError("請選擇收據照片");
+      setError(t("receiptModal.errorNoFile"));
       return;
     }
     if (!receiptNo.trim()) {
-      setError("請輸入收據編號");
+      setError(t("receiptModal.errorNoReceiptNo"));
       return;
     }
 
@@ -53,9 +55,9 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
       resetState();
       onUploaded();
       onClose();
-      alert("✅ 收據已上傳，待管理員審核");
+      alert(t("receiptModal.successUploaded"));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "上傳失敗，請重試");
+      setError(err instanceof Error ? err.message : t("receiptModal.errorUploadFailed"));
     } finally {
       setSubmitting(false);
     }
@@ -67,15 +69,15 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
     <div className="modal-overlay" onClick={handleClose}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
-          <h3 className="modal-title">📎 上傳{halfLabel}收據</h3>
-          <button className="modal-close-btn" onClick={handleClose} disabled={submitting} aria-label="關閉">
+          <h3 className="modal-title">{t("receiptModal.title", { half: halfLabel })}</h3>
+          <button className="modal-close-btn" onClick={handleClose} disabled={submitting} aria-label={t("receiptModal.close")}>
             ✕
           </button>
         </div>
 
         <div className="modal-body">
           <div className="form-group">
-            <label className="form-label">收據照片</label>
+            <label className="form-label">{t("receiptModal.photoLabel")}</label>
             <input
               type="file"
               accept="image/jpeg,image/png"
@@ -86,7 +88,7 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
 
           <div className="form-group">
             <label className="form-label" htmlFor="receipt-no-input">
-              收據編號 <span className="required">*</span>
+              {t("receiptModal.receiptNoLabel")} <span className="required">*</span>
             </label>
             <input
               id="receipt-no-input"
@@ -94,23 +96,23 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
               className="receipt-no-input"
               value={receiptNo}
               onChange={(e) => setReceiptNo(e.target.value)}
-              placeholder="請照收據上的 Receipt No. 輸入"
+              placeholder={t("receiptModal.receiptNoPlaceholder")}
               disabled={submitting}
             />
           </div>
 
           <div className="form-group receipt-warning">
-            ⚠️ 上傳後無法再更改，請務必核對照片上的號碼與上方輸入是否一致。
+            {t("receiptModal.warning")}
           </div>
 
           {error && <div className="form-error">{error}</div>}
 
           <div className="modal-footer">
             <button type="button" className="btn btn--secondary" onClick={handleClose} disabled={submitting}>
-              取消
+              {t("receiptModal.cancel")}
             </button>
             <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "上傳中..." : "確認上傳"}
+              {submitting ? t("receiptModal.uploading") : t("receiptModal.confirmUpload")}
             </button>
           </div>
         </div>

@@ -11,6 +11,7 @@ import {
 import { RosterTable, RosterStats } from "@/components/roster";
 import { Layout } from "@/components/common/Layout";
 import { useAuth } from "@/context/AuthContext";
+import { useTranslation } from "react-i18next";
 import { useGradeLabel, useDayLabel } from "@/i18n/labels";
 import "@/components/roster/roster.css";
 
@@ -27,6 +28,7 @@ const RosterManagement: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const readOnly = user?.permission === "super_admin";
+  const { t } = useTranslation();
   const gradeLabel = useGradeLabel();
   const dayLabel = useDayLabel();
   const [state, setState] = React.useState<PageState>({
@@ -38,7 +40,7 @@ const RosterManagement: React.FC = () => {
 
   const fetchRoster = React.useCallback(async () => {
     if (!classId) {
-      setState((prev) => ({ ...prev, error: "課程 ID 未找到", loading: false }));
+      setState((prev) => ({ ...prev, error: t("roster.errorNoClassId"), loading: false }));
       return;
     }
 
@@ -59,7 +61,7 @@ const RosterManagement: React.FC = () => {
     } catch (err: any) {
       setState((prev) => ({
         ...prev,
-        error: err.response?.data?.error || err.message || "載入失敗",
+        error: err.response?.data?.error || err.message || t("roster.errorLoadFailed"),
         loading: false,
       }));
     }
@@ -86,7 +88,7 @@ const RosterManagement: React.FC = () => {
     } catch (err: any) {
       setState((prev) => ({
         ...prev,
-        error: err.response?.data?.error || err.message || "新增失敗",
+        error: err.response?.data?.error || err.message || t("roster.errorAddFailed"),
         saving: false,
       }));
       throw err;
@@ -105,7 +107,7 @@ const RosterManagement: React.FC = () => {
     } catch (err: any) {
       setState((prev) => ({
         ...prev,
-        error: err.response?.data?.error || err.message || "退出失敗",
+        error: err.response?.data?.error || err.message || t("roster.errorWithdrawFailed"),
         saving: false,
       }));
       throw err;
@@ -121,8 +123,8 @@ const RosterManagement: React.FC = () => {
 
   const classNameDisplay = state.classInfo
     ? `${state.classInfo.subject} (${gradeLabel(state.classInfo.form)})`
-    : "課程";
-  const pageTitle = readOnly ? "學生總覽" : "學生管理";
+    : t("roster.defaultClassName");
+  const pageTitle = readOnly ? t("roster.overviewTitle") : t("roster.manageTitle");
 
   return (
     <Layout title={pageTitle}>
@@ -142,10 +144,10 @@ const RosterManagement: React.FC = () => {
               {classNameDisplay} - {pageTitle}
             </h1>
             <p style={{ margin: "0", color: "#666", fontSize: "14px" }}>
-              課程編號: {state.classInfo?.application_no || classId}
+              {t("roster.classNoLabel")}: {state.classInfo?.application_no || classId}
               {state.classInfo && (
                 <>
-                  {" ・ "}申請人: {state.classInfo.teacher_name_cn}
+                  {" ・ "}{t("schedule.applicantLabel")}: {state.classInfo.teacher_name_cn}
                   {" ・ "}每{dayLabel(state.classInfo.day_of_week)}
                   {" ・ "}
                   {state.classInfo.venue || "-"}
@@ -191,7 +193,7 @@ const RosterManagement: React.FC = () => {
 
         {/* 主表格 */}
         {state.loading ? (
-          <div style={{ textAlign: "center", padding: "40px", color: "#999" }}>加載中...</div>
+          <div style={{ textAlign: "center", padding: "40px", color: "#999" }}>{t("welcome.loading")}</div>
         ) : (
           <RosterTable
             roster={state.roster}

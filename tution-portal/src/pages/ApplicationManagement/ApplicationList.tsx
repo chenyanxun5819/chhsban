@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
 import { TutionClass, TutionStatus } from "@/types";
@@ -12,6 +13,7 @@ type FilterStatus = "all" | "pending" | "reviewing" | "approved" | "rejected" | 
 
 const ApplicationList: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { user } = useAuth();
   const gradeLabel = useGradeLabel();
   const dayLabel = useDayLabel();
@@ -37,7 +39,7 @@ const ApplicationList: React.FC = () => {
       const myApplications = response.data?.data as TutionClass[] | undefined;
       setApplications(myApplications || []);
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error || "載入申請列表失敗";
+      const errorMessage = err.response?.data?.error || t("applicationList.loadFailed");
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -66,12 +68,12 @@ const ApplicationList: React.FC = () => {
 
   const getStatusInfo = (status: TutionStatus) => {
     const statusMap: Record<TutionStatus, { label: string; badge: string; color: string }> = {
-      pending: { label: "待審批", badge: "⏳", color: "warning" },
-      reviewing: { label: "審核中", badge: "🔍", color: "info" },
-      approved: { label: "已批准", badge: "✅", color: "success" },
-      rejected: { label: "已拒絕", badge: "❌", color: "danger" },
-      active: { label: "進行中", badge: "🚀", color: "info" },
-      ended: { label: "已結束", badge: "🏁", color: "secondary" },
+      pending: { label: t("applicationList.status.pending"), badge: "⏳", color: "warning" },
+      reviewing: { label: t("applicationList.status.reviewing"), badge: "🔍", color: "info" },
+      approved: { label: t("applicationList.status.approved"), badge: "✅", color: "success" },
+      rejected: { label: t("applicationList.status.rejected"), badge: "❌", color: "danger" },
+      active: { label: t("applicationList.status.active"), badge: "🚀", color: "info" },
+      ended: { label: t("applicationList.status.ended"), badge: "🏁", color: "secondary" },
     };
     return statusMap[status];
   };
@@ -86,11 +88,11 @@ const ApplicationList: React.FC = () => {
   };
 
   return (
-    <Layout title="申請歷史">
+    <Layout title={t("applicationList.title")}>
       <div className="list-container">
         <div className="list-page-title">
-          <h1>我的申請歷史</h1>
-          <p>只顯示目前登入申請人的歷史申請記錄</p>
+          <h1>{t("applicationList.heading")}</h1>
+          <p>{t("applicationList.subtitle")}</p>
         </div>
 
         {/* 搜尋和篩選欄 */}
@@ -98,7 +100,7 @@ const ApplicationList: React.FC = () => {
           <div className="search-box">
             <input
               type="text"
-              placeholder="搜尋科目、年級或地點..."
+              placeholder={t("applicationList.searchPlaceholder")}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
             />
@@ -109,31 +111,31 @@ const ApplicationList: React.FC = () => {
               className={`filter-tab ${filterStatus === "all" ? "active" : ""}`}
               onClick={() => setFilterStatus("all")}
             >
-              全部
+              {t("applicationList.filter.all")}
             </button>
             <button
               className={`filter-tab ${filterStatus === "pending" ? "active" : ""}`}
               onClick={() => setFilterStatus("pending")}
             >
-              待審批
+              {t("applicationList.filter.pending")}
             </button>
             <button
               className={`filter-tab ${filterStatus === "reviewing" ? "active" : ""}`}
               onClick={() => setFilterStatus("reviewing")}
             >
-              審核中
+              {t("applicationList.filter.reviewing")}
             </button>
             <button
               className={`filter-tab ${filterStatus === "approved" ? "active" : ""}`}
               onClick={() => setFilterStatus("approved")}
             >
-              已批准
+              {t("applicationList.filter.approved")}
             </button>
             <button
               className={`filter-tab ${filterStatus === "active" ? "active" : ""}`}
               onClick={() => setFilterStatus("active")}
             >
-              進行中
+              {t("applicationList.filter.active")}
             </button>
           </div>
         </div>
@@ -144,11 +146,11 @@ const ApplicationList: React.FC = () => {
         {/* 內容區域 */}
         {loading ? (
           <div className="empty-state">
-            <p>載入中...</p>
+            <p>{t("welcome.loading")}</p>
           </div>
         ) : filteredApplications.length === 0 ? (
           <div className="empty-state">
-            <p>📋 尚無符合條件的申請</p>
+            <p>{t("applicationList.empty")}</p>
           </div>
         ) : (
           <>
@@ -158,13 +160,13 @@ const ApplicationList: React.FC = () => {
                 <table className="applications-table">
                   <thead>
                     <tr>
-                      <th>科目</th>
-                      <th>年級</th>
-                      <th>開課日期</th>
-                      <th>上課地點</th>
-                      <th>學費</th>
-                      <th>狀態</th>
-                      <th>操作</th>
+                      <th>{t("applicationList.col.subject")}</th>
+                      <th>{t("applicationList.col.grade")}</th>
+                      <th>{t("applicationList.col.startDate")}</th>
+                      <th>{t("applicationList.col.venue")}</th>
+                      <th>{t("applicationList.col.fees")}</th>
+                      <th>{t("applicationList.col.status")}</th>
+                      <th>{t("applicationList.col.actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -189,14 +191,14 @@ const ApplicationList: React.FC = () => {
                               className="btn btn-link"
                               onClick={() => handleViewDetails(app.class_id)}
                             >
-                              查看
+                              {t("applicationList.view")}
                             </button>
                             {app.approval_status === "pending" && (
                               <button
                                 className="btn btn-link"
                                 onClick={(e) => handleEditApplication(e, app.class_id)}
                               >
-                                編輯
+                                {t("applicationList.edit")}
                               </button>
                             )}
                           </td>
@@ -231,29 +233,31 @@ const ApplicationList: React.FC = () => {
 
                       <div className="card-body">
                         <div className="card-row">
-                          <span className="label">開課日期:</span>
+                          <span className="label">{t("applicationList.startDateLabel")}</span>
                           <span className="value">
                             {formatDisplayDate(app.start_date)}
                           </span>
                         </div>
                         <div className="card-row">
-                          <span className="label">上課時間:</span>
+                          <span className="label">{t("applicationList.classTimeLabel")}</span>
                           <span className="value">
                             {dayLabel(app.day_of_week)} {app.time_start}-{app.time_end}
                           </span>
                         </div>
                         <div className="card-row">
-                          <span className="label">上課地點:</span>
+                          <span className="label">{t("applicationList.venueLabel")}</span>
                           <span className="value">{app.venue}</span>
                         </div>
                         <div className="card-row">
-                          <span className="label">學費:</span>
+                          <span className="label">{t("applicationList.feesLabel")}</span>
                           <span className="value">RM {app.fees}</span>
                         </div>
                         {app.initial_roster && (
                           <div className="card-row">
-                            <span className="label">學生人數:</span>
-                            <span className="value">{app.initial_roster.length} 人</span>
+                            <span className="label">{t("applicationList.studentCountLabel")}</span>
+                            <span className="value">
+                              {t("applicationList.studentCount", { count: app.initial_roster.length })}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -266,14 +270,14 @@ const ApplicationList: React.FC = () => {
                             handleViewDetails(app.class_id);
                           }}
                         >
-                          查看詳情
+                          {t("applicationList.viewDetails")}
                         </button>
                         {app.approval_status === "pending" && (
                           <button
                             className="btn btn-small btn-secondary"
                             onClick={(e) => handleEditApplication(e, app.class_id)}
                           >
-                            編輯
+                            {t("applicationList.edit")}
                           </button>
                         )}
                       </div>
@@ -291,7 +295,7 @@ const ApplicationList: React.FC = () => {
             className="btn btn-primary btn-large"
             onClick={() => navigate("/applications/new")}
           >
-            + 提出新申請
+            {t("welcome.newApplication")}
           </button>
         </div>
       </div>

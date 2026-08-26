@@ -1,5 +1,6 @@
 import React from "react";
 import { useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { TutionAttendance, TutionRoster } from "@/types";
 import apiClient from "@/utils/api";
 import { Layout } from "@/components/common/Layout";
@@ -19,6 +20,7 @@ interface PageState {
 
 const AttendanceStatsPage: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
+  const { t } = useTranslation();
   const [state, setState] = React.useState<PageState>({
     attendance: [],
     roster: [],
@@ -36,7 +38,7 @@ const AttendanceStatsPage: React.FC = () => {
       if (!classId) {
         setState((prev) => ({
           ...prev,
-          error: "課程 ID 未找到",
+          error: t("attendanceSheet.errorNoClassId"),
           loading: false,
         }));
         return;
@@ -59,7 +61,7 @@ const AttendanceStatsPage: React.FC = () => {
       } catch (err) {
         setState((prev) => ({
           ...prev,
-          error: err instanceof Error ? err.message : "加載失敗",
+          error: err instanceof Error ? err.message : t("attendanceStatsPage.loadFailed"),
           loading: false,
         }));
       }
@@ -141,8 +143,8 @@ const AttendanceStatsPage: React.FC = () => {
     <Layout>
       <div className="attendance-stats-page">
         <div className="page-header">
-          <h1>出勤統計分析</h1>
-          <p className="subtitle">課程: {classId}</p>
+          <h1>{t("attendanceStatsPage.title")}</h1>
+          <p className="subtitle">{t("attendanceStatsPage.courseLabel", { id: classId })}</p>
         </div>
 
         {state.error && (
@@ -159,7 +161,7 @@ const AttendanceStatsPage: React.FC = () => {
 
         {state.loading ? (
           <div className="loading-state">
-            <p>加載中...</p>
+            <p>{t("attendanceStatsPage.loading")}</p>
           </div>
         ) : (
           <>
@@ -167,7 +169,7 @@ const AttendanceStatsPage: React.FC = () => {
             <div className="date-range-selector">
               <div className="date-inputs">
                 <label>
-                  開始日期:
+                  {t("attendanceStatsPage.startDateLabel")}
                   <input
                     type="date"
                     value={state.startDate}
@@ -180,7 +182,7 @@ const AttendanceStatsPage: React.FC = () => {
                   />
                 </label>
                 <label>
-                  結束日期:
+                  {t("attendanceStatsPage.endDateLabel")}
                   <input
                     type="date"
                     value={state.endDate}
@@ -204,7 +206,7 @@ const AttendanceStatsPage: React.FC = () => {
                   }))
                 }
               >
-                最近 30 天
+                {t("attendanceStatsPage.last30Days")}
               </button>
             </div>
 

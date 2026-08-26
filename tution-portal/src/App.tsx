@@ -16,12 +16,14 @@ import { useEffect, useState } from "react";
 import { TutionClass } from "@/types";
 import apiClient from "@/utils/api";
 import { useGradeLabel, useDayLabel } from "@/i18n/labels";
+import { useTranslation } from "react-i18next";
 import "./styles/App.css";
 
 // 課程列表頁面
 const ClassList = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { t } = useTranslation();
   const gradeLabel = useGradeLabel();
   const dayLabel = useDayLabel();
   const [classes, setClasses] = useState<TutionClass[]>([]);
@@ -51,7 +53,7 @@ const ClassList = () => {
 
         setClasses(approvedClasses);
       } catch (err: any) {
-        const errorMessage = err.response?.data?.error || "載入課程列表失敗";
+        const errorMessage = err.response?.data?.error || t("classList.loadFailed");
         setError(errorMessage);
       } finally {
         setLoading(false);
@@ -62,20 +64,20 @@ const ClassList = () => {
   }, [user?.teacherId]);
 
   return (
-    <Layout title="已批准課程">
+    <Layout title={t("classList.title")}>
       <div className="page">
-        <h1>已批准課程</h1>
-        {loading && <p>載入中...</p>}
-        {error && <p style={{ color: "red" }}>錯誤: {error}</p>}
-        {classes.length === 0 && !loading && <p>尚無批准的課程</p>}
+        <h1>{t("classList.title")}</h1>
+        {loading && <p>{t("welcome.loading")}</p>}
+        {error && <p style={{ color: "red" }}>{t("classList.errorPrefix")}: {error}</p>}
+        {classes.length === 0 && !loading && <p>{t("classList.empty")}</p>}
         {classes.map((c) => (
           <div key={c.class_id} className="class-item" style={{ marginBottom: "20px", padding: "10px", border: "1px solid #ddd", borderRadius: "5px" }}>
             <h3>{c.subject} ({gradeLabel(c.form)})</h3>
-            <p>教師: {c.teacher_name_cn}</p>
-            <p>時間: {dayLabel(c.day_of_week)} {c.time_start}-{c.time_end}</p>
-            <p>地點: {c.venue}</p>
-            <p>學費: RM {c.fees}</p>
-            <button onClick={() => navigate(`/classes/${c.class_id}/schedule`)}>查看詳情</button>
+            <p>{t("classList.teacher")}: {c.teacher_name_cn}</p>
+            <p>{t("classList.time")}: {dayLabel(c.day_of_week)} {c.time_start}-{c.time_end}</p>
+            <p>{t("classList.venue")}: {c.venue}</p>
+            <p>{t("classList.fees")}: RM {c.fees}</p>
+            <button onClick={() => navigate(`/classes/${c.class_id}/schedule`)}>{t("classList.viewDetails")}</button>
           </div>
         ))}
       </div>
@@ -83,18 +85,22 @@ const ClassList = () => {
   );
 };
 
-const Dashboard = () => (
-  <Layout title="系統首頁">
-    <div className="page"><h1>系統首頁 (待實施)</h1></div>
-  </Layout>
-);
+const Dashboard = () => {
+  const { t } = useTranslation();
+  return (
+    <Layout title={t("dashboard.title")}>
+      <div className="page"><h1>{t("dashboard.notImplemented")}</h1></div>
+    </Layout>
+  );
+};
 
 // 受保護的路由組件
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading } = useAuth();
+  const { t } = useTranslation();
 
   if (isLoading) {
-    return <div className="loading">載入中...</div>;
+    return <div className="loading">{t("welcome.loading")}</div>;
   }
 
   if (!isAuthenticated) {
