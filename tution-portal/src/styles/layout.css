@@ -75,6 +75,27 @@
   }
 }
 
+.header__lang {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 28px;
+  padding: 0 8px;
+  background: none;
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.header__lang:hover {
+  opacity: 0.7;
+}
+
 .header__logout {
   display: flex;
   align-items: center;

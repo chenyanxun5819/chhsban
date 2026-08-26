@@ -1,0 +1,10 @@
+{
+  "common": {
+    "loading": "載入中...",
+    "backHome": "返回首頁",
+    "logout": "登出",
+    "language": "語言",
+    "switchToEnglish": "切換為英文",
+    "switchToChinese": "切換為中文"
+  }
+}

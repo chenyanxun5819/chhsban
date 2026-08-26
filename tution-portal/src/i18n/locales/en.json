@@ -1,0 +1,10 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "backHome": "Home",
+    "logout": "Logout",
+    "language": "Language",
+    "switchToEnglish": "Switch to English",
+    "switchToChinese": "Switch to Chinese"
+  }
+}
