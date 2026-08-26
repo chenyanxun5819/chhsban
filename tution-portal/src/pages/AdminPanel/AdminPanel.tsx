@@ -600,19 +600,19 @@ export const AdminPanel: React.FC = () => {
                         className="btn btn-small"
                         onClick={() => navigate(`/classes/${course.class_id}/roster`)}
                       >
-                        👥 管理學生
+                        👥 學生總覽
                       </button>
                       <button
                         className="btn btn-small"
                         onClick={() => navigate(`/classes/${course.class_id}/schedule`)}
                       >
-                        📅 開課記錄
+                        📅 排課狀態
                       </button>
                       <button
                         className="btn btn-small"
                         onClick={() => navigate(`/classes/${course.class_id}/attendance`)}
                       >
-                        ✓ 點名
+                        ✓ 出席狀況
                       </button>
                       <input
                         type="file"

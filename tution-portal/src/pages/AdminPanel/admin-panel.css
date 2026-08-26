@@ -164,7 +164,14 @@
   justify-content: space-between;
   gap: 8px 20px;
   padding: 14px 18px;
+}
+
+.course-row:nth-child(odd) {
   background: #fff;
+}
+
+.course-row:nth-child(even) {
+  background: #f3f4f9;
 }
 
 .course-row + .course-row {
