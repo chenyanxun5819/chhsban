@@ -8,17 +8,19 @@
  * 此系統與其他所有系統共享此限額
  * 詳見: /memories/repo/PUT操作成本清單.md
  * 
- * 登入成本:
- * - 已有帳號登入: 1 PUT (session 創建)
- * - 首次登入: 2 PUT (email 索引 + session)
- * 
+ * 登入成本（兩階段密碼登入，見 /api/auth/* 系列端點）:
+ * - 日常登入（已設密碼）: /auth/verify (0 PUT) + /auth/login-password (1 PUT，session) = 1 PUT
+ * - 首次登入（設定密碼那一次）: /auth/verify (首次可能 1 PUT 建 email 索引)
+ *   + /auth/set-password (1 PUT 存密碼 + 1 PUT session) = 最多 3 PUT（一次性成本）
+ * - 密碼輸入錯誤: /auth/login-password 失敗 +1 PUT（鎖定計數器，僅異常路徑才有此成本）
+ *
  * 其他操作成本:
  * - 提交申請: 1 PUT (createClass)
  * - 更新班級: 1 PUT (updateClass)
  * - 建立記錄: 1 PUT 
  */
 
-import { createAuthKVManager, createTeacherKVManager, createStudentKVManager, createClassroomKVManager, TutionClassStatus, AttendanceStatus, type TutionClass, type TutionSchedule } from "@chhsban/kv-utils";
+import { createAuthKVManager, createTeacherKVManager, createStudentKVManager, createClassroomKVManager, TutionClassStatus, AttendanceStatus, createPendingToken, verifyPendingToken, hashPassword, verifyPassword, generateStrongPassword, validatePasswordStrength, type TutionClass, type TutionSchedule } from "@chhsban/kv-utils";
 import { KV_NAMESPACES } from "@chhsban/cloudflare-config";
 import { TutionSheetsSync } from "./sheets-sync";
 import { TutionKVService } from "./tution-service";
@@ -48,6 +50,7 @@ interface Env {
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?: string;
   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID?: string;
   GOOGLE_VISION_API_KEY?: string;
+  AUTH_PENDING_SECRET: string;
 }
 
 interface IncomingRosterSnapshot {
@@ -228,27 +231,25 @@ async function handleAuthVerify(request: Request, env: Env): Promise<Response> {
 
     console.log(`[AUTH] Found teacher: ${teacher.teacher_id}`);
 
-    // 生成 token
-    const authManager = createAuthKVManager(env.AUTH_KV);
+    // 密碼作為強制第二關卡：依該教師是否已設定密碼，決定下一步是「設定密碼」還是「輸入密碼」
+    const purpose: "password_setup" | "password_login" = teacher.password_hash
+      ? "password_login"
+      : "password_setup";
 
-    // 創建會話（使用 createSession 而非 saveSession）
-    const session = await authManager.createSession(
-      teacher.teacher_id,
-      teacher.name_cn || teacher.name_en || "Unknown",
-      teacher.permission || "teacher",
+    const pendingToken = await createPendingToken(
+      { teacherId: teacher.teacher_id, email: teacher.email, purpose },
+      env.AUTH_PENDING_SECRET,
     );
-
-    console.log(`[AUTH] Session created: ${session.token}`);
 
     return new Response(
       JSON.stringify({
         success: true,
         data: {
-          token: session.token,
-          teacher_id: teacher.teacher_id,
+          stage: purpose,
+          pendingToken,
           teacher_name: teacher.name_cn || teacher.name_en || "Unknown",
           email: teacher.email,
-          permission: teacher.permission || "teacher",
+          expiresIn: 15 * 60,
         },
         timestamp: new Date().toISOString(),
       }),
@@ -257,14 +258,188 @@ async function handleAuthVerify(request: Request, env: Env): Promise<Response> {
   } catch (error) {
     console.error("[AUTH] Error in auth verify:", error);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: "Authentication failed",
         details: error instanceof Error ? error.message : "Unknown error"
-      }), 
+      }),
       {
         status: 500,
         headers: getCorsHeaders(),
       }
+    );
+  }
+}
+
+/**
+ * 完成登入的共用收尾：建立正式 session，回傳與 /auth/verify 成功響應同構的資料
+ */
+async function finalizeLogin(
+  env: Env,
+  teacher: { teacher_id: string; name_cn: string; name_en: string; email: string; permission?: string },
+): Promise<Response> {
+  const authManager = createAuthKVManager(env.AUTH_KV);
+  const session = await authManager.createSession(
+    teacher.teacher_id,
+    teacher.name_cn || teacher.name_en || "Unknown",
+    (teacher.permission as any) || "teacher",
+  );
+
+  console.log(`[AUTH] Session created: ${session.token}`);
+
+  return jsonResponse({
+    success: true,
+    data: {
+      token: session.token,
+      teacher_id: teacher.teacher_id,
+      teacher_name: teacher.name_cn || teacher.name_en || "Unknown",
+      email: teacher.email,
+      permission: teacher.permission || "teacher",
+    },
+    timestamp: new Date().toISOString(),
+  });
+}
+
+/**
+ * 讓系統產生一組符合強度規則的密碼，顯示給使用者一次（不寫入任何儲存）
+ */
+async function handleAuthGeneratePassword(request: Request, env: Env): Promise<Response> {
+  try {
+    if (request.method !== "POST") {
+      return jsonResponse({ error: "Method not allowed" }, 405);
+    }
+
+    const body = (await request.json()) as { pendingToken?: string };
+    if (!body.pendingToken) {
+      return jsonResponse({ error: "Missing pendingToken field" }, 400);
+    }
+
+    const payload = await verifyPendingToken(body.pendingToken, env.AUTH_PENDING_SECRET);
+    if (!payload || payload.purpose !== "password_setup") {
+      return jsonResponse({ error: "Invalid or expired pendingToken" }, 400);
+    }
+
+    const password = generateStrongPassword();
+    return jsonResponse({ success: true, data: { password } });
+  } catch (error) {
+    console.error("[AUTH] Error in generate-password:", error);
+    return jsonResponse(
+      { error: "Failed to generate password", details: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+}
+
+/**
+ * 首次登入：設定密碼（自訂或系統產生皆走這個端點），成功後直接完成登入
+ */
+async function handleAuthSetPassword(request: Request, env: Env): Promise<Response> {
+  try {
+    if (request.method !== "POST") {
+      return jsonResponse({ error: "Method not allowed" }, 405);
+    }
+
+    const body = (await request.json()) as { pendingToken?: string; password?: string };
+    if (!body.pendingToken || !body.password) {
+      return jsonResponse({ error: "Missing pendingToken or password field" }, 400);
+    }
+
+    const payload = await verifyPendingToken(body.pendingToken, env.AUTH_PENDING_SECRET);
+    if (!payload || payload.purpose !== "password_setup") {
+      return jsonResponse({ error: "Invalid or expired pendingToken" }, 400);
+    }
+
+    const teacherManager = createTeacherKVManager(env.TEACHER_KV);
+    const teacher = await teacherManager.getTeacher(payload.teacherId);
+    if (!teacher) {
+      return jsonResponse({ error: "Teacher not found" }, 404);
+    }
+    if (teacher.password_hash) {
+      // 競態防護：例如使用者開了兩個分頁，其中一個已經設定過密碼
+      return jsonResponse({ error: "PASSWORD_ALREADY_SET" }, 409);
+    }
+
+    const validation = validatePasswordStrength(body.password);
+    if (!validation.valid) {
+      return jsonResponse({ error: "WEAK_PASSWORD", details: validation.errors }, 400);
+    }
+
+    const hashed = await hashPassword(body.password);
+    const now = Date.now();
+    await teacherManager.saveTeacher({
+      ...teacher,
+      password_hash: hashed.hash,
+      password_salt: hashed.salt,
+      password_algorithm: hashed.algorithm,
+      password_iterations: hashed.iterations,
+      password_created_at: now,
+      password_updated_at: now,
+    });
+
+    return finalizeLogin(env, teacher);
+  } catch (error) {
+    console.error("[AUTH] Error in set-password:", error);
+    return jsonResponse(
+      { error: "Failed to set password", details: error instanceof Error ? error.message : "Unknown error" },
+      500,
+    );
+  }
+}
+
+/**
+ * 已設定密碼的教師：輸入密碼完成登入
+ */
+async function handleAuthLoginPassword(request: Request, env: Env): Promise<Response> {
+  try {
+    if (request.method !== "POST") {
+      return jsonResponse({ error: "Method not allowed" }, 405);
+    }
+
+    const body = (await request.json()) as { pendingToken?: string; password?: string };
+    if (!body.pendingToken || !body.password) {
+      return jsonResponse({ error: "Missing pendingToken or password field" }, 400);
+    }
+
+    const payload = await verifyPendingToken(body.pendingToken, env.AUTH_PENDING_SECRET);
+    if (!payload || payload.purpose !== "password_login") {
+      return jsonResponse({ error: "Invalid or expired pendingToken" }, 400);
+    }
+
+    const authManager = createAuthKVManager(env.AUTH_KV);
+    const lockout = await authManager.checkLockout(payload.teacherId);
+    if (lockout.locked) {
+      return jsonResponse(
+        { error: "TOO_MANY_ATTEMPTS", retryAfterSeconds: lockout.retryAfterSeconds },
+        429,
+      );
+    }
+
+    const teacherManager = createTeacherKVManager(env.TEACHER_KV);
+    const teacher = await teacherManager.getTeacher(payload.teacherId);
+    if (!teacher || !teacher.password_hash || !teacher.password_salt || !teacher.password_algorithm || !teacher.password_iterations) {
+      return jsonResponse({ error: "PASSWORD_NOT_SET" }, 409);
+    }
+
+    const isValid = await verifyPassword(body.password, {
+      hash: teacher.password_hash,
+      salt: teacher.password_salt,
+      algorithm: teacher.password_algorithm,
+      iterations: teacher.password_iterations,
+    });
+
+    if (!isValid) {
+      const status = await authManager.recordFailedAttempt(payload.teacherId);
+      return jsonResponse(
+        { error: "INVALID_PASSWORD", remainingAttempts: status.remainingAttempts },
+        401,
+      );
+    }
+
+    return finalizeLogin(env, teacher);
+  } catch (error) {
+    console.error("[AUTH] Error in login-password:", error);
+    return jsonResponse(
+      { error: "Failed to login", details: error instanceof Error ? error.message : "Unknown error" },
+      500,
     );
   }
 }
@@ -282,9 +457,18 @@ export default {
       });
     }
 
-    // 認證端點不需要 token
+    // 認證端點不需要 token（密碼二階段流程的憑證是 pendingToken，放在 body 裡）
     if (pathname === "/api/auth/verify") {
       return handleAuthVerify(request, env);
+    }
+    if (pathname === "/api/auth/generate-password") {
+      return handleAuthGeneratePassword(request, env);
+    }
+    if (pathname === "/api/auth/set-password") {
+      return handleAuthSetPassword(request, env);
+    }
+    if (pathname === "/api/auth/login-password") {
+      return handleAuthLoginPassword(request, env);
     }
 
     // 健康檢查不需要 token

@@ -3,8 +3,10 @@
  * 处理会话令牌的创建、验证和删除
  */
 
-import type { SessionToken, AuthSessionData, KVNamespace } from "../types/index.js";
+import type { SessionToken, AuthSessionData, KVNamespace, LockoutStatus } from "../types/index.js";
 import { KV_CONFIG } from "../types/index.js";
+
+export * from "./pending-token.js";
 
 /**
  * Auth KV 管理类
@@ -151,6 +153,63 @@ export class AuthKVManager {
     };
 
     return (permissionLevels[session.permission] ?? 0) >= (permissionLevels[requiredPermission] ?? 0);
+  }
+
+  /**
+   * 检查该教师是否因密码连续输错而被暂时锁定
+   * @param teacherId 教师 ID
+   */
+  async checkLockout(teacherId: string): Promise<LockoutStatus> {
+    const key = `${KV_CONFIG.LOCKOUT_PREFIX}${teacherId}`;
+    const data = await this.kv.get(key);
+    if (!data) {
+      return { locked: false, remainingAttempts: KV_CONFIG.LOCKOUT_MAX_ATTEMPTS };
+    }
+
+    try {
+      const { count } = JSON.parse(data) as { count: number };
+      if (count >= KV_CONFIG.LOCKOUT_MAX_ATTEMPTS) {
+        return { locked: true, remainingAttempts: 0, retryAfterSeconds: KV_CONFIG.LOCKOUT_WINDOW_SECONDS };
+      }
+      return { locked: false, remainingAttempts: KV_CONFIG.LOCKOUT_MAX_ATTEMPTS - count };
+    } catch {
+      return { locked: false, remainingAttempts: KV_CONFIG.LOCKOUT_MAX_ATTEMPTS };
+    }
+  }
+
+  /**
+   * 记录一次密码验证失败，达到上限则视为锁定（TTL 到期自动解除）
+   * @param teacherId 教师 ID
+   */
+  async recordFailedAttempt(teacherId: string): Promise<LockoutStatus> {
+    const key = `${KV_CONFIG.LOCKOUT_PREFIX}${teacherId}`;
+    const data = await this.kv.get(key);
+    let count = 1;
+    if (data) {
+      try {
+        count = (JSON.parse(data) as { count: number }).count + 1;
+      } catch {
+        count = 1;
+      }
+    }
+
+    await this.kv.put(key, JSON.stringify({ count }), {
+      expirationTtl: KV_CONFIG.LOCKOUT_WINDOW_SECONDS,
+    });
+
+    if (count >= KV_CONFIG.LOCKOUT_MAX_ATTEMPTS) {
+      return { locked: true, remainingAttempts: 0, retryAfterSeconds: KV_CONFIG.LOCKOUT_WINDOW_SECONDS };
+    }
+    return { locked: false, remainingAttempts: KV_CONFIG.LOCKOUT_MAX_ATTEMPTS - count };
+  }
+
+  /**
+   * 清除锁定计数（登入成功后可选调用）
+   * @param teacherId 教师 ID
+   */
+  async clearLockout(teacherId: string): Promise<void> {
+    const key = `${KV_CONFIG.LOCKOUT_PREFIX}${teacherId}`;
+    await this.kv.delete(key);
   }
 }
 

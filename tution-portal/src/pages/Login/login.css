@@ -297,11 +297,11 @@
   }
 }
 
-.submit-btn:disabled {
+.submit-btn.is-loading {
   position: relative;
 }
 
-.submit-btn:disabled::after {
+.submit-btn.is-loading::after {
   content: "";
   position: absolute;
   width: 14px;

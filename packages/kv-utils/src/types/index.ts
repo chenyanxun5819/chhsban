@@ -70,6 +70,55 @@ export interface TeacherRecord {
   department: string; // 如 "中文系", "数学系"
   email: string;
   permission: Permission;
+  // 密码相关（缺省 = 尚未设定密码，需要走 password_setup 流程）
+  password_hash?: string; // base64
+  password_salt?: string; // base64
+  password_algorithm?: "PBKDF2-SHA256";
+  password_iterations?: number; // 该密码创建时使用的迭代次数（非全局常量，方便未来调高迭代次数而不需一次性 migrate 旧密码）
+  password_created_at?: number; // Unix 时间戳（毫秒）
+  password_updated_at?: number; // Unix 时间戳（毫秒）
+}
+
+/**
+ * 密码哈希结果（PBKDF2-SHA256）
+ */
+export interface HashedPassword {
+  hash: string; // base64
+  salt: string; // base64
+  algorithm: "PBKDF2-SHA256";
+  iterations: number;
+}
+
+/**
+ * 密码强度校验规则错误码（不含已翻译文案，由前端依 code 渲染）
+ */
+export type PasswordRuleError =
+  | "TOO_SHORT"
+  | "MISSING_LOWERCASE"
+  | "MISSING_UPPERCASE"
+  | "MISSING_DIGIT"
+  | "MISSING_SYMBOL";
+
+export interface PasswordValidationResult {
+  valid: boolean;
+  errors: PasswordRuleError[];
+}
+
+/**
+ * 两阶段登入用的 pending token payload（HMAC 签名，无状态，不写入 KV）
+ */
+export interface PendingTokenPayload {
+  teacherId: string;
+  email: string;
+  purpose: "password_setup" | "password_login";
+  iat: number; // 秒
+  exp: number; // 秒
+}
+
+export interface LockoutStatus {
+  locked: boolean;
+  remainingAttempts: number;
+  retryAfterSeconds?: number;
 }
 
 /**
@@ -97,6 +146,16 @@ export const KV_CONFIG = {
   TUTION_ROSTER_PREFIX: "tution_roster:",
   TUTION_ATTENDANCE_PREFIX: "tution_attendance:",
   TUTION_SCHEDULE_PREFIX: "tution_schedule:",
+  // 密码策略
+  PASSWORD_MIN_LENGTH: 10,
+  PBKDF2_ITERATIONS: 210_000, // OWASP 2023 建议值，仅作新密码的默认值
+  GENERATED_PASSWORD_LENGTH: 14,
+  // pending token（无状态，不进 KV）
+  PENDING_TOKEN_TTL_SECONDS: 15 * 60, // 15 分钟
+  // 暴力破解防护（唯一真正写 KV 的部分）
+  LOCKOUT_PREFIX: "lockout:",
+  LOCKOUT_MAX_ATTEMPTS: 5,
+  LOCKOUT_WINDOW_SECONDS: 15 * 60,
 } as const;
 
 /**

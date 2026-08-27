@@ -4,8 +4,16 @@ import axios, { AxiosInstance } from "axios";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8787/api";
 
-function isAuthVerifyRequest(url?: string): boolean {
-  return (url || "").includes("/auth/verify");
+const AUTH_FLOW_PATHS = [
+  "/auth/verify",
+  "/auth/set-password",
+  "/auth/login-password",
+  "/auth/generate-password",
+];
+
+function isAuthFlowRequest(url?: string): boolean {
+  const target = url || "";
+  return AUTH_FLOW_PATHS.some((path) => target.includes(path));
 }
 
 const apiClient: AxiosInstance = axios.create({
@@ -40,7 +48,7 @@ apiClient.interceptors.response.use(
   (error) => {
     if (
       error.response?.status === 401 &&
-      !isAuthVerifyRequest(error.config?.url)
+      !isAuthFlowRequest(error.config?.url)
     ) {
       // Token 過期或無效，清除本地存儲並重定向到登入頁
       localStorage.removeItem("auth_token");
@@ -50,9 +58,9 @@ apiClient.interceptors.response.use(
 
     if (
       error.response?.status === 401 &&
-      isAuthVerifyRequest(error.config?.url)
+      isAuthFlowRequest(error.config?.url)
     ) {
-      console.warn("Auth verify rejected", {
+      console.warn("Auth flow request rejected", {
         baseURL: API_BASE_URL,
         url: error.config?.url,
         status: error.response.status,

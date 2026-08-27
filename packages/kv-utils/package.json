@@ -8,7 +8,9 @@
     "./auth": "./dist/auth/index.js",
     "./student": "./dist/student/index.js",
     "./teacher": "./dist/teacher/index.js",
-    "./types": "./dist/types/index.js"
+    "./types": "./dist/types/index.js",
+    "./crypto": "./dist/crypto/index.js",
+    "./validation": "./dist/validation/index.js"
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

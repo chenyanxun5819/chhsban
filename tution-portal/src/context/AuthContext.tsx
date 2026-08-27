@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useReducer, ReactNode, useCallback } from "react";
 import { AuthUser, AuthState, Permission } from "@/types";
-import { verifyTeacherEmail, clearSession } from "@/services/authService";
+import { clearSession, type AuthVerifyResponse } from "@/services/authService";
 
 type AuthAction =
   | { type: "SET_LOADING"; payload: boolean }
@@ -56,7 +56,7 @@ const authReducer = (state: AuthState, action: AuthAction): AuthState => {
 };
 
 interface AuthContextType extends AuthState {
-  login: (email: string) => Promise<void>;
+  completeLogin: (authData: AuthVerifyResponse) => void;
   logout: () => void;
   hasPermission: (requiredPermission: Permission) => boolean;
 }
@@ -84,29 +84,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, []);
 
-  const login = useCallback(async (email: string) => {
-    dispatch({ type: "SET_LOADING", payload: true });
-    try {
-      const response = await verifyTeacherEmail(email);
+  const completeLogin = useCallback((authData: AuthVerifyResponse) => {
+    const user: AuthUser = {
+      teacherId: authData.teacher_id,
+      teacherName: authData.teacher_name,
+      permission: authData.permission,
+      email: authData.email,
+    };
 
-      const user: AuthUser = {
-        teacherId: response.teacher_id,
-        teacherName: response.teacher_name,
-        permission: response.permission,
-        email: response.email,
-      };
-
-      dispatch({
-        type: "LOGIN_SUCCESS",
-        payload: { user, token: response.token },
-      });
-    } catch (error: any) {
-      const errorMessage =
-        error.message ||
-        "登入失敗，請檢查 Email 是否正確或正在系統中註冊";
-      dispatch({ type: "LOGIN_FAILURE", payload: errorMessage });
-      throw error;
-    }
+    dispatch({
+      type: "LOGIN_SUCCESS",
+      payload: { user, token: authData.token },
+    });
   }, []);
 
   const logout = useCallback(() => {
@@ -132,7 +121,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const value: AuthContextType = {
     ...state,
-    login,
+    completeLogin,
     logout,
     hasPermission,
   };

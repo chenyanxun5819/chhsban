@@ -75,6 +75,8 @@ coverage/
 # CloudFlare / Wrangler
 wrangler.dev.toml
 .wrangler/
+.dev.vars
+.dev.vars.*
 
 # Temporary data files (downloads, generated files)
 download_student/*.xlsx

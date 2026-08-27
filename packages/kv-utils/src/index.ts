@@ -8,8 +8,8 @@
 // Types
 export * from "./types/index.js";
 
-// Auth Manager
-export { AuthKVManager, createAuthKVManager } from "./auth/index.js";
+// Auth Manager（含 pending token 簽發/驗證）
+export { AuthKVManager, createAuthKVManager, createPendingToken, verifyPendingToken } from "./auth/index.js";
 
 // Teacher Email Verification (OAuth Helper)
 export * from "./teacher-verify.js";
@@ -22,6 +22,12 @@ export { TeacherKVManager, createTeacherKVManager } from "./teacher/index.js";
 
 // Classroom Manager
 export { ClassroomKVManager, createClassroomKVManager } from "./classroom/index.js";
+
+// Password Hashing（僅供後端 Worker 使用，內含 crypto.subtle）
+export * from "./crypto/index.js";
+
+// Password Strength Validation（前後端共用，純函數）
+export * from "./validation/index.js";
 
 /**
  * 便捷导入示例：
