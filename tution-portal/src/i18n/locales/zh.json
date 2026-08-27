@@ -104,7 +104,11 @@
     "errorNoFile": "請選擇收據照片",
     "errorNoReceiptNo": "請輸入收據編號",
     "successUploaded": "✅ 收據已上傳，待管理員審核",
-    "errorUploadFailed": "上傳失敗，請重試"
+    "errorUploadFailed": "上傳失敗，請重試",
+    "ocrRecognizing": "🔍 辨識中...",
+    "ocrAutoFilledHint": "已自動辨識填入收據編號，如有誤請手動修正",
+    "ocrFailedHint": "自動辨識失敗，請手動輸入收據編號",
+    "ocrTeacherMismatch": "⚠️ 收據上的工號（{{code}}）與你的帳號不符，請確認上傳的是自己的收據"
   },
   "classList": {
     "title": "已批准課程",

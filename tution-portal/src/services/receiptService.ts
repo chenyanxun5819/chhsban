@@ -2,9 +2,26 @@ import apiClient from "@/utils/api";
 import type { SemesterHalf } from "@/utils/semester";
 import type { TutionClass } from "@/types/index";
 
+export interface ReceiptOcrResult {
+  raw_text: string;
+  extracted_receipt_no: string | null;
+  extracted_teacher_no: string | null;
+  teacher_match: boolean | null;
+}
+
 export const receiptService = {
   /**
-   * 上傳場地費收據（申請人手動輸入收據編號，套用到指定課程與學期）
+   * 辨識收據照片上的 Receipt No. 與申請人工號（僅輔助預填，不會存檔）
+   */
+  async ocrReceipt(file: File): Promise<ReceiptOcrResult> {
+    const response = await apiClient.post<ReceiptOcrResult>("/v1/classes/receipt-ocr", file, {
+      headers: { "Content-Type": file.type },
+    });
+    return response.data!;
+  },
+
+  /**
+   * 上傳場地費收據（收據編號可由 OCR 預填，申請人仍可手動修正，套用到指定課程與學期）
    * 上傳後即進入「審核中」狀態，無法再更改
    */
   async uploadReceipt(

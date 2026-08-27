@@ -25,17 +25,52 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
   const [receiptNo, setReceiptNo] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [ocrLoading, setOcrLoading] = useState(false);
+  const [ocrRan, setOcrRan] = useState(false);
+  const [ocrFoundNo, setOcrFoundNo] = useState(false);
+  const [teacherMismatchCode, setTeacherMismatchCode] = useState<string | null>(null);
 
   const resetState = () => {
     setFile(null);
     setReceiptNo("");
     setSubmitting(false);
     setError(null);
+    setOcrLoading(false);
+    setOcrRan(false);
+    setOcrFoundNo(false);
+    setTeacherMismatchCode(null);
   };
 
   const handleClose = () => {
     resetState();
     onClose();
+  };
+
+  // 選好照片後自動辨識 Receipt No. 跟申請人工號，僅作為預填提示——OCR 失敗或辨識錯誤
+  // 都不影響手動輸入，收據編號欄位隨時可以自己改
+  const handleFileChange = async (f: File | null) => {
+    setFile(f);
+    setOcrRan(false);
+    setOcrFoundNo(false);
+    setTeacherMismatchCode(null);
+    if (!f) return;
+
+    setOcrLoading(true);
+    try {
+      const result = await receiptService.ocrReceipt(f);
+      if (result.extracted_receipt_no) {
+        setReceiptNo(result.extracted_receipt_no);
+        setOcrFoundNo(true);
+      }
+      if (result.teacher_match === false && result.extracted_teacher_no) {
+        setTeacherMismatchCode(result.extracted_teacher_no);
+      }
+    } catch (err) {
+      console.error("Receipt OCR error:", err);
+    } finally {
+      setOcrLoading(false);
+      setOcrRan(true);
+    }
   };
 
   const handleSubmit = async () => {
@@ -81,10 +116,23 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
             <input
               type="file"
               accept="image/jpeg,image/png"
-              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
               disabled={submitting}
             />
+            {ocrLoading && <p className="receipt-ocr-hint">{t("receiptModal.ocrRecognizing")}</p>}
+            {!ocrLoading && ocrRan && ocrFoundNo && (
+              <p className="receipt-ocr-hint">{t("receiptModal.ocrAutoFilledHint")}</p>
+            )}
+            {!ocrLoading && ocrRan && !ocrFoundNo && (
+              <p className="receipt-ocr-hint">{t("receiptModal.ocrFailedHint")}</p>
+            )}
           </div>
+
+          {teacherMismatchCode && (
+            <div className="form-group receipt-teacher-mismatch">
+              {t("receiptModal.ocrTeacherMismatch", { code: teacherMismatchCode })}
+            </div>
+          )}
 
           <div className="form-group">
             <label className="form-label" htmlFor="receipt-no-input">

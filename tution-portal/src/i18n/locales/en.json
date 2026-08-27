@@ -104,7 +104,11 @@
     "errorNoFile": "Please select a receipt photo",
     "errorNoReceiptNo": "Please enter the receipt number",
     "successUploaded": "✅ Receipt uploaded, pending admin review",
-    "errorUploadFailed": "Upload failed, please try again"
+    "errorUploadFailed": "Upload failed, please try again",
+    "ocrRecognizing": "🔍 Recognizing...",
+    "ocrAutoFilledHint": "Receipt number auto-filled from the photo — please correct it if wrong",
+    "ocrFailedHint": "Automatic recognition failed, please enter the receipt number manually",
+    "ocrTeacherMismatch": "⚠️ The staff code on the receipt ({{code}}) doesn't match your account — please confirm this is your own receipt"
   },
   "classList": {
     "title": "Approved Classes",
