@@ -95,6 +95,8 @@
     "title": "📎 Upload {{half}} Receipt",
     "close": "Close",
     "photoLabel": "Receipt Photo",
+    "chooseFile": "Choose File",
+    "takePhoto": "Take Photo",
     "receiptNoLabel": "Receipt No. (auto-recognized, cannot be edited)",
     "receiptNoPending": "Not yet recognized",
     "warning": "⚠️ The receipt number is recognized automatically and cannot be changed after upload. Please make sure the photo is clear and the Receipt No. is fully visible.",

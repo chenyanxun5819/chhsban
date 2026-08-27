@@ -112,12 +112,43 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
         <div className="modal-body">
           <div className="form-group">
             <label className="form-label">{t("receiptModal.photoLabel")}</label>
-            <input
-              type="file"
-              accept="image/jpeg,image/png"
-              onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
-              disabled={submitting}
-            />
+            <div className="receipt-photo-buttons">
+              <input
+                type="file"
+                id="receipt-file-input"
+                accept="image/jpeg,image/png"
+                style={{ display: "none" }}
+                onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
+                disabled={submitting}
+              />
+              <button
+                type="button"
+                className="btn btn-small"
+                onClick={() => document.getElementById("receipt-file-input")?.click()}
+                disabled={submitting}
+              >
+                📁 {t("receiptModal.chooseFile")}
+              </button>
+
+              <input
+                type="file"
+                id="receipt-camera-input"
+                accept="image/jpeg,image/png"
+                capture="environment"
+                style={{ display: "none" }}
+                onChange={(e) => handleFileChange(e.target.files?.[0] || null)}
+                disabled={submitting}
+              />
+              <button
+                type="button"
+                className="btn btn-small"
+                onClick={() => document.getElementById("receipt-camera-input")?.click()}
+                disabled={submitting}
+              >
+                📷 {t("receiptModal.takePhoto")}
+              </button>
+            </div>
+            {file && <p className="receipt-file-name">{file.name}</p>}
             {ocrLoading && <p className="receipt-ocr-hint">{t("receiptModal.ocrRecognizing")}</p>}
             {!ocrLoading && ocrRan && receiptNo && (
               <p className="receipt-ocr-hint">{t("receiptModal.ocrFoundHint", { no: receiptNo })}</p>

@@ -95,6 +95,8 @@
     "title": "📎 上傳{{half}}收據",
     "close": "關閉",
     "photoLabel": "收據照片",
+    "chooseFile": "選擇檔案",
+    "takePhoto": "拍照上傳",
     "receiptNoLabel": "收據編號（系統自動辨識，不可手動修改）",
     "receiptNoPending": "尚未辨識",
     "warning": "⚠️ 收據編號由系統自動辨識，上傳後無法再更改，請務必確認照片清晰、拍到完整的 Receipt No.。",
