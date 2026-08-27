@@ -510,7 +510,10 @@
   }
 
   .attendance-toolbar-actions {
-    flex-direction: column;
     align-items: stretch;
+  }
+
+  .attendance-toolbar-actions .btn {
+    flex: 1 1 0;
   }
 }
