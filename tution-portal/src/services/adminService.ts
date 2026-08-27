@@ -158,11 +158,11 @@ export const adminService = {
     rejectionReason?: string,
   ): Promise<TutionClass> {
     try {
-      const response = await apiClient.put<TutionClass>(
+      const response = await apiClient.put<{ data: TutionClass }>(
         `/v1/classes/${classId}/receipt/review`,
         { half, decision, rejection_reason: rejectionReason },
       );
-      return response.data!;
+      return response.data.data;
     } catch (error) {
       console.error("Failed to review receipt:", error);
       throw error;

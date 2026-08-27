@@ -58,7 +58,6 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
     setOcrLoading(true);
     try {
       const result = await receiptService.ocrReceipt(f);
-      console.log("[receipt-ocr] result:", result);
       if (result.extracted_receipt_no) {
         setReceiptNo(result.extracted_receipt_no);
         setOcrFoundNo(true);

@@ -14,10 +14,12 @@ export const receiptService = {
    * 辨識收據照片上的 Receipt No. 與申請人工號（僅輔助預填，不會存檔）
    */
   async ocrReceipt(file: File): Promise<ReceiptOcrResult> {
-    const response = await apiClient.post<ReceiptOcrResult>("/v1/classes/receipt-ocr", file, {
-      headers: { "Content-Type": file.type },
-    });
-    return response.data!;
+    const response = await apiClient.post<{ data: ReceiptOcrResult }>(
+      "/v1/classes/receipt-ocr",
+      file,
+      { headers: { "Content-Type": file.type } },
+    );
+    return response.data.data;
   },
 
   /**
@@ -30,7 +32,7 @@ export const receiptService = {
     file: File,
     receiptNo: string,
   ): Promise<TutionClass> {
-    const response = await apiClient.put<TutionClass>(
+    const response = await apiClient.put<{ data: TutionClass }>(
       `/v1/classes/${classId}/receipt?half=${half}`,
       file,
       {
@@ -41,7 +43,7 @@ export const receiptService = {
         },
       },
     );
-    return response.data!;
+    return response.data.data;
   },
 
   /**
