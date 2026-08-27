@@ -401,6 +401,17 @@ textarea.form-control {
   display: block !important;
 }
 
+/* 英文模式下標籤（Expected Sessions 等）較長，讓文字換成 2 行並縮小字體，
+   而不是把整個項目擠到下一行 */
+.schedule-stats-container .stat-code {
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.schedule-stats-container .stat-item {
+  min-width: 0;
+}
+
 /* ========== Responsive Design ========== */
 
 /* 平板 (768px - 1023px) */
@@ -416,6 +427,14 @@ textarea.form-control {
 
   .stat-separator {
     min-height: 40px;
+  }
+
+  .schedule-stats-container .schedule-stats-row {
+    flex-wrap: nowrap;
+  }
+
+  .schedule-stats-container .stat-item {
+    flex: 1 1 0;
   }
 }
 
@@ -466,6 +485,18 @@ textarea.form-control {
 
   .stat-amount {
     font-size: 0.85rem;
+  }
+
+  .schedule-stats-container .schedule-stats-row {
+    flex-wrap: nowrap;
+  }
+
+  .schedule-stats-container .stat-item {
+    flex: 1 1 0;
+  }
+
+  .schedule-stats-container .stat-code {
+    font-size: 0.9rem;
   }
 
   .modal-dialog {
