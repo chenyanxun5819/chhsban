@@ -190,6 +190,49 @@
   cursor: not-allowed;
 }
 
+/* Password Input with Visibility Toggle */
+.password-input-wrapper {
+  position: relative;
+}
+
+.password-input-wrapper .email-input {
+  padding-right: 42px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  color: #999;
+  transition: color 0.2s, background 0.2s;
+}
+
+.password-toggle-btn:hover:not(:disabled) {
+  color: #2563eb;
+  background: #f3f4f6;
+}
+
+.password-toggle-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.password-toggle-icon {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
 /* Submit Button */
 .submit-btn {
   width: 100%;

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { loginWithPassword, type AuthVerifyResponse } from "@/services/authService";
+import { PasswordInput } from "./PasswordInput";
 
 interface EnterPasswordStepProps {
   pendingToken: string;
@@ -55,17 +56,17 @@ export const EnterPasswordStep: React.FC<EnterPasswordStepProps> = ({
       <form onSubmit={handleSubmit}>
         <div className="form-group">
           <label htmlFor="login-password">{t("login.passwordLabel")}</label>
-          <input
+          <PasswordInput
             id="login-password"
-            type="password"
             value={password}
             onChange={(e) => {
               setPassword(e.target.value);
               setError(null);
             }}
             disabled={loading}
-            className="email-input"
             autoFocus
+            showLabel={t("login.showPassword")}
+            hideLabel={t("login.hidePassword")}
           />
         </div>
 

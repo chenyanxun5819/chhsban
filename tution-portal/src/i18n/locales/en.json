@@ -75,6 +75,8 @@
     "submitPasswordButton": "Login",
     "loggingIn": "Logging in...",
     "errorPasswordRequired": "Please enter a password",
+    "showPassword": "Show password",
+    "hidePassword": "Hide password",
     "remainingAttempts": "Incorrect password, {{count}} attempt(s) left",
     "tooManyAttempts": "Too many attempts, please try again in {{seconds}}s",
     "passwordRule": {

@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 import { validatePasswordStrength } from "@chhsban/kv-utils/validation";
 import type { PasswordRuleError } from "@chhsban/kv-utils/types";
 import { generateSystemPassword, setPassword, type AuthVerifyResponse } from "@/services/authService";
+import { PasswordInput } from "./PasswordInput";
 
 interface SetPasswordStepProps {
   pendingToken: string;
@@ -116,24 +117,24 @@ export const SetPasswordStep: React.FC<SetPasswordStepProps> = ({
         <form onSubmit={handleCustomSubmit}>
           <div className="form-group">
             <label htmlFor="new-password">{t("login.passwordLabel")}</label>
-            <input
+            <PasswordInput
               id="new-password"
-              type="password"
               value={password}
               onChange={(e) => setPasswordValue(e.target.value)}
               disabled={loading}
-              className="email-input"
+              showLabel={t("login.showPassword")}
+              hideLabel={t("login.hidePassword")}
             />
           </div>
           <div className="form-group">
             <label htmlFor="confirm-password">{t("login.confirmPasswordLabel")}</label>
-            <input
+            <PasswordInput
               id="confirm-password"
-              type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               disabled={loading}
-              className="email-input"
+              showLabel={t("login.showPassword")}
+              hideLabel={t("login.hidePassword")}
             />
           </div>
 

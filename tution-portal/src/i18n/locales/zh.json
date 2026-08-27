@@ -75,6 +75,8 @@
     "submitPasswordButton": "登入",
     "loggingIn": "登入中...",
     "errorPasswordRequired": "請輸入密碼",
+    "showPassword": "顯示密碼",
+    "hidePassword": "隱藏密碼",
     "remainingAttempts": "密碼錯誤，還可嘗試 {{count}} 次",
     "tooManyAttempts": "嘗試次數過多，請 {{seconds}} 秒後再試",
     "passwordRule": {
