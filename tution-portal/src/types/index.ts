@@ -78,6 +78,8 @@ export interface ReceiptRecord {
   filename?: string;
   content_type?: string;
   receipt_no?: string;
+  received_from?: string; // OCR 讀到的「RECEIVED FROM」內容（工號+姓名），僅供管理員審核參考
+  description?: string; // OCR 讀到的收費項目說明，僅供管理員審核參考
   status?: ReceiptStatus;
   uploaded_at?: number;
   uploaded_by?: string;

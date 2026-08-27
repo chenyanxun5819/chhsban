@@ -27,7 +27,6 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [ocrLoading, setOcrLoading] = useState(false);
   const [ocrRan, setOcrRan] = useState(false);
-  const [ocrFoundNo, setOcrFoundNo] = useState(false);
   const [teacherMismatchCode, setTeacherMismatchCode] = useState<string | null>(null);
 
   const resetState = () => {
@@ -37,7 +36,6 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
     setError(null);
     setOcrLoading(false);
     setOcrRan(false);
-    setOcrFoundNo(false);
     setTeacherMismatchCode(null);
   };
 
@@ -46,12 +44,12 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
     onClose();
   };
 
-  // 選好照片後自動辨識 Receipt No. 跟申請人工號，僅作為預填提示——OCR 失敗或辨識錯誤
-  // 都不影響手動輸入，收據編號欄位隨時可以自己改
+  // 選好照片後自動辨識 Receipt No. 跟申請人工號，僅供上傳前預覽——收據編號不開放手動輸入，
+  // 一律以後端在正式上傳時重新對圖片跑出的 OCR 結果為準
   const handleFileChange = async (f: File | null) => {
     setFile(f);
+    setReceiptNo("");
     setOcrRan(false);
-    setOcrFoundNo(false);
     setTeacherMismatchCode(null);
     if (!f) return;
 
@@ -60,7 +58,6 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
       const result = await receiptService.ocrReceipt(f);
       if (result.extracted_receipt_no) {
         setReceiptNo(result.extracted_receipt_no);
-        setOcrFoundNo(true);
       }
       if (result.teacher_match === false && result.extracted_teacher_no) {
         setTeacherMismatchCode(result.extracted_teacher_no);
@@ -78,15 +75,15 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
       setError(t("receiptModal.errorNoFile"));
       return;
     }
-    if (!receiptNo.trim()) {
-      setError(t("receiptModal.errorNoReceiptNo"));
+    if (!receiptNo) {
+      setError(t("receiptModal.errorOcrRequired"));
       return;
     }
 
     setSubmitting(true);
     setError(null);
     try {
-      await receiptService.uploadReceipt(classId, half, file, receiptNo.trim());
+      await receiptService.uploadReceipt(classId, half, file);
       resetState();
       onUploaded();
       onClose();
@@ -99,6 +96,8 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
   };
 
   if (!isOpen) return null;
+
+  const canSubmit = !!file && !!receiptNo && !ocrLoading;
 
   return (
     <div className="modal-overlay" onClick={handleClose}>
@@ -120,11 +119,11 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
               disabled={submitting}
             />
             {ocrLoading && <p className="receipt-ocr-hint">{t("receiptModal.ocrRecognizing")}</p>}
-            {!ocrLoading && ocrRan && ocrFoundNo && (
-              <p className="receipt-ocr-hint">{t("receiptModal.ocrAutoFilledHint")}</p>
+            {!ocrLoading && ocrRan && receiptNo && (
+              <p className="receipt-ocr-hint">{t("receiptModal.ocrFoundHint", { no: receiptNo })}</p>
             )}
-            {!ocrLoading && ocrRan && !ocrFoundNo && (
-              <p className="receipt-ocr-hint">{t("receiptModal.ocrFailedHint")}</p>
+            {!ocrLoading && ocrRan && !receiptNo && (
+              <p className="receipt-ocr-hint receipt-ocr-hint--error">{t("receiptModal.ocrFailedHint")}</p>
             )}
           </div>
 
@@ -135,18 +134,10 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
           )}
 
           <div className="form-group">
-            <label className="form-label" htmlFor="receipt-no-input">
-              {t("receiptModal.receiptNoLabel")} <span className="required">*</span>
-            </label>
-            <input
-              id="receipt-no-input"
-              type="text"
-              className="receipt-no-input"
-              value={receiptNo}
-              onChange={(e) => setReceiptNo(e.target.value)}
-              placeholder={t("receiptModal.receiptNoPlaceholder")}
-              disabled={submitting}
-            />
+            <label className="form-label">{t("receiptModal.receiptNoLabel")}</label>
+            <div className="receipt-no-readonly">
+              {receiptNo || t("receiptModal.receiptNoPending")}
+            </div>
           </div>
 
           <div className="form-group receipt-warning">
@@ -159,7 +150,7 @@ export const ReceiptUploadModal: React.FC<ReceiptUploadModalProps> = ({
             <button type="button" className="btn btn--secondary" onClick={handleClose} disabled={submitting}>
               {t("receiptModal.cancel")}
             </button>
-            <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={submitting}>
+            <button type="button" className="btn btn-primary" onClick={handleSubmit} disabled={submitting || !canSubmit}>
               {submitting ? t("receiptModal.uploading") : t("receiptModal.confirmUpload")}
             </button>
           </div>

@@ -1,7 +1,7 @@
 /**
- * 用 Google Cloud Vision API（OCR）讀出收據照片上的「Receipt No.」跟「RECEIVED FROM」
- * 後面的申請人工號，純粹輔助辨識用——排版亂、辨識錯了也不影響資料正確性，欄位一律讓
- * 申請人可手動修正，最終管理員審核時再次把關。
+ * 用 Google Cloud Vision API（OCR）讀出收據照片上的 Receipt No.、RECEIVED FROM（工號+姓名）、
+ * Description（收費項目說明）。收據編號辨識準確度夠高，不再開放申請人手動輸入/修改——
+ * 上傳端會用同一支函式重新對圖片跑一次 OCR，把結果直接寫入資料，不信任前端回傳的任何文字。
  *
  * 免費額度：TEXT_DETECTION 每月 1000 次，本校一學期收據量遠低於此。
  */
@@ -32,10 +32,31 @@ function extractTeacherNo(rawText: string): string | null {
   return match ? match[1].toUpperCase() : null;
 }
 
+// 「RECEIVED FROM」後面完整的一段文字（工號+姓名），供管理員審核時參考
+function extractReceivedFrom(rawText: string): string | null {
+  const match = rawText.match(/RECEIVED\s*FROM\s*:?\s*([^\n]+)/i);
+  return match ? match[1].trim() : null;
+}
+
+// Description 表頭下方的收費項目說明（如「2026年7-10月校內補習維持費-初三-英文」）
+function extractDescription(rawText: string): string | null {
+  const idx = rawText.search(/Description/i);
+  if (idx === -1) return null;
+  const after = rawText.slice(idx + "Description".length);
+  const lines = after.split(/\n+/).map((line) => line.trim()).filter(Boolean);
+  for (const line of lines) {
+    if (/^amount$/i.test(line)) continue; // 跳過表頭另一欄「Amount」本身
+    return line;
+  }
+  return null;
+}
+
 export interface ReceiptOcrResult {
   raw_text: string;
   extracted_receipt_no: string | null;
   extracted_teacher_no: string | null;
+  extracted_received_from: string | null;
+  extracted_description: string | null;
 }
 
 export async function ocrReceiptImage(
@@ -77,5 +98,7 @@ export async function ocrReceiptImage(
     raw_text: rawText,
     extracted_receipt_no: rawText ? extractReceiptNo(rawText) : null,
     extracted_teacher_no: rawText ? extractTeacherNo(rawText) : null,
+    extracted_received_from: rawText ? extractReceivedFrom(rawText) : null,
+    extracted_description: rawText ? extractDescription(rawText) : null,
   };
 }

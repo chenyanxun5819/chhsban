@@ -6,12 +6,15 @@ export interface ReceiptOcrResult {
   raw_text: string;
   extracted_receipt_no: string | null;
   extracted_teacher_no: string | null;
+  extracted_received_from: string | null;
+  extracted_description: string | null;
   teacher_match: boolean | null;
 }
 
 export const receiptService = {
   /**
-   * 辨識收據照片上的 Receipt No. 與申請人工號（僅輔助預填，不會存檔）
+   * 預覽辨識收據照片上的 Receipt No. 與申請人工號（僅供上傳前顯示給申請人確認，不會存檔）
+   * 實際存檔的收據編號一律由後端在 uploadReceipt 時對圖片重新跑一次 OCR 取得
    */
   async ocrReceipt(file: File): Promise<ReceiptOcrResult> {
     const response = await apiClient.post<{ data: ReceiptOcrResult }>(
@@ -23,15 +26,10 @@ export const receiptService = {
   },
 
   /**
-   * 上傳場地費收據（收據編號可由 OCR 預填，申請人仍可手動修正，套用到指定課程與學期）
+   * 上傳場地費收據（收據編號由後端 OCR 直接判讀，不開放手動輸入/修改）
    * 上傳後即進入「審核中」狀態，無法再更改
    */
-  async uploadReceipt(
-    classId: string,
-    half: SemesterHalf,
-    file: File,
-    receiptNo: string,
-  ): Promise<TutionClass> {
+  async uploadReceipt(classId: string, half: SemesterHalf, file: File): Promise<TutionClass> {
     const response = await apiClient.put<{ data: TutionClass }>(
       `/v1/classes/${classId}/receipt?half=${half}`,
       file,
@@ -39,7 +37,6 @@ export const receiptService = {
         headers: {
           "Content-Type": file.type,
           "X-Filename": encodeURIComponent(file.name),
-          "X-Receipt-No": encodeURIComponent(receiptNo),
         },
       },
     );

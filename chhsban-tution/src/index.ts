@@ -119,7 +119,7 @@ function getCorsHeaders(): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key, X-Filename, X-Receipt-No",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key, X-Filename",
     "Content-Type": "application/json; charset=utf-8",
   };
 }
@@ -1090,11 +1090,6 @@ async function handleClasses(
         return jsonResponse({ error: "Missing or invalid 'half' query param (h1|h2)" }, 400);
       }
 
-      const receiptNo = decodeURIComponent(request.headers.get("X-Receipt-No") || "").trim();
-      if (!receiptNo) {
-        return jsonResponse({ error: "Missing X-Receipt-No header" }, 400);
-      }
-
       const existing: ReceiptRecord | undefined =
         half === "h1" ? tutionClass.receipt_h1 : tutionClass.receipt_h2;
       if (existing && (existing.status === "pending" || existing.status === "approved")) {
@@ -1114,11 +1109,31 @@ async function handleClasses(
       if (!request.body) {
         return jsonResponse({ error: "Missing file body" }, 400);
       }
+      if (!env.GOOGLE_VISION_API_KEY) {
+        return jsonResponse({ error: "OCR 功能尚未設定（缺少 GOOGLE_VISION_API_KEY）" }, 500);
+      }
+
+      const imageBytes = await request.arrayBuffer();
+
+      // 收據編號一律由後端重新對圖片跑 OCR 取得，不信任前端回傳的文字，且不再開放手動輸入
+      let ocrResult;
+      try {
+        ocrResult = await ocrReceiptImage(imageBytes, env.GOOGLE_VISION_API_KEY);
+      } catch (err) {
+        console.error("Receipt OCR error (upload):", err);
+        return jsonResponse({ error: "收據辨識失敗，請重新拍攝更清晰的照片後再試" }, 500);
+      }
+      if (!ocrResult.extracted_receipt_no) {
+        return jsonResponse(
+          { error: "無法從照片辨識出收據編號，請確認照片清晰、完整拍到 Receipt No. 欄位後重新上傳" },
+          400,
+        );
+      }
 
       const filename = decodeURIComponent(request.headers.get("X-Filename") || "");
       const key = buildReceiptKey(classId, half, new Date().getFullYear(), contentType);
 
-      await env.SIGNED_FORMS_BUCKET.put(key, request.body, {
+      await env.SIGNED_FORMS_BUCKET.put(key, imageBytes, {
         httpMetadata: { contentType },
       });
 
@@ -1126,7 +1141,9 @@ async function handleClasses(
         key,
         filename: filename || undefined,
         content_type: contentType,
-        receipt_no: receiptNo,
+        receipt_no: ocrResult.extracted_receipt_no,
+        received_from: ocrResult.extracted_received_from || undefined,
+        description: ocrResult.extracted_description || undefined,
         status: "pending" as const,
         uploaded_at: Date.now(),
         uploaded_by: session.teacher_id,

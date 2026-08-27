@@ -589,6 +589,12 @@ export const AdminPanel: React.FC = () => {
                                       原因：{record.rejection_reason}
                                     </span>
                                   )}
+                                  {(record.received_from || record.description) && (
+                                    <div className="receipt-status-row__ocr-detail">
+                                      {record.received_from && <span>繳費人：{record.received_from}</span>}
+                                      {record.description && <span>項目：{record.description}</span>}
+                                    </div>
+                                  )}
                                 </>
                               )}
                             </div>
