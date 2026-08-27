@@ -148,7 +148,10 @@ export const KV_CONFIG = {
   TUTION_SCHEDULE_PREFIX: "tution_schedule:",
   // 密码策略
   PASSWORD_MIN_LENGTH: 10,
-  PBKDF2_ITERATIONS: 210_000, // OWASP 2023 建议值，仅作新密码的默认值
+  // OWASP 2023 建議值是 210,000，但 Cloudflare Workers 正式執行環境的 PBKDF2
+  // 實作有上限 100,000（本地 wrangler dev 用 Node WebCrypto 沒有這個限制，
+  // 不會在本地測出來），所以這裡用 Workers 允許的最大值
+  PBKDF2_ITERATIONS: 100_000,
   GENERATED_PASSWORD_LENGTH: 14,
   // pending token（无状态，不进 KV）
   PENDING_TOKEN_TTL_SECONDS: 15 * 60, // 15 分钟
