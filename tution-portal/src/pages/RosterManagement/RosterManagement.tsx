@@ -148,7 +148,7 @@ const RosterManagement: React.FC = () => {
               {state.classInfo && (
                 <>
                   {" ・ "}{t("schedule.applicantLabel")}: {state.classInfo.teacher_name_cn}
-                  {" ・ "}每{dayLabel(state.classInfo.day_of_week)}
+                  {" ・ "}{t("common.everyDayPrefix")}{dayLabel(state.classInfo.day_of_week)}
                   {" ・ "}
                   {state.classInfo.venue || "-"}
                 </>

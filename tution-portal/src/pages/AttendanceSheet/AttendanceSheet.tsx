@@ -323,7 +323,7 @@ export const AttendanceSheet: React.FC = () => {
               {classInfo.subject}（{gradeLabel(classInfo.form)}）
             </h2>
             <p className="attendance-subtitle">
-              {t("schedule.applicantLabel")}: {classInfo.teacher_name_cn} ・ 每{dayLabel(classInfo.day_of_week)}{" "}
+              {t("schedule.applicantLabel")}: {classInfo.teacher_name_cn} ・ {t("common.everyDayPrefix")}{dayLabel(classInfo.day_of_week)}{" "}
               {classInfo.time_start}-{classInfo.time_end} ・ {classInfo.venue}
             </p>
           </div>

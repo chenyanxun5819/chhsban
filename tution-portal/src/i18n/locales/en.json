@@ -5,7 +5,8 @@
     "logout": "Logout",
     "language": "Language",
     "switchToEnglish": "Switch to English",
-    "switchToChinese": "Switch to Chinese"
+    "switchToChinese": "Switch to Chinese",
+    "everyDayPrefix": ""
   },
   "grade": {
     "F1": "Form 1",

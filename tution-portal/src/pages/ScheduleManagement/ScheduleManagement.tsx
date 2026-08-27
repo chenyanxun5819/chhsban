@@ -158,7 +158,7 @@ export const ScheduleManagement: React.FC = () => {
               {classInfo.subject}（{gradeLabel(classInfo.form)}）
             </h2>
             <p className="subtitle">
-              {t("schedule.applicantLabel")}: {classInfo.teacher_name_cn} ・ 每{dayLabel(classInfo.day_of_week)}{" "}
+              {t("schedule.applicantLabel")}: {classInfo.teacher_name_cn} ・ {t("common.everyDayPrefix")}{dayLabel(classInfo.day_of_week)}{" "}
               {classInfo.time_start}-{classInfo.time_end} ・ {classInfo.venue}
               {classInfo.end_date ? ` ・ ${t("schedule.endDateLabel")} ${formatDisplayDate(classInfo.end_date)}` : ""}
             </p>

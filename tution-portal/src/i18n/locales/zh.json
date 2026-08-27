@@ -5,7 +5,8 @@
     "logout": "登出",
     "language": "語言",
     "switchToEnglish": "切換為英文",
-    "switchToChinese": "切換為中文"
+    "switchToChinese": "切換為中文",
+    "everyDayPrefix": "每"
   },
   "grade": {
     "F1": "初一",
