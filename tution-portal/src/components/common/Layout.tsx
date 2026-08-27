@@ -67,6 +67,7 @@ const ADMIN_NAV_ITEMS: Array<{ path: string; icon: string; label: string }> = [
   { path: "/admin/approvals", icon: "📋", label: "審批管理" },
   { path: "/admin/courses", icon: "📚", label: "已開課管理" },
   { path: "/admin/teachers", icon: "👨‍🏫", label: "老師管理" },
+  { path: "/admin/password-reset", icon: "🔑", label: "申請人密碼重設" },
   { path: "/admin/usage", icon: "🗓️", label: "每日教室使用" },
   { path: "/admin/classrooms", icon: "🏫", label: "教室管理" },
 ];

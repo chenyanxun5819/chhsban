@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
-import { ApprovalList, ClassroomUsageOverview, RejectModal } from "@/components/admin";
+import { ApprovalList, ClassroomUsageOverview, RejectModal, PasswordResetList } from "@/components/admin";
 import { adminService } from "@/services/adminService";
 import { settingsService } from "@/services/settingsService";
 import { getSemesterInfo } from "@/utils/semester";
@@ -88,9 +88,16 @@ function exportCoursesToXLSX(courses: TutionClass[]): void {
   XLSX.writeFile(workbook, `courses-${Date.now()}.xlsx`);
 }
 
-type TabType = "approvals" | "courses" | "teachers" | "usage" | "classrooms";
+type TabType = "approvals" | "courses" | "teachers" | "password-reset" | "usage" | "classrooms";
 
-const VALID_TABS: TabType[] = ["approvals", "courses", "teachers", "usage", "classrooms"];
+const VALID_TABS: TabType[] = [
+  "approvals",
+  "courses",
+  "teachers",
+  "password-reset",
+  "usage",
+  "classrooms",
+];
 
 const TEACHER_MANAGEMENT_URL = "https://master.teacher-management-portal.pages.dev/";
 
@@ -683,6 +690,14 @@ export const AdminPanel: React.FC = () => {
                 前往教師管理系統 ↗
               </button>
             </div>
+          </section>
+        )}
+
+        {/* 申請人密碼重設 */}
+        {currentTab === "password-reset" && (
+          <section className="admin-section">
+            <h2 className="section-title">申請人密碼重設</h2>
+            <PasswordResetList />
           </section>
         )}
 

@@ -553,6 +553,10 @@ export default {
         return handleClassrooms(request, env, session);
       }
 
+      if (pathname.startsWith("/api/admin/teachers")) {
+        return handleAdminTeachers(request, env, session);
+      }
+
       return jsonResponse({ error: "Not found" }, 404);
     } catch (error) {
       console.error("Error:", error);
@@ -2165,6 +2169,76 @@ async function handleSync(
     }, 400);
   } catch (error) {
     console.error("Sync error:", error);
+    return jsonResponse({ error: String(error) }, 500);
+  }
+}
+
+/**
+ * 管理員專用：教師密碼狀態查詢 / 重設密碼
+ *
+ * GET  /api/admin/teachers                       - 列出所有教師（不含密碼哈希，僅回傳是否已設定密碼）
+ * POST /api/admin/teachers/{teacherId}/reset-password - 清空該教師的密碼欄位，下次登入會自動回到「設定密碼」流程
+ *
+ * 僅 admin/super_admin 可用。既有的正式 session token（若該教師目前已登入）不會被這個操作撤銷，
+ * 會維持到自然過期（24 小時）為止——這裡刻意不做額外的 session 掃描清除，保持實作簡單。
+ */
+async function handleAdminTeachers(
+  request: Request,
+  env: Env,
+  session: any,
+): Promise<Response> {
+  if (session.permission !== "admin" && session.permission !== "super_admin") {
+    return jsonResponse({ error: "Forbidden" }, 403);
+  }
+
+  const url = new URL(request.url);
+  const method = request.method;
+  const pathParts = url.pathname.split("/");
+  const teacherId = pathParts[4]; // /api/admin/teachers/{teacherId}/reset-password
+  const action = pathParts[5];
+
+  const teacherManager = createTeacherKVManager(env.TEACHER_KV);
+
+  try {
+    if (method === "GET" && !teacherId) {
+      const teachers = await teacherManager.getAllTeachers();
+      const data = teachers
+        .map((t) => ({
+          teacher_id: t.teacher_id,
+          name_cn: t.name_cn,
+          name_en: t.name_en,
+          department: t.department,
+          email: t.email,
+          permission: t.permission,
+          hasPassword: Boolean(t.password_hash),
+          passwordUpdatedAt: t.password_updated_at,
+        }))
+        .sort((a, b) => a.teacher_id.localeCompare(b.teacher_id));
+
+      return jsonResponse({ success: true, data });
+    }
+
+    if (method === "POST" && teacherId && action === "reset-password") {
+      const teacher = await teacherManager.getTeacher(teacherId);
+      if (!teacher) {
+        return jsonResponse({ error: "Teacher not found" }, 404);
+      }
+
+      const updated = { ...teacher };
+      delete updated.password_hash;
+      delete updated.password_salt;
+      delete updated.password_algorithm;
+      delete updated.password_iterations;
+      delete updated.password_created_at;
+      delete updated.password_updated_at;
+      await teacherManager.saveTeacher(updated);
+
+      return jsonResponse({ success: true, data: { teacher_id: teacherId } });
+    }
+
+    return jsonResponse({ error: "Not found" }, 404);
+  } catch (error) {
+    console.error("Admin teachers handler error:", error);
     return jsonResponse({ error: String(error) }, 500);
   }
 }

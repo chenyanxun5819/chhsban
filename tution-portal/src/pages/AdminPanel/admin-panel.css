@@ -301,6 +301,82 @@
   line-height: 1.6;
 }
 
+/* 申請人密碼重設 */
+.password-reset-list__toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.password-reset-list__toolbar .search-input {
+  flex: 1;
+  max-width: 360px;
+}
+
+.password-reset-table {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.password-reset-table__header,
+.password-reset-table__row {
+  display: grid;
+  grid-template-columns: 90px 100px 120px 1fr 180px 140px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+}
+
+.password-reset-table__status {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.password-reset-table__status-date {
+  font-size: 11px;
+  color: #999;
+}
+
+.password-reset-table__header {
+  background: #f9fafb;
+  font-weight: 600;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.password-reset-table__row {
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+.password-reset-table__row + .password-reset-table__row {
+  border-top: 1px solid #f0f0f0;
+}
+
+.password-reset-table__row:nth-child(even) {
+  background: #fafafa;
+}
+
+@media (max-width: 768px) {
+  .password-reset-table__header {
+    display: none;
+  }
+
+  .password-reset-table__row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 12px 16px;
+  }
+
+  .password-reset-table__row span:nth-child(1)::before { content: "教師 ID："; color: #999; }
+  .password-reset-table__row span:nth-child(2)::before { content: "姓名："; color: #999; }
+  .password-reset-table__row span:nth-child(3)::before { content: "部門："; color: #999; }
+  .password-reset-table__row span:nth-child(4)::before { content: "Email："; color: #999; }
+  .password-reset-table__row span:nth-child(5)::before { content: "密碼狀態："; color: #999; }
+}
+
 /* Empty / Loading / Error */
 .empty-state {
   text-align: center;

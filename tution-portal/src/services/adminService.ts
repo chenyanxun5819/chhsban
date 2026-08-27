@@ -7,6 +7,17 @@ export interface ApprovalPayload {
   rejection_reason?: string;
 }
 
+export interface TeacherPasswordStatus {
+  teacher_id: string;
+  name_cn: string;
+  name_en: string;
+  department: string;
+  email: string;
+  permission: string;
+  hasPassword: boolean;
+  passwordUpdatedAt?: number;
+}
+
 export const adminService = {
   /**
    * 獲取所有待審批的應用
@@ -192,6 +203,33 @@ export const adminService = {
       await apiClient.delete(`/v1/classes/${classId}`);
     } catch (error) {
       console.error("Failed to delete application:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 查詢所有教師的密碼設定狀態（供「申請人密碼重設」頁面使用，不含密碼哈希本身）
+   */
+  async listTeacherPasswordStatus(): Promise<TeacherPasswordStatus[]> {
+    try {
+      const response = await apiClient.get<{ data: TeacherPasswordStatus[] }>(
+        `/admin/teachers`
+      );
+      return response.data.data || [];
+    } catch (error) {
+      console.error("Failed to fetch teacher password status:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * 重設指定教師的密碼：清空該教師已設定的密碼，下次登入會回到「設定密碼」流程
+   */
+  async resetTeacherPassword(teacherId: string): Promise<void> {
+    try {
+      await apiClient.post(`/admin/teachers/${teacherId}/reset-password`);
+    } catch (error) {
+      console.error("Failed to reset teacher password:", error);
       throw error;
     }
   },
