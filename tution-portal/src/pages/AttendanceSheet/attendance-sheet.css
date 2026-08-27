@@ -57,6 +57,12 @@
   min-width: 220px;
 }
 
+.attendance-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 /* ========== 點名清單（單一日期，每位學生一列） ========== */
 .attendance-list {
   display: flex;
@@ -141,11 +147,6 @@
 
 .attendance-reason .form-control {
   flex: 1 1 auto;
-}
-
-.attendance-save-bar {
-  display: flex;
-  justify-content: flex-end;
 }
 
 /* ========== 總覽矩陣（另外點擊才展開，唯讀） ========== */
@@ -504,6 +505,11 @@
   }
 
   .attendance-date-picker {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .attendance-toolbar-actions {
     flex-direction: column;
     align-items: stretch;
   }

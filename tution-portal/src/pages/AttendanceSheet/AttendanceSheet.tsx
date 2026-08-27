@@ -375,9 +375,19 @@ export const AttendanceSheet: React.FC = () => {
                 </select>
               </label>
               {!readOnly && (
-                <button type="button" className="btn btn-secondary" onClick={handleMarkAllPresent}>
-                  {t("attendanceSheet.markAllPresent")}
-                </button>
+                <div className="attendance-toolbar-actions">
+                  <button type="button" className="btn btn-secondary" onClick={handleMarkAllPresent}>
+                    {t("attendanceSheet.markAllPresent")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    disabled={saving || activeRoster.length === 0}
+                    onClick={handleSave}
+                  >
+                    {saving ? t("attendanceSheet.saving") : t("attendanceSheet.save")}
+                  </button>
+                </div>
               )}
             </div>
 
@@ -465,19 +475,6 @@ export const AttendanceSheet: React.FC = () => {
                     </div>
                   );
                 })}
-              </div>
-            )}
-
-            {!readOnly && (
-              <div className="attendance-save-bar">
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  disabled={saving || activeRoster.length === 0}
-                  onClick={handleSave}
-                >
-                  {saving ? t("attendanceSheet.saving") : t("attendanceSheet.save")}
-                </button>
               </div>
             )}
           </>
