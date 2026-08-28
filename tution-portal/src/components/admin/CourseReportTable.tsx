@@ -171,13 +171,11 @@ export const CourseReportTable: React.FC = () => {
                   <td>{row.expected_count}</td>
                   <td>{row.actual_held_count}</td>
                   <td>{row.cancelled_count}</td>
-                  <td className={row.unconfirmed_attendance_count > 0 ? "course-report__cell--warning" : undefined}>
-                    {row.unconfirmed_attendance_count}
-                  </td>
+                  <td className="course-report__cell--danger">{row.unconfirmed_attendance_count}</td>
                   <td>{row.active_roster_count}</td>
                   <td>{row.withdrawn_roster_count}</td>
                   <td>{row.attendance_rate === null ? "-" : `${row.attendance_rate}%`}</td>
-                  <td>{row.absent_count}</td>
+                  <td className="course-report__cell--danger">{row.absent_count}</td>
                   <td>{row.excuse_count}</td>
                   <td>{row.late_count}</td>
                   <td>{row.end_date || "未設定"}</td>

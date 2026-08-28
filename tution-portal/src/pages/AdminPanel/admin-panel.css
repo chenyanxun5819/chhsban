@@ -433,7 +433,8 @@
   background: #f9fafb;
 }
 
-.course-report__cell--warning {
+.course-report__cell--danger {
+  background: #fee2e2;
   color: #dc2626;
   font-weight: 600;
 }
