@@ -96,10 +96,19 @@
 
 .attendance-row-info {
   display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.attendance-row-line1,
+.attendance-row-line2 {
+  display: flex;
   align-items: baseline;
   gap: 0.4rem;
   min-width: 0;
-  flex: 1 1 auto;
   overflow: hidden;
 }
 
@@ -111,9 +120,25 @@
   text-overflow: ellipsis;
 }
 
+.attendance-row-name-en {
+  font-size: 0.8rem;
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .attendance-row-no {
   font-size: 0.8rem;
   color: #999;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.attendance-row-class,
+.attendance-row-gender {
+  font-size: 0.75rem;
+  color: #666;
   white-space: nowrap;
   flex-shrink: 0;
 }

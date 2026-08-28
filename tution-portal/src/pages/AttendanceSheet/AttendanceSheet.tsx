@@ -352,8 +352,15 @@ export const AttendanceSheet: React.FC = () => {
                       <div className="attendance-row attendance-row-disabled" key={student.student_id}>
                         <div className="attendance-row-main">
                           <div className="attendance-row-info">
-                            <span className="attendance-row-name">{student.name_cn}</span>
-                            <span className="attendance-row-no">{student.student_no}</span>
+                            <div className="attendance-row-line1">
+                              <span className="attendance-row-no">{student.student_no}</span>
+                              <span className="attendance-row-name">{student.name_cn}</span>
+                              <span className="attendance-row-name-en">{student.name_en}</span>
+                            </div>
+                            <div className="attendance-row-line2">
+                              <span className="attendance-row-class">{student.real_class_name}</span>
+                              <span className="attendance-row-gender">{student.gender_boarding}</span>
+                            </div>
                           </div>
                           <span className="attendance-not-joined-badge" title={t("attendanceSheet.joinedDateTitle", { date: formatDisplayDate(student.enrollment_date) })}>
                             {t("attendanceSheet.notJoined")}
@@ -368,8 +375,15 @@ export const AttendanceSheet: React.FC = () => {
                     <div className="attendance-row" key={student.student_id}>
                       <div className="attendance-row-main">
                         <div className="attendance-row-info">
-                          <span className="attendance-row-name">{student.name_cn}</span>
-                          <span className="attendance-row-no">{student.student_no}</span>
+                          <div className="attendance-row-line1">
+                            <span className="attendance-row-no">{student.student_no}</span>
+                            <span className="attendance-row-name">{student.name_cn}</span>
+                            <span className="attendance-row-name-en">{student.name_en}</span>
+                          </div>
+                          <div className="attendance-row-line2">
+                            <span className="attendance-row-class">{student.real_class_name}</span>
+                            <span className="attendance-row-gender">{student.gender_boarding}</span>
+                          </div>
                         </div>
 
                         <select
