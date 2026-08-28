@@ -49,6 +49,25 @@
   border-color: var(--primary-color);
 }
 
+/* ========== 年份篩選 ========== */
+
+.year-filter label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+
+.year-filter select {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  font-size: 13px;
+  background: white;
+}
+
 /* ========== 篩選標籤 ========== */
 
 .filter-tabs {

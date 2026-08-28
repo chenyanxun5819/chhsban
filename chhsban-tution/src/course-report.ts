@@ -144,6 +144,7 @@ export interface CourseReportRow {
   form: string;
   subject: string;
   approval_status: string;
+  start_date: string;
   end_date?: string;
   expected_count: number;
   actual_held_count: number;
@@ -246,6 +247,7 @@ export async function computeCourseReport(
         form: cls.form,
         subject: cls.subject,
         approval_status: cls.approval_status,
+        start_date: cls.start_date,
         end_date: cls.end_date,
         expected_count: summary.expectedCount,
         actual_held_count: summary.actualHeldCount,

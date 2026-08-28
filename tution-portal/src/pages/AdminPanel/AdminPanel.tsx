@@ -155,6 +155,8 @@ export const AdminPanel: React.FC = () => {
   const [courseSortKey, setCourseSortKey] = useState<CourseSortKey>("day_of_week");
   const [courseFilterTeacher, setCourseFilterTeacher] = useState<string>("");
   const [courseFilterMissingReceipt, setCourseFilterMissingReceipt] = useState(false);
+  // 已開課清單／出席狀況分頁的年份篩選：預設只顯示今年，往年課程保留在資料裡但不預設顯示
+  const [courseFilterYear, setCourseFilterYear] = useState<string>(String(new Date().getFullYear()));
 
   const applications = allClasses.filter(
     (item) => item.approval_status === "pending" || item.approval_status === "reviewing",
@@ -166,10 +168,18 @@ export const AdminPanel: React.FC = () => {
       item.approval_status === "active" ||
       item.approval_status === "ended",
   );
-  const courseTeacherOptions = Array.from(new Set(courses.map((c) => c.teacher_name_cn))).sort(
+  // 往年課程資料一律保留，只是預設不顯示；下拉選單可以切回歷史年份或「全部年份」查閱
+  const courseYearOptions = Array.from(
+    new Set([new Date().getFullYear(), ...courses.map((c) => new Date(c.start_date).getFullYear())]),
+  ).sort((a, b) => b - a);
+  const yearFilteredCourses =
+    courseFilterYear === "all"
+      ? courses
+      : courses.filter((c) => new Date(c.start_date).getFullYear() === Number(courseFilterYear));
+  const courseTeacherOptions = Array.from(new Set(yearFilteredCourses.map((c) => c.teacher_name_cn))).sort(
     (a, b) => a.localeCompare(b, "zh-Hant"),
   );
-  const filteredCourses = courses
+  const filteredCourses = yearFilteredCourses
     .filter((c) => !courseFilterTeacher || c.teacher_name_cn === courseFilterTeacher)
     .filter((c) => !courseFilterMissingReceipt || hasMissingReceipt(c));
   const sortedCourses = sortCourses(filteredCourses, courseSortKey);
@@ -486,6 +496,20 @@ export const AdminPanel: React.FC = () => {
               <>
                 <div className="course-list-toolbar">
                   <label className="course-list-toolbar__sort">
+                    <span>年份：</span>
+                    <select
+                      value={courseFilterYear}
+                      onChange={(e) => setCourseFilterYear(e.target.value)}
+                    >
+                      {courseYearOptions.map((y) => (
+                        <option key={y} value={y}>
+                          {y}
+                        </option>
+                      ))}
+                      <option value="all">全部年份</option>
+                    </select>
+                  </label>
+                  <label className="course-list-toolbar__sort">
                     <span>排序：</span>
                     <select
                       value={courseSortKey}
@@ -545,6 +569,9 @@ export const AdminPanel: React.FC = () => {
                     📥 匯出 Excel
                   </button>
                 </div>
+                {sortedCourses.length === 0 && (
+                  <div className="empty-state">此篩選條件下暫無課程</div>
+                )}
                 <div className="course-list">
                   {sortedCourses.map((course) => (
                     <div key={course.class_id} className="course-row">
@@ -707,7 +734,23 @@ export const AdminPanel: React.FC = () => {
         {currentTab === "course-attendance" && (
           <section className="admin-section">
             <h2 className="section-title">各課程出席狀況</h2>
-            <CourseAttendanceStatus classes={courses} />
+            <div className="course-list-toolbar">
+              <label className="course-list-toolbar__sort">
+                <span>年份：</span>
+                <select
+                  value={courseFilterYear}
+                  onChange={(e) => setCourseFilterYear(e.target.value)}
+                >
+                  {courseYearOptions.map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                  <option value="all">全部年份</option>
+                </select>
+              </label>
+            </div>
+            <CourseAttendanceStatus classes={yearFilteredCourses} />
           </section>
         )}
 

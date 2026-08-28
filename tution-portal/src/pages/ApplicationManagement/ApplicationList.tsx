@@ -22,6 +22,7 @@ const ApplicationList: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>("all");
   const [searchText, setSearchText] = useState("");
+  const [filterYear, setFilterYear] = useState<string>(String(new Date().getFullYear()));
 
   useEffect(() => {
     if (!user) {
@@ -46,8 +47,18 @@ const ApplicationList: React.FC = () => {
     }
   };
 
+  // 年份選項：往年申請預設收起來，只在下拉選單看得到，避免歷史申請一直堆在畫面上
+  const yearOptions = Array.from(
+    new Set([new Date().getFullYear(), ...applications.map((app) => new Date(app.start_date).getFullYear())]),
+  ).sort((a, b) => b - a);
+
   // 篩選應用
   const filteredApplications = applications.filter((app) => {
+    // 年份篩選
+    if (filterYear !== "all" && new Date(app.start_date).getFullYear() !== Number(filterYear)) {
+      return false;
+    }
+
     // 狀態篩選
     if (filterStatus !== "all" && app.approval_status !== filterStatus) {
       return false;
@@ -104,6 +115,20 @@ const ApplicationList: React.FC = () => {
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
             />
+          </div>
+
+          <div className="year-filter">
+            <label>
+              {t("applicationList.yearLabel")}
+              <select value={filterYear} onChange={(e) => setFilterYear(e.target.value)}>
+                {yearOptions.map((y) => (
+                  <option key={y} value={y}>
+                    {y}
+                  </option>
+                ))}
+                <option value="all">{t("applicationList.yearAll")}</option>
+              </select>
+            </label>
           </div>
 
           <div className="filter-tabs">

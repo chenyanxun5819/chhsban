@@ -165,6 +165,8 @@
     "heading": "我的申請歷史",
     "subtitle": "只顯示目前登入申請人的歷史申請記錄",
     "searchPlaceholder": "搜尋科目、年級或地點...",
+    "yearLabel": "年份：",
+    "yearAll": "全部年份",
     "filter": {
       "all": "全部",
       "pending": "待審批",

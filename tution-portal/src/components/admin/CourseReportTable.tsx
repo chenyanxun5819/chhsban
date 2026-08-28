@@ -57,6 +57,7 @@ export const CourseReportTable: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [yearFilter, setYearFilter] = useState<string>(String(new Date().getFullYear()));
 
   useEffect(() => {
     let cancelled = false;
@@ -92,13 +93,25 @@ export const CourseReportTable: React.FC = () => {
     }
   };
 
+  const yearOptions = useMemo(() => {
+    const years = new Set<number>([new Date().getFullYear()]);
+    for (const row of summary?.rows || []) {
+      years.add(new Date(row.start_date).getFullYear());
+    }
+    return Array.from(years).sort((a, b) => b - a);
+  }, [summary]);
+
   const sortedRows = useMemo(() => {
     if (!summary) return [];
-    return [...summary.rows].sort((a, b) =>
+    const yearFiltered =
+      yearFilter === "all"
+        ? summary.rows
+        : summary.rows.filter((r) => new Date(r.start_date).getFullYear() === Number(yearFilter));
+    return [...yearFiltered].sort((a, b) =>
       courseLabel(a, gradeLabel).localeCompare(courseLabel(b, gradeLabel), "zh-Hant")
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [summary]);
+  }, [summary, yearFilter]);
 
   if (loading) {
     return <div className="loading-text">載入中...</div>;
@@ -132,6 +145,17 @@ export const CourseReportTable: React.FC = () => {
       <div className="course-list-toolbar">
         <span>資料更新時間：{formatUpdatedAt(summary.generated_at)}（每日凌晨自動更新一次）</span>
         <div className="course-list-toolbar__sort">
+          <label>
+            年份：
+            <select value={yearFilter} onChange={(e) => setYearFilter(e.target.value)}>
+              {yearOptions.map((y) => (
+                <option key={y} value={y}>
+                  {y}
+                </option>
+              ))}
+              <option value="all">全部年份</option>
+            </select>
+          </label>
           {canRefresh && (
             <button type="button" className="btn btn-small" onClick={handleRefresh} disabled={refreshing}>
               {refreshing ? "更新中..." : "🔄 立即更新"}

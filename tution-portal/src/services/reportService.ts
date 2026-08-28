@@ -7,6 +7,7 @@ export interface CourseReportRow {
   form: string;
   subject: string;
   approval_status: string;
+  start_date: string;
   end_date?: string;
   expected_count: number;
   actual_held_count: number;

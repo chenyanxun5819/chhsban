@@ -165,6 +165,8 @@
     "heading": "My Application History",
     "subtitle": "Showing application history for the currently logged-in applicant only",
     "searchPlaceholder": "Search subject, grade, or venue...",
+    "yearLabel": "Year:",
+    "yearAll": "All years",
     "filter": {
       "all": "All",
       "pending": "Pending",
