@@ -572,8 +572,22 @@ async function handleUpdateDepartment(
 
     if (name !== existing.name) {
       const allDepartments = await listDepartments(env.KV_BINDING);
-      if (allDepartments.some((d) => d.department_id !== id && d.name === name)) {
-        return errorResponse("部門已存在", 409);
+      const collision = allDepartments.find(
+        (d) => d.department_id !== id && d.name === name,
+      );
+
+      // 改名對象已經是另一個既有部門：視為合併，而不是報錯擋下來——
+      // 把目前掛在這筆部門下的教師全部轉到那個既有部門，再刪掉這筆重複記錄
+      if (collision) {
+        const affectedTeachers = await manager.getTeachersByDepartment(existing.name);
+        for (const teacher of affectedTeachers) {
+          await manager.saveTeacher({ ...teacher, department: collision.name });
+        }
+        await env.KV_BINDING.delete(key);
+        return successResponse(
+          collision,
+          `已合併至既有部門「${collision.name}」，共轉移 ${affectedTeachers.length} 位教師`,
+        );
       }
     }
 
