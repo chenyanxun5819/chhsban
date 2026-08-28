@@ -116,7 +116,30 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
   const [schedules, setSchedules] = useState<TutionSchedule[]>([]);
   const [schedulesLoading, setSchedulesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const loading = schedulesLoading || classesLoading;
+  const dataLoading = schedulesLoading || classesLoading;
+
+  // 資料到齊後，表格還要跑迴圈運算、畫出好幾張含 sticky 表頭的表格，這段時間
+  // 也可能有感覺得到的延遲。用雙重 requestAnimationFrame 確保載入動畫先被
+  // 瀏覽器實際畫出來一次，再開始做這些比較重的運算與渲染，動畫才不會提早消失、
+  // 中間出現空白卡頓的畫面。
+  const [tableReady, setTableReady] = useState(false);
+
+  useEffect(() => {
+    if (dataLoading) {
+      setTableReady(false);
+      return;
+    }
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setTableReady(true));
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      if (raf2) cancelAnimationFrame(raf2);
+    };
+  }, [dataLoading]);
+
+  const loading = dataLoading || !tableReady;
 
   const fetchSchedules = async () => {
     try {
@@ -157,6 +180,16 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
   // 每個日期 -> 每個教室名稱 -> 目前實際佔用該格的課程（判斷空閒／衝堂用這份）
   // 另外還有：已調走／停課的原課程（反灰顯示用，不算佔用），以及尚未指定教室的調課清單
   const { occupancyByDate, fadedByDate, unassignedList } = useMemo(() => {
+    // 動畫還沒被瀏覽器實際畫出來之前，先不要做這些比較重的運算，
+    // 避免運算跟著這一輪的 render 一起卡住、動畫還沒顯示就被跳過
+    if (!tableReady) {
+      return {
+        occupancyByDate: {} as Record<string, Record<string, CellEntry>>,
+        fadedByDate: {} as Record<string, Record<string, FadedEntry>>,
+        unassignedList: [] as UnassignedEntry[],
+      };
+    }
+
     const classById = new Map(classes.map((c) => [c.class_id, c]));
     const occupancy: Record<string, Record<string, CellEntry>> = {};
     const faded: Record<string, Record<string, FadedEntry>> = {};
@@ -231,7 +264,7 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
     unassigned.sort((a, b) => a.date.localeCompare(b.date));
 
     return { occupancyByDate: occupancy, fadedByDate: faded, unassignedList: unassigned };
-  }, [classes, schedules, dates, lastTeachingDate]);
+  }, [classes, schedules, dates, lastTeachingDate, tableReady]);
 
   // 空不空只看「目前實際佔用」，原課程調走／停課後反灰顯示的那格不算佔用
   const isVenueFreeOnDate = (date: string, classroomName: string) =>
