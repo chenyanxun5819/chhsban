@@ -633,6 +633,61 @@ async function handleDeleteDepartment(
 }
 
 /**
+ * 從現有教師資料同步部門主檔：把教師記錄裡目前使用中、但部門主檔還沒有的部門名稱補進去。
+ * 用於部門主檔剛上線時的資料回填，也可在日後透過 Excel 批量匯入教師產生新部門字串時重複執行來補救。
+ */
+async function handleSyncDepartmentsFromTeachers(
+  env: Env,
+  manager: TeacherKVManager,
+): Promise<Response> {
+  try {
+    const [teachers, existingDepartments] = await Promise.all([
+      manager.getAllTeachers(),
+      listDepartments(env.KV_BINDING),
+    ]);
+
+    const existingNames = new Set(existingDepartments.map((d) => d.name));
+    const distinctNames = new Set<string>();
+    teachers.forEach((t) => {
+      if (t.department && t.department.trim()) {
+        distinctNames.add(t.department.trim());
+      }
+    });
+
+    let created = 0;
+    for (const name of distinctNames) {
+      if (existingNames.has(name)) continue;
+
+      const now = Date.now();
+      const department: DepartmentRecord = {
+        department_id: crypto.randomUUID(),
+        name,
+        created_at: now,
+        updated_at: now,
+      };
+      await env.KV_BINDING.put(
+        `${DEPARTMENT_PREFIX}${department.department_id}`,
+        JSON.stringify(department),
+      );
+      existingNames.add(name);
+      created++;
+    }
+
+    return successResponse(
+      {
+        total_distinct: distinctNames.size,
+        created,
+        skipped: distinctNames.size - created,
+      },
+      `同步完成，新增 ${created} 個部門`,
+    );
+  } catch (error) {
+    console.error("Error syncing departments from teachers:", error);
+    return errorResponse("同步部門失敗", 500);
+  }
+}
+
+/**
  * 路由主要處理邏輯
  */
 async function handleRequest(request: Request, env: Env): Promise<Response> {
@@ -718,6 +773,12 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
         return handleGetAllDepartments(env);
       } else if (method === "POST") {
         return handleCreateDepartment(env, request);
+      } else {
+        return errorResponse("方法不允許", 405);
+      }
+    } else if (pathname === "/api/departments/sync-from-teachers") {
+      if (method === "POST") {
+        return handleSyncDepartmentsFromTeachers(env, manager);
       } else {
         return errorResponse("方法不允許", 405);
       }

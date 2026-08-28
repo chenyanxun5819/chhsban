@@ -116,6 +116,19 @@ export class ApiClient {
     );
   }
 
+  async syncDepartmentsFromTeachers(): Promise<{
+    total_distinct: number;
+    created: number;
+    skipped: number;
+  }> {
+    const response = await this.request<{
+      total_distinct: number;
+      created: number;
+      skipped: number;
+    }>("POST", "/api/departments/sync-from-teachers");
+    return response.data || { total_distinct: 0, created: 0, skipped: 0 };
+  }
+
   private async request<T = any>(
     method: string,
     path: string,

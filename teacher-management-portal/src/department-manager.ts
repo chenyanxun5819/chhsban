@@ -34,4 +34,15 @@ export class DepartmentManager {
     await this.apiClient.deleteDepartment(id);
     this.departments = this.departments.filter((d) => d.department_id !== id);
   }
+
+  /** 把教師資料裡目前使用中、但部門主檔還沒有的部門名稱補進去，補完後重新載入快取 */
+  async syncFromTeachers(): Promise<{
+    total_distinct: number;
+    created: number;
+    skipped: number;
+  }> {
+    const result = await this.apiClient.syncDepartmentsFromTeachers();
+    await this.getDepartments();
+    return result;
+  }
 }

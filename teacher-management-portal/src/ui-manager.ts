@@ -118,6 +118,9 @@ export class UIManager {
 
     // 部門管理頁面
     document
+      .getElementById("syncDepartmentsBtn")
+      ?.addEventListener("click", () => this.handleSyncDepartments());
+    document
       .getElementById("addDepartmentBtn")
       ?.addEventListener("click", () => this.openDepartmentModal());
     document
@@ -543,6 +546,25 @@ export class UIManager {
     `,
       )
       .join("");
+  }
+
+  private async handleSyncDepartments() {
+    try {
+      const result = await this.departmentManager.syncFromTeachers();
+      this.showToast(
+        result.created > 0
+          ? `已從教師資料補入 ${result.created} 個部門`
+          : "部門主檔已是最新，沒有需要補入的部門",
+        "success",
+      );
+      await this.loadDepartmentTable();
+      this.updateDepartmentSelects();
+    } catch (error) {
+      this.showToast(
+        `同步失敗: ${error instanceof Error ? error.message : error}`,
+        "error",
+      );
+    }
   }
 
   private openDepartmentModal(department?: DepartmentRecord) {
