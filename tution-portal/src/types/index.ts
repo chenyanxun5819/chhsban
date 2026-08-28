@@ -1,6 +1,6 @@
 import type { TutionSchedule as TutionScheduleKV } from "@chhsban/kv-utils/types";
 
-export type Permission = "teacher" | "viewer" | "admin" | "super_admin";
+export type Permission = "teacher" | "viewer" | "admin" | "super_admin" | "classroom_manager";
 
 export interface AuthUser {
   teacherId: string;

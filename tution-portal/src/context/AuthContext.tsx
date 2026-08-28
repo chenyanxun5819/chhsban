@@ -105,12 +105,13 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const hasPermission = (requiredPermission: Permission): boolean => {
     if (!state.user) return false;
 
-    // 權限級別：super_admin > admin > viewer > teacher
+    // 權限級別：super_admin > admin > viewer > teacher；classroom_manager 是獨立窄範圍角色，不參與分級比較
     const permissionLevels: Record<Permission, number> = {
       teacher: 1,
       viewer: 2,
       admin: 3,
       super_admin: 4,
+      classroom_manager: 1,
     };
 
     return (

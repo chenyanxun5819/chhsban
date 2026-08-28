@@ -3,7 +3,13 @@ import { useNavigate, useParams } from "react-router-dom";
 import * as XLSX from "xlsx";
 import { useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
-import { ApprovalList, ClassroomUsageOverview, RejectModal, PasswordResetList } from "@/components/admin";
+import {
+  ApprovalList,
+  ClassroomUsageOverview,
+  RejectModal,
+  PasswordResetList,
+  CourseAttendanceStatus,
+} from "@/components/admin";
 import { adminService } from "@/services/adminService";
 import { settingsService } from "@/services/settingsService";
 import { getSemesterInfo } from "@/utils/semester";
@@ -88,16 +94,27 @@ function exportCoursesToXLSX(courses: TutionClass[]): void {
   XLSX.writeFile(workbook, `courses-${Date.now()}.xlsx`);
 }
 
-type TabType = "approvals" | "courses" | "teachers" | "password-reset" | "usage" | "classrooms";
+type TabType =
+  | "approvals"
+  | "courses"
+  | "course-attendance"
+  | "teachers"
+  | "password-reset"
+  | "usage"
+  | "classrooms";
 
 const VALID_TABS: TabType[] = [
   "approvals",
   "courses",
+  "course-attendance",
   "teachers",
   "password-reset",
   "usage",
   "classrooms",
 ];
+
+// 有權限進入管理員儀表板的身份：超級管理員（全部分頁）、督察員（僅各課程出席狀況）、教室管理員（僅每日教室使用總覽）
+const ADMIN_PANEL_PERMISSIONS = ["super_admin", "admin", "classroom_manager"];
 
 const TEACHER_MANAGEMENT_URL = "https://master.teacher-management-portal.pages.dev/";
 
@@ -164,9 +181,10 @@ export const AdminPanel: React.FC = () => {
       .map((item) => `${item.day_of_week}|${item.venue}`),
   );
 
-  // 權限檢查：只有 super_admin 才能訪問此頁面
+  // 權限檢查：只有 super_admin / admin（督察員）/ classroom_manager（教室管理員）才能訪問此頁面
+  // 各自能看到哪個分頁由外層路由（App.tsx 的 ProtectedRoute）決定，這裡只把完全無權限的身份擋在門外
   useEffect(() => {
-    if (user && user.permission !== "super_admin") {
+    if (user && !ADMIN_PANEL_PERMISSIONS.includes(user.permission)) {
       navigate("/", { replace: true });
     }
   }, [user, navigate]);
@@ -207,7 +225,7 @@ export const AdminPanel: React.FC = () => {
 
   // 掛載時抓一次課程清單（同時作為審批分頁徽章、已開課清單、教室占用判斷的資料來源）
   useEffect(() => {
-    if (user?.permission !== "super_admin") return;
+    if (!user || !ADMIN_PANEL_PERMISSIONS.includes(user.permission)) return;
     fetchAllClasses();
     fetchClassrooms();
     fetchLastTeachingDate();
@@ -409,7 +427,7 @@ export const AdminPanel: React.FC = () => {
     }
   };
 
-  if (!user || user.permission !== "super_admin") {
+  if (!user || !ADMIN_PANEL_PERMISSIONS.includes(user.permission)) {
     return null;
   }
 
@@ -671,6 +689,14 @@ export const AdminPanel: React.FC = () => {
                 </div>
               </>
             )}
+          </section>
+        )}
+
+        {/* 各課程出席狀況 */}
+        {currentTab === "course-attendance" && (
+          <section className="admin-section">
+            <h2 className="section-title">各課程出席狀況</h2>
+            <CourseAttendanceStatus classes={courses} />
           </section>
         )}
 

@@ -35,7 +35,7 @@ export class AuthKVManager {
   async createSession(
     teacherId: string,
     teacherName: string,
-    permission: "teacher" | "viewer" | "admin" | "super_admin",
+    permission: "teacher" | "viewer" | "admin" | "super_admin" | "classroom_manager",
     redirectUrl?: string
   ): Promise<SessionToken> {
     const token = this.generateToken();
@@ -129,7 +129,7 @@ export class AuthKVManager {
    * @param token 会话令牌
    * @returns 权限等级或 null
    */
-  async getPermission(token: string): Promise<"teacher" | "viewer" | "admin" | "super_admin" | null> {
+  async getPermission(token: string): Promise<"teacher" | "viewer" | "admin" | "super_admin" | "classroom_manager" | null> {
     const session = await this.verifySession(token);
     return session?.permission ?? null;
   }
@@ -140,16 +140,17 @@ export class AuthKVManager {
    * @param requiredPermission 所需权限
    * @returns 是否拥有权限
    */
-  async hasPermission(token: string, requiredPermission: "teacher" | "viewer" | "admin" | "super_admin"): Promise<boolean> {
+  async hasPermission(token: string, requiredPermission: "teacher" | "viewer" | "admin" | "super_admin" | "classroom_manager"): Promise<boolean> {
     const session = await this.verifySession(token);
     if (!session) return false;
 
-    // 权限优先级：super_admin > admin > viewer > teacher
+    // 权限优先级：super_admin > admin > viewer > teacher；classroom_manager 是獨立窄範圍角色，不參與分級比較
     const permissionLevels: Record<string, number> = {
       "super_admin": 4,
       "admin": 3,
       "viewer": 2,
       "teacher": 1,
+      "classroom_manager": 1,
     };
 
     return (permissionLevels[session.permission] ?? 0) >= (permissionLevels[requiredPermission] ?? 0);

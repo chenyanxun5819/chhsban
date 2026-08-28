@@ -62,19 +62,33 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-// 側邊欄只保留給 super_admin 使用，直接列出管理後台的四個分頁
+// 側邊欄只保留給 super_admin / admin（督察員）/ classroom_manager（教室管理員）使用
 const ADMIN_NAV_ITEMS: Array<{ path: string; icon: string; label: string }> = [
   { path: "/admin/approvals", icon: "📋", label: "審批管理" },
   { path: "/admin/courses", icon: "📚", label: "已開課管理" },
+  { path: "/admin/course-attendance", icon: "✅", label: "各課程出席狀況" },
   { path: "/admin/teachers", icon: "👨‍🏫", label: "老師管理" },
   { path: "/admin/password-reset", icon: "🔑", label: "申請人密碼重設" },
   { path: "/admin/usage", icon: "🗓️", label: "每日教室使用" },
   { path: "/admin/classrooms", icon: "🏫", label: "教室管理" },
 ];
 
+// 督察員／教室管理員是窄範圍角色，側邊欄只顯示各自唯一有權限的那個分頁；超級管理員顯示全部
+function getVisibleNavItems(permission?: string) {
+  if (permission === "admin") {
+    return ADMIN_NAV_ITEMS.filter((item) => item.path === "/admin/course-attendance");
+  }
+  if (permission === "classroom_manager") {
+    return ADMIN_NAV_ITEMS.filter((item) => item.path === "/admin/usage");
+  }
+  return ADMIN_NAV_ITEMS;
+}
+
 export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user } = useAuth();
+  const visibleNavItems = getVisibleNavItems(user?.permission);
 
   const handleNavClick = (path: string) => {
     navigate(path);
@@ -89,7 +103,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
           <h2>補習班系統</h2>
         </div>
         <ul className="nav-list">
-          {ADMIN_NAV_ITEMS.map((item) => (
+          {visibleNavItems.map((item) => (
             <li key={item.path}>
               <button
                 className={`nav-item ${location.pathname === item.path ? "nav-item--active" : ""}`}
@@ -105,7 +119,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
 
       {/* 手機版底部導航 */}
       <nav className="nav-bottom">
-        {ADMIN_NAV_ITEMS.map((item) => (
+        {visibleNavItems.map((item) => (
           <button
             key={item.path}
             className={`nav-bottom__item ${location.pathname === item.path ? "nav-bottom__item--active" : ""}`}
@@ -129,7 +143,10 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ title, children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const { user } = useAuth();
-  const showSidebar = user?.permission === "super_admin";
+  const showSidebar =
+    user?.permission === "super_admin" ||
+    user?.permission === "admin" ||
+    user?.permission === "classroom_manager";
 
   return (
     <div className={`responsive-layout ${showSidebar ? "" : "responsive-layout--no-sidebar"}`}>

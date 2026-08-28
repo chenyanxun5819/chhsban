@@ -22,9 +22,11 @@ export interface KVNamespace {
 }
 
 /**
- * 权限类型定义（四级）
+ * 权限类型定义
+ * teacher/viewer/admin/super_admin 是分級的一般權限；
+ * classroom_manager（教室管理員）是獨立的窄範圍角色，只能操作「每日教室使用總覽」，不在此分級體系內。
  */
-export type Permission = "teacher" | "viewer" | "admin" | "super_admin";
+export type Permission = "teacher" | "viewer" | "admin" | "super_admin" | "classroom_manager";
 
 /**
  * 认证相关类型定义

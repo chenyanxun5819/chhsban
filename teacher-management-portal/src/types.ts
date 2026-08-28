@@ -6,7 +6,7 @@ export interface TeacherRecord {
   email: string;
   google_email?: string; // 可選: 用於 Google OAuth 登入的個人 email
   phone?: string;
-  permission: "teacher" | "admin" | "super_admin";
+  permission: "teacher" | "admin" | "super_admin" | "classroom_manager";
 }
 
 export interface ApiResponse<T = any> {
@@ -17,4 +17,4 @@ export interface ApiResponse<T = any> {
   timestamp: string;
 }
 
-export type Permission = "teacher" | "admin" | "super_admin";
+export type Permission = "teacher" | "admin" | "super_admin" | "classroom_manager";

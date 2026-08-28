@@ -251,7 +251,8 @@ export class UIManager {
   private getPermissionLabel(permission: string): string {
     const labels: Record<string, string> = {
       teacher: "教師",
-      admin: "管理員",
+      classroom_manager: "教室管理員",
+      admin: "督察員",
       super_admin: "超級管理員",
     };
     return labels[permission] || permission;

@@ -400,6 +400,11 @@ html, body {
   color: #742a2a;
 }
 
+.permission-badge.classroom_manager {
+  background: #c6f6d5;
+  color: #22543d;
+}
+
 .table-actions {
   display: flex;
   gap: 8px;

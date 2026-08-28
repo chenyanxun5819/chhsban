@@ -5,7 +5,7 @@ export interface AuthVerifyResponse {
   token: string;
   teacher_id: string;
   teacher_name: string;
-  permission: "teacher" | "viewer" | "admin" | "super_admin";
+  permission: "teacher" | "viewer" | "admin" | "super_admin" | "classroom_manager";
   email: string;
 }
 

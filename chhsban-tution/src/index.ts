@@ -1418,11 +1418,12 @@ async function handleClasses(
     if (method === "GET" && !classId) {
       const teacherId = url.searchParams.get("teacher");
 
-      // super_admin 和 admin 可以查詢所有課程
+      // super_admin、admin 可以查詢所有課程；classroom_manager 只讀取全部課程供「每日教室使用總覽」繪製佔用表
       if (!teacherId) {
         if (
           session.permission === "super_admin" ||
-          session.permission === "admin"
+          session.permission === "admin" ||
+          session.permission === "classroom_manager"
         ) {
           // 查詢所有課程
           const allClasses = await kvService.listAllClasses();
@@ -1724,13 +1725,17 @@ async function handleSchedules(
 
   try {
     // GET /api/v1/schedules?class={classId} - 列出該課程的所有例外記錄
-    // GET /api/v1/schedules（不帶 class）- 列出全系統例外記錄，僅 admin/super_admin 可用
-    //   （供管理員的每日教室使用總覽判斷調課／停課）
+    // GET /api/v1/schedules（不帶 class）- 列出全系統例外記錄，admin/super_admin/classroom_manager 可用
+    //   （供管理員／教室管理員的每日教室使用總覽判斷調課／停課）
     if (method === "GET" && !scheduleId) {
       const classId = url.searchParams.get("class");
 
       if (!classId) {
-        if (session.permission !== "admin" && session.permission !== "super_admin") {
+        if (
+          session.permission !== "admin" &&
+          session.permission !== "super_admin" &&
+          session.permission !== "classroom_manager"
+        ) {
           return jsonResponse({ error: "Missing required query param: class" }, 400);
         }
         const allSchedules = await kvService.listAllSchedules();
@@ -1808,11 +1813,23 @@ async function handleSchedules(
       }
 
       const tutionClass = await kvService.getClass(existing.class_id);
-      if (!tutionClass || !canManageClass(tutionClass)) {
+      if (!tutionClass) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
       const updates = (await request.json()) as Partial<TutionSchedule>;
+
+      // classroom_manager 是窄範圍角色：只能在「每日教室使用總覽」為已調課的例外記錄指定教室，
+      // 不能像 admin/super_admin 一樣改動其他欄位（狀態、原因、調課日期等）。
+      const isClassroomManagerVenueAssignment =
+        session.permission === "classroom_manager" &&
+        existing.status === "rescheduled" &&
+        Object.keys(updates).every((key) => key === "rescheduled_venue");
+
+      if (!canManageClass(tutionClass) && !isClassroomManagerVenueAssignment) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
       if (updates.status === "cancelled" && !updates.cancellation_reason && !existing.cancellation_reason) {
         return jsonResponse({ error: "cancellation_reason is required" }, 400);
       }
