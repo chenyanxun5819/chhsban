@@ -59,7 +59,10 @@ export class TeacherManager {
   }
 
   getTeachersByDepartment(department: string): TeacherRecord[] {
-    return this.teachers.filter((t) => t.department === department);
+    // trim 比對：部門下拉選單的值一律是 trim 過的，教師資料裡的舊 department 字串
+    // 可能帶有前後多餘空白，嚴格相等會篩選出不完整的名單
+    const target = department.trim();
+    return this.teachers.filter((t) => t.department?.trim() === target);
   }
 
   getAllTeachers(): TeacherRecord[] {

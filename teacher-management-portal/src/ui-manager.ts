@@ -522,12 +522,13 @@ export class UIManager {
       return;
     }
 
+    // 部門主檔的 name 一律是 trim 過的（新增/修改/同步時都會 trim），但教師資料裡的舊
+    // department 字串可能帶有前後多餘空白，這裡比照 trim 後再比對，避免明明有人卻顯示 0 位。
     const teacherCountByDepartment = new Map<string, number>();
     this.teacherManager.getAllTeachersUnfiltered().forEach((t) => {
-      teacherCountByDepartment.set(
-        t.department,
-        (teacherCountByDepartment.get(t.department) || 0) + 1,
-      );
+      const dept = t.department?.trim();
+      if (!dept) return;
+      teacherCountByDepartment.set(dept, (teacherCountByDepartment.get(dept) || 0) + 1);
     });
 
     tbody.innerHTML = departments

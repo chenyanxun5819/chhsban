@@ -51,7 +51,9 @@ export class TeacherKVManager {
 
       for (const item of result.keys) {
         const teacher = await this.getTeacher(item.name.replace(KV_CONFIG.TEACHER_PREFIX, ""));
-        if (teacher && teacher.department === department) {
+        // trim 比對：教師資料裡的舊 department 字串可能帶有前後多餘空白（歷史匯入資料常見），
+        // 嚴格相等會漏掉這些記錄，導致部門刪除/改名時誤判「沒有教師在用」
+        if (teacher && teacher.department?.trim() === department.trim()) {
           teachers.push(teacher);
         }
       }
