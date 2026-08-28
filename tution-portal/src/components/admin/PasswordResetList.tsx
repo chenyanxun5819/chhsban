@@ -36,10 +36,16 @@ export const PasswordResetList: React.FC = () => {
     fetchTeachers();
   }, []);
 
+  // 只顯示已設定密碼的教師：還沒設定密碼的教師本來就不需要「重設」，列在這裡沒有意義
+  const teachersWithPassword = useMemo(
+    () => teachers.filter((t) => t.hasPassword),
+    [teachers],
+  );
+
   const filteredTeachers = useMemo(() => {
     const keyword = search.trim().toLowerCase();
-    if (!keyword) return teachers;
-    return teachers.filter(
+    if (!keyword) return teachersWithPassword;
+    return teachersWithPassword.filter(
       (t) =>
         t.teacher_id.toLowerCase().includes(keyword) ||
         t.name_cn.toLowerCase().includes(keyword) ||
@@ -47,7 +53,7 @@ export const PasswordResetList: React.FC = () => {
         t.email.toLowerCase().includes(keyword) ||
         t.department.toLowerCase().includes(keyword),
     );
-  }, [teachers, search]);
+  }, [teachersWithPassword, search]);
 
   const handleReset = async (teacher: TeacherPasswordStatus) => {
     if (
@@ -104,7 +110,7 @@ export const PasswordResetList: React.FC = () => {
             <span>姓名</span>
             <span>部門</span>
             <span>Email</span>
-            <span>密碼狀態</span>
+            <span>密碼設定時間</span>
             <span>操作</span>
           </div>
           {filteredTeachers.map((teacher) => (
@@ -113,25 +119,14 @@ export const PasswordResetList: React.FC = () => {
               <span>{teacher.name_cn}</span>
               <span>{teacher.department}</span>
               <span>{teacher.email}</span>
-              <span className="password-reset-table__status">
-                {teacher.hasPassword ? (
-                  <>
-                    <span className="badge badge-approved">已設定</span>
-                    {teacher.passwordUpdatedAt && (
-                      <span className="password-reset-table__status-date">
-                        {formatDate(teacher.passwordUpdatedAt)}
-                      </span>
-                    )}
-                  </>
-                ) : (
-                  <span className="badge badge-reviewing">尚未設定</span>
-                )}
+              <span className="password-reset-table__status-date">
+                {formatDate(teacher.passwordUpdatedAt)}
               </span>
               <span>
                 <button
                   type="button"
                   className="btn btn-small btn--danger"
-                  disabled={!teacher.hasPassword || resettingId === teacher.teacher_id}
+                  disabled={resettingId === teacher.teacher_id}
                   onClick={() => handleReset(teacher)}
                 >
                   {resettingId === teacher.teacher_id ? "重設中..." : "🔑 重設密碼"}
