@@ -98,11 +98,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                 </span>
               )}
 
-              <span className="schedule-row-reason">
-                {row.status === "cancelled" && (row.cancellation_reason || "—")}
-                {row.status === "rescheduled" && (row.reschedule_reason || "—")}
-                {row.status === "held" && "—"}
-              </span>
+              {row.status === "held" && <span className="schedule-row-reason">—</span>}
 
               {!isLocked && !readOnly && (
                 <span className="schedule-row-actions">
@@ -123,6 +119,16 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                 </span>
               )}
             </div>
+
+            {(row.status === "cancelled" || row.status === "rescheduled") && (
+              <div className="schedule-row-line3">
+                <span className="schedule-row-reason">
+                  {row.status === "cancelled"
+                    ? row.cancellation_reason || "—"
+                    : row.reschedule_reason || "—"}
+                </span>
+              </div>
+            )}
           </div>
         );
       })}

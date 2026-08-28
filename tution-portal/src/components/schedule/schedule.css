@@ -81,6 +81,11 @@
   color: #666;
 }
 
+/* 第三行（僅停課／調課才有）：原因另起一行，避免跟徽章、操作按鈕擠在同一行被截斷 */
+.schedule-row-line3 {
+  margin-top: 0.35rem;
+}
+
 .schedule-row-reason {
   font-size: 0.9rem;
   color: #666;
@@ -449,8 +454,7 @@ textarea.form-control {
     gap: 0.4rem;
   }
 
-  .schedule-row-detail,
-  .schedule-row-reason {
+  .schedule-row-detail {
     flex-shrink: 1;
     min-width: 0;
     overflow: hidden;
