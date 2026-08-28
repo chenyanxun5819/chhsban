@@ -3,3 +3,4 @@ export { ApprovalList } from "./ApprovalList";
 export { ClassroomUsageOverview } from "./ClassroomUsageOverview";
 export { PasswordResetList } from "./PasswordResetList";
 export { CourseAttendanceStatus } from "./CourseAttendanceStatus";
+export { CourseReportTable } from "./CourseReportTable";

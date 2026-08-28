@@ -104,9 +104,9 @@ GOOGLE_SHEETS_SHEET_CLASSES = "Classes"
 GOOGLE_SHEETS_SHEET_ROSTER = "Roster"
 GOOGLE_SHEETS_SHEET_ATTENDANCE = "Attendance"
 
-# Cron 觸發器
-# [triggers]
-# crons = ["0 2 * * *"]  # 每日 UTC 02:00 同步
+# Cron 觸發器：每日 UTC 16:00（= 馬來西亞時間 00:00）重新計算「各課程開課報表」快取
+[triggers]
+crons = ["0 16 * * *"]
 
 # 敏感信息使用 wrangler secret 設置（不寫在此文件中）
 # 執行以下命令設置 Google Sheets API Key:

@@ -23,6 +23,9 @@ import {
  */
 // 系統設定用的保留 key，不會被 "class_" 前綴的清單掃描掃到
 const LAST_TEACHING_DATE_KEY = "system:last_teaching_date";
+// 「各課程開課報表」快取，每日凌晨由 Cron Trigger 重新計算並整批存入，前端一律讀這份快照，
+// 不即時計算（課程數一多，逐課程即時算會很慢）
+const COURSE_REPORT_SUMMARY_KEY = "system:course_report_summary";
 
 export class TutionKVService implements TutionKVManager {
   private classKV: KVNamespace;
@@ -83,6 +86,17 @@ export class TutionKVService implements TutionKVManager {
       LAST_TEACHING_DATE_KEY,
       JSON.stringify({ date, updated_at: Date.now() }),
     );
+  }
+
+  // ===== 系統設定：「各課程開課報表」快取（每日 Cron 重新計算一次） =====
+
+  async getCourseReportSummary(): Promise<any | null> {
+    const data = await this.classKV.get(COURSE_REPORT_SUMMARY_KEY);
+    return data ? JSON.parse(data) : null;
+  }
+
+  async setCourseReportSummary(summary: unknown): Promise<void> {
+    await this.classKV.put(COURSE_REPORT_SUMMARY_KEY, JSON.stringify(summary));
   }
 
   async updateClass(
@@ -248,6 +262,29 @@ export class TutionKVService implements TutionKVManager {
       (a: TutionAttendance, b: TutionAttendance) =>
         new Date(a.class_date).getTime() - new Date(b.class_date).getTime(),
     );
+  }
+
+  /**
+   * 列出全系統所有出勤紀錄，供「各課程開課報表」批次計算使用（避免逐課程重複掃描整個 KV）。
+   * 出勤紀錄是全系統資料量最大的一張表（每堂課每位學生每個日期一筆），KV list 單次最多回傳
+   * 1000 筆，這裡特別做 cursor 分頁掃描到底，避免資料一多就悄悄漏算。
+   */
+  async listAllAttendance(): Promise<TutionAttendance[]> {
+    const records: TutionAttendance[] = [];
+    let cursor: string | undefined;
+
+    do {
+      const result: any = await this.attendanceKV.list({ prefix: "attendance_", cursor });
+      const batch = await Promise.all(
+        result.keys.map((item: any) => this.getAttendanceRecord(item.name)),
+      );
+      for (const record of batch) {
+        if (record) records.push(record);
+      }
+      cursor = result.list_complete ? undefined : result.cursor;
+    } while (cursor);
+
+    return records;
   }
 
   async updateAttendanceRecord(

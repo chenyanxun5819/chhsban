@@ -95,10 +95,10 @@ const Dashboard = () => {
 };
 
 // 督察員（admin）、教室管理員（classroom_manager）是窄範圍角色：無論嘗試進入哪個路由，
-// 一律導回各自唯一有權限的那個頁面；其餘身份（teacher/viewer/super_admin）不受此限制。
-const RESTRICTED_HOME_PATH: Record<string, string> = {
-  admin: "/admin/course-attendance",
-  classroom_manager: "/admin/usage",
+// 一律導回各自唯一有權限的頁面（可能不只一個）；其餘身份（teacher/viewer/super_admin）不受此限制。
+const RESTRICTED_ALLOWED_PATHS: Record<string, string[]> = {
+  admin: ["/admin/course-report", "/admin/course-attendance"],
+  classroom_manager: ["/admin/usage"],
 };
 
 // 受保護的路由組件
@@ -115,9 +115,9 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/login" replace />;
   }
 
-  const restrictedHome = user ? RESTRICTED_HOME_PATH[user.permission] : undefined;
-  if (restrictedHome && location.pathname !== restrictedHome) {
-    return <Navigate to={restrictedHome} replace />;
+  const allowedPaths = user ? RESTRICTED_ALLOWED_PATHS[user.permission] : undefined;
+  if (allowedPaths && !allowedPaths.includes(location.pathname)) {
+    return <Navigate to={allowedPaths[0]} replace />;
   }
 
   return <>{children}</>;

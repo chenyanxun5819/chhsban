@@ -9,6 +9,7 @@ import {
   RejectModal,
   PasswordResetList,
   CourseAttendanceStatus,
+  CourseReportTable,
 } from "@/components/admin";
 import { adminService } from "@/services/adminService";
 import { settingsService } from "@/services/settingsService";
@@ -97,6 +98,7 @@ function exportCoursesToXLSX(courses: TutionClass[]): void {
 type TabType =
   | "approvals"
   | "courses"
+  | "course-report"
   | "course-attendance"
   | "teachers"
   | "password-reset"
@@ -106,6 +108,7 @@ type TabType =
 const VALID_TABS: TabType[] = [
   "approvals",
   "courses",
+  "course-report",
   "course-attendance",
   "teachers",
   "password-reset",
@@ -113,7 +116,7 @@ const VALID_TABS: TabType[] = [
   "classrooms",
 ];
 
-// 有權限進入管理員儀表板的身份：超級管理員（全部分頁）、督察員（僅各課程出席狀況）、教室管理員（僅每日教室使用總覽）
+// 有權限進入管理員儀表板的身份：超級管理員（全部分頁）、督察員（僅各課程開課報表／各課程出席狀況）、教室管理員（僅每日教室使用總覽）
 const ADMIN_PANEL_PERMISSIONS = ["super_admin", "admin", "classroom_manager"];
 
 const TEACHER_MANAGEMENT_URL = "https://master.teacher-management-portal.pages.dev/";
@@ -689,6 +692,14 @@ export const AdminPanel: React.FC = () => {
                 </div>
               </>
             )}
+          </section>
+        )}
+
+        {/* 各課程開課報表 */}
+        {currentTab === "course-report" && (
+          <section className="admin-section">
+            <h2 className="section-title">各課程開課報表</h2>
+            <CourseReportTable />
           </section>
         )}
 

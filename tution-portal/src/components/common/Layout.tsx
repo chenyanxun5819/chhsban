@@ -66,6 +66,7 @@ interface SidebarProps {
 const ADMIN_NAV_ITEMS: Array<{ path: string; icon: string; label: string }> = [
   { path: "/admin/approvals", icon: "📋", label: "審批管理" },
   { path: "/admin/courses", icon: "📚", label: "已開課管理" },
+  { path: "/admin/course-report", icon: "📊", label: "各課程開課報表" },
   { path: "/admin/course-attendance", icon: "✅", label: "各課程出席狀況" },
   { path: "/admin/teachers", icon: "👨‍🏫", label: "老師管理" },
   { path: "/admin/password-reset", icon: "🔑", label: "申請人密碼重設" },
@@ -73,15 +74,16 @@ const ADMIN_NAV_ITEMS: Array<{ path: string; icon: string; label: string }> = [
   { path: "/admin/classrooms", icon: "🏫", label: "教室管理" },
 ];
 
-// 督察員／教室管理員是窄範圍角色，側邊欄只顯示各自唯一有權限的那個分頁；超級管理員顯示全部
+// 督察員／教室管理員是窄範圍角色，側邊欄只顯示各自有權限的分頁（可能不只一個）；超級管理員顯示全部
+const RESTRICTED_VISIBLE_PATHS: Record<string, string[]> = {
+  admin: ["/admin/course-report", "/admin/course-attendance"],
+  classroom_manager: ["/admin/usage"],
+};
+
 function getVisibleNavItems(permission?: string) {
-  if (permission === "admin") {
-    return ADMIN_NAV_ITEMS.filter((item) => item.path === "/admin/course-attendance");
-  }
-  if (permission === "classroom_manager") {
-    return ADMIN_NAV_ITEMS.filter((item) => item.path === "/admin/usage");
-  }
-  return ADMIN_NAV_ITEMS;
+  const allowedPaths = permission ? RESTRICTED_VISIBLE_PATHS[permission] : undefined;
+  if (!allowedPaths) return ADMIN_NAV_ITEMS;
+  return ADMIN_NAV_ITEMS.filter((item) => allowedPaths.includes(item.path));
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {

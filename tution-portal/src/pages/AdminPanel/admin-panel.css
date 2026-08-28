@@ -398,6 +398,46 @@
   margin-top: 20px;
 }
 
+.course-report__table-container {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.course-report__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.course-report__table th,
+.course-report__table td {
+  padding: 10px 12px;
+  text-align: center;
+  border-bottom: 1px solid #eee;
+}
+
+.course-report__table th:first-child,
+.course-report__table td:first-child {
+  text-align: left;
+}
+
+.course-report__table thead th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+
+.course-report__table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.course-report__cell--warning {
+  color: #dc2626;
+  font-weight: 600;
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
   .admin-panel {

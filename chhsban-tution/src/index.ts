@@ -29,6 +29,7 @@ import { buildSignedFormKey, getSignedFormResponse, isAllowedContentType } from 
 import { getSemesterInfo } from "./semester";
 import { buildReceiptKey, getReceiptResponse, isAllowedReceiptContentType, isSemesterHalf, type ReceiptRecord } from "./receipt";
 import { ocrReceiptImage } from "./google-vision";
+import { computeCourseReport } from "./course-report";
 
 interface Env {
   STUDENT_KV: KVNamespace;
@@ -541,6 +542,10 @@ export default {
         return handleSettings(request, env, session);
       }
 
+      if (pathname.startsWith("/api/v1/reports")) {
+        return handleReports(request, env, session);
+      }
+
       if (pathname.startsWith("/api/v1/schedules")) {
         return handleSchedules(request, env, session);
       }
@@ -562,6 +567,29 @@ export default {
       console.error("Error:", error);
       return jsonResponse({ error: "Internal server error" }, 500);
     }
+  },
+
+  // 每日凌晨（見 wrangler.toml 的 [triggers] crons）重新計算「各課程開課報表」並整批存入 KV，
+  // 前端一律讀這份快照，不即時計算
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(
+      (async () => {
+        try {
+          const kvService = new TutionKVService(
+            env.TUTION_CLASS_KV,
+            env.TUTION_ROSTER_KV,
+            env.TUTION_ATTENDANCE_KV,
+            env.TUTION_SCHEDULE_KV,
+          );
+          const teacherManager = createTeacherKVManager(env.TEACHER_KV);
+          const summary = await computeCourseReport(kvService, teacherManager);
+          await kvService.setCourseReportSummary(summary);
+          console.log(`Course report summary refreshed: ${summary.rows.length} courses`);
+        } catch (error) {
+          console.error("Scheduled course report refresh failed:", error);
+        }
+      })(),
+    );
   },
 };
 
@@ -1691,6 +1719,61 @@ async function handleSettings(
     return jsonResponse({ error: "Not found" }, 404);
   } catch (error) {
     console.error("Settings handler error:", error);
+    return jsonResponse({ error: String(error) }, 500);
+  }
+}
+
+/**
+ * 「各課程開課報表」——僅 admin/super_admin 可讀。
+ *
+ * GET  /api/v1/reports/course-summary          讀取快取（每日凌晨 Cron 重算一次，見 scheduled handler）
+ * POST /api/v1/reports/course-summary/refresh  立即重算並覆寫快取（僅 super_admin，供部署後手動補一次，
+ *                                               或緊急需要最新資料時使用；前端目前沒有暴露按鈕）
+ */
+async function handleReports(
+  request: Request,
+  env: Env,
+  session: any,
+): Promise<Response> {
+  if (session.permission !== "admin" && session.permission !== "super_admin") {
+    return jsonResponse({ error: "Forbidden" }, 403);
+  }
+
+  const url = new URL(request.url);
+  const pathParts = url.pathname.split("/");
+  const reportKey = pathParts[4]; // /api/v1/reports/{key}
+  const subAction = pathParts[5]; // /api/v1/reports/{key}/{refresh}
+
+  const kvService = new TutionKVService(
+    env.TUTION_CLASS_KV,
+    env.TUTION_ROSTER_KV,
+    env.TUTION_ATTENDANCE_KV,
+    env.TUTION_SCHEDULE_KV,
+  );
+  const teacherManager = createTeacherKVManager(env.TEACHER_KV);
+
+  try {
+    if (reportKey !== "course-summary") {
+      return jsonResponse({ error: "Not found" }, 404);
+    }
+
+    if (request.method === "GET" && !subAction) {
+      const summary = await kvService.getCourseReportSummary();
+      return jsonResponse({ data: summary }, 200);
+    }
+
+    if (request.method === "POST" && subAction === "refresh") {
+      if (session.permission !== "super_admin") {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+      const summary = await computeCourseReport(kvService, teacherManager);
+      await kvService.setCourseReportSummary(summary);
+      return jsonResponse({ data: summary }, 200);
+    }
+
+    return jsonResponse({ error: "Not found" }, 404);
+  } catch (error) {
+    console.error("Reports handler error:", error);
     return jsonResponse({ error: String(error) }, 500);
   }
 }
