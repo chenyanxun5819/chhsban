@@ -48,6 +48,18 @@ interface ApiResponse<T = any> {
 }
 
 /**
+ * 部門主檔資料（獨立於教師資料，是「所有部門」下拉選單與教師表單部門選項的唯一資料來源）
+ */
+interface DepartmentRecord {
+  department_id: string;
+  name: string;
+  created_at: number;
+  updated_at: number;
+}
+
+const DEPARTMENT_PREFIX = "department:";
+
+/**
  * 簡單的 API Key 驗證（後續可改為 JWT）
  */
 function verifyApiKey(request: Request): boolean {
@@ -443,6 +455,184 @@ async function handleBulkImportTeachers(
 }
 
 /**
+ * 列出所有部門（依 name 排序）
+ */
+async function listDepartments(kv: KVNamespace): Promise<DepartmentRecord[]> {
+  const departments: DepartmentRecord[] = [];
+  let cursor: string | undefined;
+
+  do {
+    const result: any = await kv.list({ prefix: DEPARTMENT_PREFIX, cursor });
+
+    for (const item of result.keys) {
+      const data = await kv.get(item.name);
+      if (data) {
+        try {
+          departments.push(JSON.parse(data) as DepartmentRecord);
+        } catch (error) {
+          console.error(`Failed to parse department data for ${item.name}:`, error);
+        }
+      }
+    }
+
+    cursor = result.list_complete ? undefined : result.cursor;
+  } while (cursor);
+
+  return departments.sort((a, b) => a.name.localeCompare(b.name, "zh-Hant"));
+}
+
+/**
+ * 獲取所有部門
+ */
+async function handleGetAllDepartments(env: Env): Promise<Response> {
+  try {
+    const departments = await listDepartments(env.KV_BINDING);
+    return successResponse(departments, `取得 ${departments.length} 個部門`);
+  } catch (error) {
+    console.error("Error getting departments:", error);
+    return errorResponse("取得部門列表失敗", 500);
+  }
+}
+
+/**
+ * 新增部門
+ */
+async function handleCreateDepartment(
+  env: Env,
+  request: Request,
+): Promise<Response> {
+  try {
+    const body = await request.json();
+    const name = body.name ? String(body.name).trim() : "";
+
+    if (!name) {
+      return errorResponse("缺少必填欄位：name");
+    }
+
+    const existing = await listDepartments(env.KV_BINDING);
+    if (existing.some((d) => d.name === name)) {
+      return errorResponse("部門已存在", 409);
+    }
+
+    const now = Date.now();
+    const department: DepartmentRecord = {
+      department_id: crypto.randomUUID(),
+      name,
+      created_at: now,
+      updated_at: now,
+    };
+
+    await env.KV_BINDING.put(
+      `${DEPARTMENT_PREFIX}${department.department_id}`,
+      JSON.stringify(department),
+    );
+
+    return jsonResponse(
+      {
+        success: true,
+        data: department,
+        message: "部門新增成功",
+        timestamp: new Date().toISOString(),
+      },
+      201,
+    );
+  } catch (error) {
+    console.error("Error creating department:", error);
+    return errorResponse("新增部門失敗", 500);
+  }
+}
+
+/**
+ * 修改部門（改名時，一併更新所有使用舊名稱的教師紀錄，避免資料脫節）
+ */
+async function handleUpdateDepartment(
+  env: Env,
+  request: Request,
+  ctx: RequestContext,
+  manager: TeacherKVManager,
+): Promise<Response> {
+  try {
+    const id = decodeURIComponent(ctx.pathname.split("/").pop() || "").trim();
+    if (!id) {
+      return errorResponse("缺少部門 ID");
+    }
+
+    const key = `${DEPARTMENT_PREFIX}${id}`;
+    const data = await env.KV_BINDING.get(key);
+    if (!data) {
+      return errorResponse("部門不存在", 404);
+    }
+    const existing = JSON.parse(data) as DepartmentRecord;
+
+    const body = await request.json();
+    const name = body.name ? String(body.name).trim() : existing.name;
+    if (!name) {
+      return errorResponse("缺少必填欄位：name");
+    }
+
+    if (name !== existing.name) {
+      const allDepartments = await listDepartments(env.KV_BINDING);
+      if (allDepartments.some((d) => d.department_id !== id && d.name === name)) {
+        return errorResponse("部門已存在", 409);
+      }
+    }
+
+    const updated: DepartmentRecord = { ...existing, name, updated_at: Date.now() };
+    await env.KV_BINDING.put(key, JSON.stringify(updated));
+
+    if (name !== existing.name) {
+      const affectedTeachers = await manager.getTeachersByDepartment(existing.name);
+      for (const teacher of affectedTeachers) {
+        await manager.saveTeacher({ ...teacher, department: name });
+      }
+    }
+
+    return successResponse(updated, "部門修改成功");
+  } catch (error) {
+    console.error("Error updating department:", error);
+    return errorResponse("修改部門失敗", 500);
+  }
+}
+
+/**
+ * 刪除部門（仍有教師使用中則拒絕，避免留下無法對應的孤兒資料）
+ */
+async function handleDeleteDepartment(
+  env: Env,
+  ctx: RequestContext,
+  manager: TeacherKVManager,
+): Promise<Response> {
+  try {
+    const id = decodeURIComponent(ctx.pathname.split("/").pop() || "").trim();
+    if (!id) {
+      return errorResponse("缺少部門 ID");
+    }
+
+    const key = `${DEPARTMENT_PREFIX}${id}`;
+    const data = await env.KV_BINDING.get(key);
+    if (!data) {
+      return errorResponse("部門不存在", 404);
+    }
+    const existing = JSON.parse(data) as DepartmentRecord;
+
+    const teachersInUse = await manager.getTeachersByDepartment(existing.name);
+    if (teachersInUse.length > 0) {
+      return errorResponse(
+        `仍有 ${teachersInUse.length} 位教師使用此部門，請先變更他們的部門後再刪除`,
+        409,
+      );
+    }
+
+    await env.KV_BINDING.delete(key);
+
+    return successResponse({ department_id: id }, "部門刪除成功");
+  } catch (error) {
+    console.error("Error deleting department:", error);
+    return errorResponse("刪除部門失敗", 500);
+  }
+}
+
+/**
  * 路由主要處理邏輯
  */
 async function handleRequest(request: Request, env: Env): Promise<Response> {
@@ -515,6 +705,27 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
         return handleUpdateTeacher(manager, request, ctx);
       } else if (method === "DELETE") {
         return handleDeleteTeacher(manager, ctx);
+      } else {
+        return errorResponse("方法不允許", 405);
+      }
+    }
+  }
+
+  // 部門主檔 API
+  if (pathname === "/api/departments" || pathname.startsWith("/api/departments/")) {
+    if (pathname === "/api/departments") {
+      if (method === "GET") {
+        return handleGetAllDepartments(env);
+      } else if (method === "POST") {
+        return handleCreateDepartment(env, request);
+      } else {
+        return errorResponse("方法不允許", 405);
+      }
+    } else {
+      if (method === "PUT") {
+        return handleUpdateDepartment(env, request, ctx, manager);
+      } else if (method === "DELETE") {
+        return handleDeleteDepartment(env, ctx, manager);
       } else {
         return errorResponse("方法不允許", 405);
       }

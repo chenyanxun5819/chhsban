@@ -1,5 +1,6 @@
 import { ApiClient } from "./api-client";
 import { TeacherManager } from "./teacher-manager";
+import { DepartmentManager } from "./department-manager";
 import { UIManager } from "./ui-manager";
 
 // 登入憑證（硬編碼，生產環境應使用加密或伺服器驗證）
@@ -11,6 +12,7 @@ const VALID_CREDENTIALS = {
 export class App {
   private apiClient: ApiClient;
   private teacherManager: TeacherManager;
+  private departmentManager: DepartmentManager;
   private uiManager: UIManager;
   private isAuthenticated = false;
 
@@ -24,7 +26,8 @@ export class App {
 
     this.apiClient = new ApiClient(apiBaseUrl, apiKey);
     this.teacherManager = new TeacherManager(this.apiClient);
-    this.uiManager = new UIManager(this.teacherManager, this.apiClient);
+    this.departmentManager = new DepartmentManager(this.apiClient);
+    this.uiManager = new UIManager(this.teacherManager, this.apiClient, this.departmentManager);
 
     this.setupLoginHandlers();
   }
@@ -40,8 +43,8 @@ export class App {
       // 初始化 UI
       this.uiManager.setupEventListeners();
 
-      // 並行測試 API 連接和載入教師列表
-      await Promise.all([this.testApiConnection(), this.loadTeachers()]);
+      // 並行測試 API 連接、載入教師列表與部門列表
+      await Promise.all([this.testApiConnection(), this.loadTeachers(), this.loadDepartments()]);
 
       // 加載教師後更新部門下拉菜單
       this.uiManager.refreshDepartmentSelects();
@@ -160,6 +163,15 @@ export class App {
     }
   }
 
+  private async loadDepartments() {
+    try {
+      await this.departmentManager.getDepartments();
+    } catch (error) {
+      console.error("載入部門失敗:", error);
+      this.uiManager.showToast("載入部門列表失敗", "error");
+    }
+  }
+
   // 暴露公共方法供 HTML 事件處理器使用
   editTeacher(id: string) {
     return (this.uiManager as any).editTeacher(id);
@@ -171,5 +183,13 @@ export class App {
 
   refreshTeachers() {
     return (this.uiManager as any).refreshTeachers();
+  }
+
+  editDepartment(id: string) {
+    return (this.uiManager as any).editDepartment(id);
+  }
+
+  deleteDepartment(id: string) {
+    return (this.uiManager as any).confirmDeleteDepartment(id);
   }
 }

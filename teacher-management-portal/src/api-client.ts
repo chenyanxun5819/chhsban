@@ -1,4 +1,4 @@
-import type { TeacherRecord, ApiResponse } from "./types";
+import type { TeacherRecord, DepartmentRecord, ApiResponse } from "./types";
 
 export class ApiClient {
   constructor(
@@ -75,6 +75,45 @@ export class ApiClient {
       teachers,
     });
     return response;
+  }
+
+  async getDepartments(): Promise<DepartmentRecord[]> {
+    const response = await this.request<DepartmentRecord[]>(
+      "GET",
+      "/api/departments",
+    );
+    return response.data || [];
+  }
+
+  async createDepartment(name: string): Promise<DepartmentRecord> {
+    const response = await this.request<DepartmentRecord>(
+      "POST",
+      "/api/departments",
+      { name },
+    );
+    if (!response.data) {
+      throw new Error(response.error || "新增部門失敗");
+    }
+    return response.data;
+  }
+
+  async updateDepartment(id: string, name: string): Promise<DepartmentRecord> {
+    const response = await this.request<DepartmentRecord>(
+      "PUT",
+      `/api/departments/${encodeURIComponent(id.trim())}`,
+      { name },
+    );
+    if (!response.data) {
+      throw new Error(response.error || "修改部門失敗");
+    }
+    return response.data;
+  }
+
+  async deleteDepartment(id: string): Promise<void> {
+    await this.request(
+      "DELETE",
+      `/api/departments/${encodeURIComponent(id.trim())}`,
+    );
   }
 
   private async request<T = any>(

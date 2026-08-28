@@ -1,10 +1,12 @@
 import { TeacherManager } from "./teacher-manager";
 import { ApiClient } from "./api-client";
-import type { TeacherRecord } from "./types";
+import { DepartmentManager } from "./department-manager";
+import type { TeacherRecord, DepartmentRecord } from "./types";
 
 export class UIManager {
   private currentPage = "list";
   private editingTeacherId: string | null = null;
+  private editingDepartmentId: string | null = null;
   private currentDepartmentFilter = "";
   private currentPageNumber = 1;
   private pageSize = 10;
@@ -12,6 +14,7 @@ export class UIManager {
   constructor(
     private teacherManager: TeacherManager,
     private apiClient: ApiClient,
+    private departmentManager: DepartmentManager,
   ) {}
 
   setupEventListeners() {
@@ -113,6 +116,20 @@ export class UIManager {
       .getElementById("modalCancelBtn")
       ?.addEventListener("click", () => this.closeModal());
 
+    // 部門管理頁面
+    document
+      .getElementById("addDepartmentBtn")
+      ?.addEventListener("click", () => this.openDepartmentModal());
+    document
+      .getElementById("departmentModalCloseBtn")
+      ?.addEventListener("click", () => this.closeDepartmentModal());
+    document
+      .getElementById("departmentModalCancelBtn")
+      ?.addEventListener("click", () => this.closeDepartmentModal());
+    document
+      .getElementById("departmentModalSaveBtn")
+      ?.addEventListener("click", () => this.handleDepartmentFormSubmit());
+
     // 載入設置
     this.loadSettings();
   }
@@ -139,6 +156,7 @@ export class UIManager {
       const titles: Record<string, string> = {
         list: "教師列表",
         add: "新增教師",
+        departments: "部門管理",
         settings: "系統設置",
       };
       document.querySelector(".breadcrumb")!.textContent =
@@ -147,6 +165,11 @@ export class UIManager {
       // 重置編輯狀態
       if (page === "add") {
         this.resetForm();
+      }
+
+      // 進入部門管理頁面時載入部門列表
+      if (page === "departments") {
+        this.loadDepartmentTable();
       }
 
       // 進入設置頁面時更新系統信息
@@ -296,7 +319,10 @@ export class UIManager {
   }
 
   private updateDepartmentSelects() {
-    const departments = this.teacherManager.getDepartments();
+    const departments = this.departmentManager
+      .getCachedDepartments()
+      .map((d) => d.name)
+      .sort((a, b) => a.localeCompare(b, "zh-Hant"));
 
     // 更新篩選下拉菜單
     const filterSelect = document.getElementById(
@@ -463,6 +489,139 @@ export class UIManager {
         await this.refreshTeachers();
       } catch (error) {
         this.showToast("刪除失敗", "error");
+      }
+    });
+  }
+
+  private async loadDepartmentTable() {
+    const tbody = document.getElementById("departmentTableBody");
+    if (!tbody) return;
+
+    tbody.innerHTML =
+      '<tr class="loading-row"><td colspan="3"><div class="spinner"></div><span>載入中...</span></td></tr>';
+
+    try {
+      const departments = await this.departmentManager.getDepartments();
+      this.renderDepartmentTable(departments);
+    } catch (error) {
+      tbody.innerHTML =
+        '<tr class="loading-row"><td colspan="3">載入部門失敗</td></tr>';
+      this.showToast("載入部門列表失敗", "error");
+    }
+  }
+
+  private renderDepartmentTable(departments: DepartmentRecord[]) {
+    const tbody = document.getElementById("departmentTableBody");
+    if (!tbody) return;
+
+    if (departments.length === 0) {
+      tbody.innerHTML = '<tr class="loading-row"><td colspan="3">尚無部門資料</td></tr>';
+      return;
+    }
+
+    const teacherCountByDepartment = new Map<string, number>();
+    this.teacherManager.getAllTeachersUnfiltered().forEach((t) => {
+      teacherCountByDepartment.set(
+        t.department,
+        (teacherCountByDepartment.get(t.department) || 0) + 1,
+      );
+    });
+
+    tbody.innerHTML = departments
+      .map(
+        (dept) => `
+      <tr>
+        <td><strong>${dept.name}</strong></td>
+        <td>${teacherCountByDepartment.get(dept.name) || 0} 位</td>
+        <td>
+          <div class="table-actions">
+            <button class="btn-table edit" onclick="app.editDepartment('${dept.department_id}')">✏️ 編輯</button>
+            <button class="btn-table delete" onclick="app.deleteDepartment('${dept.department_id}')">🗑️ 刪除</button>
+          </div>
+        </td>
+      </tr>
+    `,
+      )
+      .join("");
+  }
+
+  private openDepartmentModal(department?: DepartmentRecord) {
+    const overlay = document.getElementById("departmentModalOverlay");
+    const title = document.getElementById("departmentModalTitle");
+    const input = document.getElementById("departmentNameInput") as HTMLInputElement;
+    if (!overlay || !title || !input) return;
+
+    this.editingDepartmentId = department?.department_id ?? null;
+    title.textContent = department ? "編輯部門" : "新增部門";
+    input.value = department?.name ?? "";
+    overlay.style.display = "flex";
+    input.focus();
+  }
+
+  private closeDepartmentModal() {
+    const overlay = document.getElementById("departmentModalOverlay");
+    if (overlay) overlay.style.display = "none";
+    this.editingDepartmentId = null;
+  }
+
+  private async handleDepartmentFormSubmit() {
+    const input = document.getElementById("departmentNameInput") as HTMLInputElement;
+    const name = input?.value.trim();
+    if (!name) {
+      this.showToast("請輸入部門名稱", "warning");
+      return;
+    }
+
+    try {
+      if (this.editingDepartmentId) {
+        await this.departmentManager.updateDepartment(this.editingDepartmentId, name);
+        this.showToast("部門修改成功", "success");
+      } else {
+        await this.departmentManager.createDepartment(name);
+        this.showToast("部門新增成功", "success");
+      }
+
+      this.closeDepartmentModal();
+      await this.loadDepartmentTable();
+      // 部門異動後，教師表單與篩選器的下拉選單要跟著同步；也一併刷新教師表格，
+      // 因為改名時後端會連動更新使用該部門的教師紀錄
+      await this.refreshTeachers();
+    } catch (error) {
+      this.showToast(
+        `操作失敗: ${error instanceof Error ? error.message : error}`,
+        "error",
+      );
+    }
+  }
+
+  private editDepartment(id: string) {
+    const department = this.departmentManager
+      .getCachedDepartments()
+      .find((d) => d.department_id === id);
+    if (!department) {
+      this.showToast("找不到該部門", "error");
+      return;
+    }
+    this.openDepartmentModal(department);
+  }
+
+  private confirmDeleteDepartment(id: string) {
+    const department = this.departmentManager
+      .getCachedDepartments()
+      .find((d) => d.department_id === id);
+    const label = department?.name || id;
+
+    this.showConfirmModal(`確定要刪除部門「${label}」嗎？`, async () => {
+      try {
+        await this.departmentManager.deleteDepartment(id);
+        this.showToast("部門刪除成功", "success");
+        await this.loadDepartmentTable();
+        await this.refreshTeachers();
+      } catch (error) {
+        this.showToast(
+          `刪除失敗: ${error instanceof Error ? error.message : error}`,
+          "error",
+        );
       }
     });
   }

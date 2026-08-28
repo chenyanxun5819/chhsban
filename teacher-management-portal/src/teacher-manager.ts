@@ -66,16 +66,8 @@ export class TeacherManager {
     return [...this.teachers];
   }
 
-  getDepartments(): string[] {
-    // 从完整教师列表中提取部门，而不是从过滤后的列表
-    const departments = new Set<string>();
-    const sourceTeachers =
-      this.allTeachers.length > 0 ? this.allTeachers : this.teachers;
-    sourceTeachers.forEach((t) => {
-      if (t.department) {
-        departments.add(t.department);
-      }
-    });
-    return Array.from(departments).sort();
+  /** 完整教師列表（不受目前部門篩選影響），供部門管理頁面統計「使用中教師數」使用 */
+  getAllTeachersUnfiltered(): TeacherRecord[] {
+    return this.allTeachers.length > 0 ? [...this.allTeachers] : [...this.teachers];
   }
 }

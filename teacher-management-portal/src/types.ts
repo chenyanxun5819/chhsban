@@ -9,6 +9,13 @@ export interface TeacherRecord {
   permission: "teacher" | "admin" | "super_admin" | "classroom_manager";
 }
 
+export interface DepartmentRecord {
+  department_id: string;
+  name: string;
+  created_at: number;
+  updated_at: number;
+}
+
 export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;

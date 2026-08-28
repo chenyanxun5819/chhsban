@@ -56,6 +56,10 @@
           <span class="icon">➕</span>
           <span>新增教師</span>
         </button>
+        <button class="nav-item" data-page="departments">
+          <span class="icon">🏢</span>
+          <span>部門管理</span>
+        </button>
         <button class="nav-item" data-page="settings">
           <span class="icon">⚙️</span>
           <span>系統設置</span>
@@ -194,6 +198,36 @@
           </div>
         </div>
 
+        <!-- 部門管理頁面 -->
+        <div id="page-departments" class="page-content">
+          <div class="list-header">
+            <h2>部門管理</h2>
+            <div class="list-controls">
+              <button class="btn-primary" id="addDepartmentBtn">➕ 新增部門</button>
+            </div>
+          </div>
+
+          <div class="table-container">
+            <table class="teacher-table">
+              <thead>
+                <tr>
+                  <th>部門名稱</th>
+                  <th>使用中教師數</th>
+                  <th>操作</th>
+                </tr>
+              </thead>
+              <tbody id="departmentTableBody">
+                <tr class="loading-row">
+                  <td colspan="3">
+                    <div class="spinner"></div>
+                    <span>載入中...</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
         <!-- 系統設置頁面 -->
         <div id="page-settings" class="page-content">
           <div class="settings-container">
@@ -278,6 +312,26 @@
       <div class="modal-footer">
         <button class="btn-secondary" id="modalCancelBtn">取消</button>
         <button class="btn-primary" id="modalConfirmBtn">確認</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 部門新增/編輯 Modal -->
+  <div id="departmentModalOverlay" class="modal-overlay" style="display: none;">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="departmentModalTitle">新增部門</h3>
+        <button class="modal-close" id="departmentModalCloseBtn">&times;</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-group">
+          <label for="departmentNameInput">部門名稱 *</label>
+          <input type="text" id="departmentNameInput" placeholder="例如：华文 Chinese">
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" id="departmentModalCancelBtn">取消</button>
+        <button class="btn-primary" id="departmentModalSaveBtn">保存</button>
       </div>
     </div>
   </div>
