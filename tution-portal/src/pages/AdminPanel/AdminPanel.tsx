@@ -746,6 +746,7 @@ export const AdminPanel: React.FC = () => {
               classes={allClasses}
               classrooms={classrooms}
               lastTeachingDate={lastTeachingDate || undefined}
+              classesLoading={classesLoading}
             />
           </section>
         )}

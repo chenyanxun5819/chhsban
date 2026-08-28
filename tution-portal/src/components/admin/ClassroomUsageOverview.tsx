@@ -10,6 +10,8 @@ interface ClassroomUsageOverviewProps {
   classrooms: ClassroomRecord[];
   /** 管理員設定的全域「最後上課日期」：課程沒自行設定 end_date 時的預設終止日 */
   lastTeachingDate?: string;
+  /** 父層課程清單是否還在載入中，一併反映在這裡的載入動畫上 */
+  classesLoading?: boolean;
 }
 
 const OCCUPYING_STATUSES = ["reviewing", "approved", "active"];
@@ -108,22 +110,24 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
   classes,
   classrooms,
   lastTeachingDate,
+  classesLoading = false,
 }) => {
   const [selectedMonth, setSelectedMonth] = useState(currentMonthStr());
   const [schedules, setSchedules] = useState<TutionSchedule[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [schedulesLoading, setSchedulesLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const loading = schedulesLoading || classesLoading;
 
   const fetchSchedules = async () => {
     try {
-      setLoading(true);
+      setSchedulesLoading(true);
       setError(null);
       const data = await scheduleService.listAllSchedules();
       setSchedules(data);
     } catch (err) {
       setError(err instanceof Error ? err.message : "載入調課記錄失敗");
     } finally {
-      setLoading(false);
+      setSchedulesLoading(false);
     }
   };
 
@@ -301,7 +305,10 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
       )}
 
       {loading ? (
-        <div className="loading-text">載入中...</div>
+        <div className="loading-container">
+          <div className="loading-spinner"></div>
+          <p>載入教室使用資料中...</p>
+        </div>
       ) : activeDates.length === 0 ? (
         <div className="empty-state">這個月沒有任何課程紀錄</div>
       ) : (
