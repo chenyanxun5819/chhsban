@@ -1090,22 +1090,36 @@ async function handleClasses(
       const resolvedStudentId = student.student_id || body.student_id;
 
       const existingEntries = await kvService.listRosterByClass(classId);
-      if (existingEntries.some((entry) => entry.student_id === resolvedStudentId && entry.is_active)) {
+      const existingEntry = existingEntries.find((entry) => entry.student_id === resolvedStudentId);
+      if (existingEntry?.is_active) {
         return jsonResponse({ error: "該學生已在名單中" }, 400);
       }
 
       const today = new Date().toISOString().split("T")[0];
-      const entry = await kvService.addRosterEntry({
-        class_id: classId,
-        student_id: resolvedStudentId,
-        student_name_cn: student.name_cn,
-        student_name_en: student.name_en || "-",
-        student_class: student.real_class_name || student.class || "-",
-        enrollment_date: today,
-        is_active: true,
-        student_no: student.student_no || body.student_id,
-        gender_boarding: student.gender_boarding || "-",
-      } as any);
+      // 若學生先前已退出，重新加入時復用同一筆名冊紀錄（清除退出資訊、更新加入日期），
+      // 避免「已退出」名單把同一位學生的每次進出都疊成一筆新紀錄、無限累加。
+      const entry = existingEntry
+        ? await kvService.updateRosterEntry(existingEntry.roster_id, {
+            student_name_cn: student.name_cn,
+            student_name_en: student.name_en || "-",
+            student_class: student.real_class_name || student.class || "-",
+            student_no: student.student_no || body.student_id,
+            gender_boarding: student.gender_boarding || "-",
+            enrollment_date: today,
+            withdrawal_date: undefined,
+            withdrawal_reason: undefined,
+          } as any)
+        : await kvService.addRosterEntry({
+            class_id: classId,
+            student_id: resolvedStudentId,
+            student_name_cn: student.name_cn,
+            student_name_en: student.name_en || "-",
+            student_class: student.real_class_name || student.class || "-",
+            enrollment_date: today,
+            is_active: true,
+            student_no: student.student_no || body.student_id,
+            gender_boarding: student.gender_boarding || "-",
+          } as any);
 
       try {
         await syncClassDataToSheets(env, kvService);

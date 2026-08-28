@@ -182,10 +182,10 @@ export class TutionKVService implements TutionKVManager {
     const existing = await this.getRosterEntry(rosterId);
     if (!existing) throw new Error(`Roster entry ${rosterId} not found`);
 
+    const merged = { ...existing, ...updates };
     const updated = {
-      ...existing,
-      ...updates,
-      is_active: !updates.withdrawal_date && !existing.withdrawal_date,
+      ...merged,
+      is_active: !merged.withdrawal_date,
       updated_at: Date.now(),
     };
 
