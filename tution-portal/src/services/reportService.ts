@@ -37,4 +37,12 @@ export const reportService = {
     );
     return response.data?.data ?? null;
   },
+
+  /** 立即重新計算並覆寫快取（僅 super_admin），不用等到隔天凌晨的自動更新 */
+  async refreshCourseSummary(): Promise<CourseReportSummary> {
+    const response = await apiClient.post<{ data: CourseReportSummary }>(
+      "/v1/reports/course-summary/refresh"
+    );
+    return response.data.data;
+  },
 };

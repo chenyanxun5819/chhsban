@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import * as XLSX from "xlsx";
 import { reportService, type CourseReportRow, type CourseReportSummary } from "@/services/reportService";
 import { useGradeLabel } from "@/i18n/labels";
+import { useAuth } from "@/context/AuthContext";
 
 function courseLabel(row: CourseReportRow, gradeLabel: (value: string) => string): string {
   return `${row.teacher_id} ${row.teacher_name_cn} - ${gradeLabel(row.form)}${row.subject}`;
@@ -50,8 +51,11 @@ function exportReportToXLSX(rows: CourseReportRow[], gradeLabel: (value: string)
 
 export const CourseReportTable: React.FC = () => {
   const gradeLabel = useGradeLabel();
+  const { user } = useAuth();
+  const canRefresh = user?.permission === "super_admin";
   const [summary, setSummary] = useState<CourseReportSummary | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -75,6 +79,19 @@ export const CourseReportTable: React.FC = () => {
     };
   }, []);
 
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    try {
+      const data = await reportService.refreshCourseSummary();
+      setSummary(data);
+      setError(null);
+    } catch (err) {
+      alert(`❌ ${err instanceof Error ? err.message : "更新失敗"}`);
+    } finally {
+      setRefreshing(false);
+    }
+  };
+
   const sortedRows = useMemo(() => {
     if (!summary) return [];
     return [...summary.rows].sort((a, b) =>
@@ -96,16 +113,34 @@ export const CourseReportTable: React.FC = () => {
   }
 
   if (!summary) {
-    return <div className="empty-state">尚未產生報表，請稍候系統於每日凌晨自動計算後再查看</div>;
+    return (
+      <div className="course-report">
+        <div className="empty-state">尚未產生報表，系統會於每日凌晨自動計算</div>
+        {canRefresh && (
+          <div className="course-list-toolbar">
+            <button type="button" className="btn btn-small" onClick={handleRefresh} disabled={refreshing}>
+              {refreshing ? "更新中..." : "🔄 立即更新"}
+            </button>
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
     <div className="course-report">
       <div className="course-list-toolbar">
         <span>資料更新時間：{formatUpdatedAt(summary.generated_at)}（每日凌晨自動更新一次）</span>
-        <button type="button" className="btn btn-small" onClick={() => exportReportToXLSX(sortedRows, gradeLabel)}>
-          📥 匯出 Excel
-        </button>
+        <div className="course-list-toolbar__sort">
+          {canRefresh && (
+            <button type="button" className="btn btn-small" onClick={handleRefresh} disabled={refreshing}>
+              {refreshing ? "更新中..." : "🔄 立即更新"}
+            </button>
+          )}
+          <button type="button" className="btn btn-small" onClick={() => exportReportToXLSX(sortedRows, gradeLabel)}>
+            📥 匯出 Excel
+          </button>
+        </div>
       </div>
 
       {sortedRows.length === 0 ? (
