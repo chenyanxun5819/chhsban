@@ -66,6 +66,7 @@ interface IncomingRosterSnapshot {
 
 const FIXED_TIME_START = "19:00";
 const FIXED_TIME_END = "21:00";
+const MAX_STUDENTS_PER_CLASS = 30;
 
 async function buildRosterSnapshots(
   env: Env,
@@ -731,6 +732,13 @@ async function handleClasses(
         );
       }
 
+      if (Array.isArray(data.initial_roster) && data.initial_roster.length > MAX_STUDENTS_PER_CLASS) {
+        return jsonResponse(
+          { error: `學生名單共 ${data.initial_roster.length} 人，超過每堂課最多 ${MAX_STUDENTS_PER_CLASS} 人上限` },
+          400,
+        );
+      }
+
       // 產生可讀的申請代碼：tution-{年份後兩碼}-{該年度序號}
       const currentYear = new Date().getFullYear();
       const existingClasses = await kvService.listAllClasses();
@@ -953,6 +961,13 @@ async function handleClasses(
       const body = (await request.json()) as { students?: IncomingRosterSnapshot[] };
       const students = Array.isArray(body.students) ? body.students : [];
 
+      if (students.length > MAX_STUDENTS_PER_CLASS) {
+        return jsonResponse(
+          { error: `學生名單共 ${students.length} 人，超過每堂課最多 ${MAX_STUDENTS_PER_CLASS} 人上限` },
+          400,
+        );
+      }
+
       const existingEntries = await kvService.listRosterByClass(classId);
       await Promise.all(existingEntries.map((entry) => kvService.deleteRosterEntry(entry.roster_id)));
 
@@ -1093,6 +1108,15 @@ async function handleClasses(
       const existingEntry = existingEntries.find((entry) => entry.student_id === resolvedStudentId);
       if (existingEntry?.is_active) {
         return jsonResponse({ error: "該學生已在名單中" }, 400);
+      }
+
+      // 走到這裡代表 existingEntry 不存在或已退出，即將新增一筆在讀紀錄，需檢查人數上限
+      const activeCount = existingEntries.filter((entry) => entry.is_active).length;
+      if (activeCount >= MAX_STUDENTS_PER_CLASS) {
+        return jsonResponse(
+          { error: `已達每堂課最多 ${MAX_STUDENTS_PER_CLASS} 人上限，無法再新增` },
+          400,
+        );
       }
 
       const today = new Date().toISOString().split("T")[0];
