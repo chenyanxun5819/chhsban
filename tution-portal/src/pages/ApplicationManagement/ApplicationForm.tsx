@@ -414,19 +414,39 @@ const ApplicationForm: React.FC = () => {
                   </div>
 
                   {manualStudents.length > 0 && (
-                    <div className="student-list">
-                      {manualStudents.map((student) => (
-                        <div key={student.student_id} className="student-item">
-                          <span>{student.student_no} - {student.name_cn}</span>
-                          <button
-                            type="button"
-                            className="btn btn-small btn-danger"
-                            onClick={() => removeManualStudent(student.student_id)}
-                          >
-                            {t("applicationDetail.remove")}
-                          </button>
-                        </div>
-                      ))}
+                    <div className="student-details-table">
+                      <table>
+                        <thead>
+                          <tr>
+                            <th>{t("field.studentNo")}</th>
+                            <th>{t("applicationForm.col.nameCn")}</th>
+                            <th>Name</th>
+                            <th>{t("applicationForm.col.className")}</th>
+                            <th>{t("applicationForm.col.genderBoarding")}</th>
+                            <th>{t("applicationDetail.remove")}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {manualStudents.map((student) => (
+                            <tr key={student.student_id}>
+                              <td>{student.student_no}</td>
+                              <td>{student.name_cn}</td>
+                              <td>{student.name_en || "-"}</td>
+                              <td>{student.real_class_name || "-"}</td>
+                              <td>{student.gender_boarding || "-"}</td>
+                              <td>
+                                <button
+                                  type="button"
+                                  className="btn btn-small btn-danger"
+                                  onClick={() => removeManualStudent(student.student_id)}
+                                >
+                                  {t("applicationDetail.remove")}
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                 </div>
@@ -660,19 +680,39 @@ const ApplicationForm: React.FC = () => {
                     </div>
 
                     {manualStudents.length > 0 && (
-                      <div className="student-list">
-                        {manualStudents.map((student) => (
-                          <div key={student.student_id} className="student-item">
-                            <span>{student.student_no} - {student.name_cn}</span>
-                            <button
-                              type="button"
-                              className="btn btn-small btn-danger"
-                              onClick={() => removeManualStudent(student.student_id)}
-                            >
-                              {t("applicationDetail.remove")}
-                            </button>
-                          </div>
-                        ))}
+                      <div className="student-details-table mobile">
+                        <table>
+                          <thead>
+                            <tr>
+                              <th>{t("field.studentNo")}</th>
+                              <th>{t("applicationForm.col.nameCn")}</th>
+                              <th>Name</th>
+                              <th>{t("applicationForm.col.className")}</th>
+                              <th>{t("applicationForm.col.genderBoarding")}</th>
+                              <th>{t("applicationDetail.remove")}</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {manualStudents.map((student) => (
+                              <tr key={student.student_id}>
+                                <td>{student.student_no}</td>
+                                <td>{student.name_cn}</td>
+                                <td>{student.name_en || "-"}</td>
+                                <td>{student.real_class_name || "-"}</td>
+                                <td>{student.gender_boarding || "-"}</td>
+                                <td>
+                                  <button
+                                    type="button"
+                                    className="btn btn-small btn-danger"
+                                    onClick={() => removeManualStudent(student.student_id)}
+                                  >
+                                    {t("applicationDetail.remove")}
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
                       </div>
                     )}
                   </div>
