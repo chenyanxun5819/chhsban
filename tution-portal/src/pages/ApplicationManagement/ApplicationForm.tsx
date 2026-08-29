@@ -192,29 +192,16 @@ const ApplicationForm: React.FC = () => {
     </div>
   );
 
-  // 驗證學生名單
+  // 驗證學生名單（僅 CSV 上傳需要；手動輸入的學生已在新增時即時驗證）
   const validateStudentList = async () => {
-    if (studentInputMethod === "csv" && !csvContent.trim()) {
+    if (!csvContent.trim()) {
       setError(t("applicationForm.errorNoCsv"));
-      return;
-    }
-
-    if (studentInputMethod === "manual" && manualStudents.length === 0) {
-      setError(t("applicationForm.errorNoManualStudents"));
       return;
     }
 
     setValidating(true);
     try {
-      let studentIds: string[] = [];
-
-      if (studentInputMethod === "csv") {
-        const lines = parseCSV(csvContent);
-        studentIds = lines;
-      } else {
-        studentIds = manualStudents.map((s) => s.student_id);
-      }
-
+      const studentIds = parseCSV(csvContent);
       const result = await validateStudents(studentIds);
       setValidationResult(result);
 
@@ -247,9 +234,16 @@ const ApplicationForm: React.FC = () => {
       return;
     }
 
-    // 驗證學生名單
-    if (!validationResult || validationResult.valid.length === 0) {
-      setError(t("applicationForm.errorNoValidStudent"));
+    // 學生名單：手動輸入每筆都已即時驗證，直接使用；CSV 則需先完成「驗證名單」
+    const finalRoster =
+      studentInputMethod === "manual" ? manualStudents : validationResult?.valid ?? [];
+
+    if (finalRoster.length === 0) {
+      setError(
+        studentInputMethod === "manual"
+          ? t("applicationForm.errorNoManualStudents")
+          : t("applicationForm.errorNoValidStudent")
+      );
       return;
     }
 
@@ -266,7 +260,7 @@ const ApplicationForm: React.FC = () => {
         start_date: formData.start_date,
         fees: formData.fees,
         venue: "",  // 上課地點由管理者填寫
-        initial_roster: validationResult.valid,
+        initial_roster: finalRoster,
       });
 
       setSuccess(true);
@@ -385,7 +379,11 @@ const ApplicationForm: React.FC = () => {
                     type="radio"
                     value="csv"
                     checked={studentInputMethod === "csv"}
-                    onChange={(e) => setStudentInputMethod(e.target.value as StudentInputMethod)}
+                    onChange={(e) => {
+                      setStudentInputMethod(e.target.value as StudentInputMethod);
+                      setValidationResult(null);
+                      setError(null);
+                    }}
                   />
                   {t("applicationForm.uploadCsv")}
                 </label>
@@ -394,7 +392,11 @@ const ApplicationForm: React.FC = () => {
                     type="radio"
                     value="manual"
                     checked={studentInputMethod === "manual"}
-                    onChange={(e) => setStudentInputMethod(e.target.value as StudentInputMethod)}
+                    onChange={(e) => {
+                      setStudentInputMethod(e.target.value as StudentInputMethod);
+                      setValidationResult(null);
+                      setError(null);
+                    }}
                   />
                   {t("applicationForm.manualInput")}
                 </label>
@@ -444,13 +446,19 @@ const ApplicationForm: React.FC = () => {
                     </button>
                   </div>
 
-                  {manualStudents.length > 0 &&
-                    renderStudentCards(manualStudents, removeManualStudent)}
+                  {manualStudents.length > 0 && (
+                    <div className="validation-result">
+                      <p className="success">
+                        {t("applicationForm.verifySuccess", { count: manualStudents.length })}
+                      </p>
+                      {renderStudentCards(manualStudents, removeManualStudent)}
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* 驗證按鈕 */}
-              {!validationResult && (
+              {/* 驗證按鈕：僅 CSV 上傳需要，手動輸入的學生已即時驗證 */}
+              {studentInputMethod === "csv" && !validationResult && (
                 <div className="form-group">
                   <button
                     type="button"
@@ -463,8 +471,8 @@ const ApplicationForm: React.FC = () => {
                 </div>
               )}
 
-              {/* 驗證結果 */}
-              {validationResult && (
+              {/* 驗證結果（CSV 上傳） */}
+              {studentInputMethod === "csv" && validationResult && (
                 <div className="validation-result">
                   <p className="success">{t("applicationForm.verifySuccess", { count: validationResult.valid.length })}</p>
 
@@ -495,7 +503,10 @@ const ApplicationForm: React.FC = () => {
                 type="button"
                 className="btn btn-primary"
                 onClick={submitApplication}
-                disabled={loading || !validationResult}
+                disabled={
+                  loading ||
+                  (studentInputMethod === "manual" ? manualStudents.length === 0 : !validationResult)
+                }
               >
                 {loading ? t("applicationForm.submitting") : t("applicationForm.submit")}
               </button>
@@ -607,7 +618,11 @@ const ApplicationForm: React.FC = () => {
                       type="radio"
                       value="csv"
                       checked={studentInputMethod === "csv"}
-                      onChange={(e) => setStudentInputMethod(e.target.value as StudentInputMethod)}
+                      onChange={(e) => {
+                      setStudentInputMethod(e.target.value as StudentInputMethod);
+                      setValidationResult(null);
+                      setError(null);
+                    }}
                     />
                     {t("applicationForm.uploadCsv")}
                   </label>
@@ -616,7 +631,11 @@ const ApplicationForm: React.FC = () => {
                       type="radio"
                       value="manual"
                       checked={studentInputMethod === "manual"}
-                      onChange={(e) => setStudentInputMethod(e.target.value as StudentInputMethod)}
+                      onChange={(e) => {
+                      setStudentInputMethod(e.target.value as StudentInputMethod);
+                      setValidationResult(null);
+                      setError(null);
+                    }}
                     />
                     {t("applicationForm.manualInput")}
                   </label>
@@ -652,12 +671,19 @@ const ApplicationForm: React.FC = () => {
                       </button>
                     </div>
 
-                    {manualStudents.length > 0 &&
-                      renderStudentCards(manualStudents, removeManualStudent)}
+                    {manualStudents.length > 0 && (
+                      <div className="validation-result">
+                        <p className="success">
+                          {t("applicationForm.verifySuccess", { count: manualStudents.length })}
+                        </p>
+                        {renderStudentCards(manualStudents, removeManualStudent)}
+                      </div>
+                    )}
                   </div>
                 )}
 
-                {!validationResult && (
+                {/* 驗證按鈕：僅 CSV 上傳需要，手動輸入的學生已即時驗證 */}
+                {studentInputMethod === "csv" && !validationResult && (
                   <div className="form-group">
                     <button
                       type="button"
@@ -670,7 +696,7 @@ const ApplicationForm: React.FC = () => {
                   </div>
                 )}
 
-                {validationResult && (
+                {studentInputMethod === "csv" && validationResult && (
                   <div className="validation-result">
                     <p className="success">{t("applicationForm.verifySuccess", { count: validationResult.valid.length })}</p>
 
@@ -699,7 +725,10 @@ const ApplicationForm: React.FC = () => {
                     type="button"
                     className="btn btn-primary"
                     onClick={submitApplication}
-                    disabled={loading || !validationResult}
+                    disabled={
+                      loading ||
+                      (studentInputMethod === "manual" ? manualStudents.length === 0 : !validationResult)
+                    }
                   >
                     {loading ? t("applicationForm.submitting") : t("applicationForm.submit")}
                   </button>
