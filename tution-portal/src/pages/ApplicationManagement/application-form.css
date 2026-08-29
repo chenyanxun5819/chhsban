@@ -173,31 +173,87 @@
   min-width: 96px;
 }
 
-/* ========== 學生列表 ========== */
+/* ========== 學生列表（卡片式，取代擁擠的表格） ========== */
 
-.student-list {
-  margin-top: var(--spacing-md);
-  border-top: 1px solid var(--border-color);
-  padding-top: var(--spacing-md);
-}
-
-.student-item {
+.app-student-list {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: var(--spacing-sm) var(--spacing-md);
+  flex-direction: column;
+  gap: 8px;
+  margin-top: var(--spacing-md);
+}
+
+.app-student-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
   background: var(--bg-light);
-  border-radius: 4px;
-  margin-bottom: 8px;
+  border: 1px solid var(--border-color);
+  border-left: 4px solid #007bff;
+  border-radius: 6px;
+}
+
+.app-student-line-1 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.app-student-no {
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+}
+
+.app-name-cn {
   font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
 }
 
-.student-item span {
-  flex: 1;
+.app-name-en {
+  font-size: 12px;
+  color: #666;
 }
 
-.student-item .btn {
-  flex-shrink: 0;
+.app-student-line-2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.app-class-badge {
+  font-size: 12px;
+  color: #666;
+  background: #e3f2fd;
+  padding: 3px 8px;
+  border-radius: 4px;
+}
+
+.app-gender-badge {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+}
+
+.btn-remove-student {
+  margin-left: auto;
+  padding: 3px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border: 1px solid #dc3545;
+  background: transparent;
+  color: #dc3545;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-remove-student:hover {
+  background: #dc3545;
+  color: #fff;
 }
 
 /* ========== 驗證結果 ========== */
@@ -435,53 +491,3 @@
   flex: 1;
 }
 
-/* ========== 學生詳細信息表 ========== */
-
-.student-details-table {
-  margin-top: var(--spacing-md);
-  overflow-x: auto;
-}
-
-.student-details-table table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 14px;
-}
-
-.student-details-table th {
-  background: var(--bg-light);
-  padding: 10px 12px;
-  text-align: left;
-  font-weight: 600;
-  color: var(--text-primary);
-  border-bottom: 2px solid var(--border-color);
-  white-space: nowrap;
-}
-
-.student-details-table td {
-  padding: 10px 12px;
-  border-bottom: 1px solid var(--border-color);
-}
-
-.student-details-table tbody tr:hover {
-  background: var(--bg-light);
-}
-
-/* 手機版學生詳細信息表 */
-.student-details-table.mobile {
-  font-size: 12px;
-}
-
-.student-details-table.mobile th {
-  padding: 8px 10px;
-}
-
-.student-details-table.mobile td {
-  padding: 8px 10px;
-}
-
-.student-details-table.mobile th,
-.student-details-table.mobile td {
-  white-space: normal;
-  word-break: break-word;
-}

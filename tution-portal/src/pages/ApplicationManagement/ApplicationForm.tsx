@@ -161,6 +161,37 @@ const ApplicationForm: React.FC = () => {
     setManualStudents((prev) => prev.filter((s) => s.student_id !== studentId));
   };
 
+  // 學生名單卡片（手動輸入 / 驗證結果共用），取代擁擠的表格版型
+  const renderStudentCards = (
+    list: TutionRosterSnapshot[],
+    onRemove?: (studentId: string) => void
+  ) => (
+    <div className="app-student-list">
+      {list.map((student) => (
+        <div key={student.student_id} className="app-student-row">
+          <div className="app-student-line-1">
+            <span className="app-student-no">{student.student_no}</span>
+            <span className="app-name-cn">{student.name_cn}</span>
+            <span className="app-name-en">{student.name_en || "-"}</span>
+          </div>
+          <div className="app-student-line-2">
+            <span className="app-class-badge">{student.real_class_name || "-"}</span>
+            <span className="app-gender-badge">{student.gender_boarding || "-"}</span>
+            {onRemove && (
+              <button
+                type="button"
+                className="btn-remove-student"
+                onClick={() => onRemove(student.student_id)}
+              >
+                {t("applicationDetail.remove")}
+              </button>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   // 驗證學生名單
   const validateStudentList = async () => {
     if (studentInputMethod === "csv" && !csvContent.trim()) {
@@ -413,42 +444,8 @@ const ApplicationForm: React.FC = () => {
                     </button>
                   </div>
 
-                  {manualStudents.length > 0 && (
-                    <div className="student-details-table">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>{t("field.studentNo")}</th>
-                            <th>{t("applicationForm.col.nameCn")}</th>
-                            <th>Name</th>
-                            <th>{t("applicationForm.col.className")}</th>
-                            <th>{t("applicationForm.col.genderBoarding")}</th>
-                            <th>{t("applicationDetail.remove")}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {manualStudents.map((student) => (
-                            <tr key={student.student_id}>
-                              <td>{student.student_no}</td>
-                              <td>{student.name_cn}</td>
-                              <td>{student.name_en || "-"}</td>
-                              <td>{student.real_class_name || "-"}</td>
-                              <td>{student.gender_boarding || "-"}</td>
-                              <td>
-                                <button
-                                  type="button"
-                                  className="btn btn-small btn-danger"
-                                  onClick={() => removeManualStudent(student.student_id)}
-                                >
-                                  {t("applicationDetail.remove")}
-                                </button>
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  {manualStudents.length > 0 &&
+                    renderStudentCards(manualStudents, removeManualStudent)}
                 </div>
               )}
 
@@ -472,32 +469,8 @@ const ApplicationForm: React.FC = () => {
                   <p className="success">{t("applicationForm.verifySuccess", { count: validationResult.valid.length })}</p>
 
                   {/* 學生詳細信息表 */}
-                  {validationResult.valid.length > 0 && (
-                    <div className="student-details-table">
-                      <table>
-                        <thead>
-                          <tr>
-                            <th>{t("field.studentNo")}</th>
-                            <th>{t("applicationForm.col.nameCn")}</th>
-                            <th>Name</th>
-                            <th>{t("applicationForm.col.className")}</th>
-                            <th>{t("applicationForm.col.genderBoarding")}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {validationResult.valid.map((student) => (
-                            <tr key={student.student_id}>
-                              <td>{student.student_no}</td>
-                              <td>{student.name_cn}</td>
-                              <td>{student.name_en || "-"}</td>
-                              <td>{student.real_class_name || "-"}</td>
-                              <td>{student.gender_boarding || "-"}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  )}
+                  {validationResult.valid.length > 0 &&
+                    renderStudentCards(validationResult.valid)}
 
                   {validationResult.invalid.length > 0 && (
                     <p className="warning">
@@ -679,42 +652,8 @@ const ApplicationForm: React.FC = () => {
                       </button>
                     </div>
 
-                    {manualStudents.length > 0 && (
-                      <div className="student-details-table mobile">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>{t("field.studentNo")}</th>
-                              <th>{t("applicationForm.col.nameCn")}</th>
-                              <th>Name</th>
-                              <th>{t("applicationForm.col.className")}</th>
-                              <th>{t("applicationForm.col.genderBoarding")}</th>
-                              <th>{t("applicationDetail.remove")}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {manualStudents.map((student) => (
-                              <tr key={student.student_id}>
-                                <td>{student.student_no}</td>
-                                <td>{student.name_cn}</td>
-                                <td>{student.name_en || "-"}</td>
-                                <td>{student.real_class_name || "-"}</td>
-                                <td>{student.gender_boarding || "-"}</td>
-                                <td>
-                                  <button
-                                    type="button"
-                                    className="btn btn-small btn-danger"
-                                    onClick={() => removeManualStudent(student.student_id)}
-                                  >
-                                    {t("applicationDetail.remove")}
-                                  </button>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                    {manualStudents.length > 0 &&
+                      renderStudentCards(manualStudents, removeManualStudent)}
                   </div>
                 )}
 
@@ -736,32 +675,8 @@ const ApplicationForm: React.FC = () => {
                     <p className="success">{t("applicationForm.verifySuccess", { count: validationResult.valid.length })}</p>
 
                     {/* 學生詳細信息表 */}
-                    {validationResult.valid.length > 0 && (
-                      <div className="student-details-table mobile">
-                        <table>
-                          <thead>
-                            <tr>
-                              <th>{t("field.studentNo")}</th>
-                              <th>{t("applicationForm.col.nameCn")}</th>
-                              <th>Name</th>
-                              <th>{t("applicationForm.col.className")}</th>
-                              <th>{t("applicationForm.col.genderBoarding")}</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            {validationResult.valid.map((student) => (
-                              <tr key={student.student_id}>
-                                <td>{student.student_no}</td>
-                                <td>{student.name_cn}</td>
-                                <td>{student.name_en}</td>
-                                <td>{student.real_class_name || "-"}</td>
-                                <td>{student.gender_boarding || "-"}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
+                    {validationResult.valid.length > 0 &&
+                      renderStudentCards(validationResult.valid)}
 
                     {validationResult.invalid.length > 0 && (
                       <p className="warning">
