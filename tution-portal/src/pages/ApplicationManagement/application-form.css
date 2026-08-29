@@ -33,6 +33,11 @@
   border-left: 4px solid #52c41a;
 }
 
+/* 逐個輸入學生時，行內錯誤提示（如「學生不存在」），顯示在輸入框正下方而非頁面頂部 */
+.inline-alert {
+  margin-top: var(--spacing-sm);
+}
+
 /* ========== 表單區段 ========== */
 
 .form-section {

@@ -59,6 +59,7 @@ const ApplicationForm: React.FC = () => {
   const [csvContent, setCsvContent] = useState("");
   const [manualStudents, setManualStudents] = useState<TutionRosterSnapshot[]>([]);
   const [newStudentId, setNewStudentId] = useState("");
+  const [manualInputError, setManualInputError] = useState<string | null>(null);
 
   // 驗證結果
   const [validationResult, setValidationResult] = useState<{
@@ -128,9 +129,10 @@ const ApplicationForm: React.FC = () => {
   };
 
   // 新增學生 (手動輸入)
+  // 錯誤提示顯示在輸入框下方（manualInputError），而非頁面頂部，避免手機下滑後看不到
   const addManualStudent = async () => {
     if (!newStudentId.trim()) {
-      setError(t("applicationDetail.errorStudentIdRequired"));
+      setManualInputError(t("applicationDetail.errorStudentIdRequired"));
       return;
     }
 
@@ -142,15 +144,15 @@ const ApplicationForm: React.FC = () => {
         if (!manualStudents.find((s) => s.student_id === newStudent.student_id)) {
           setManualStudents((prev) => [...prev, newStudent]);
           setNewStudentId("");
-          setError(null);
+          setManualInputError(null);
         } else {
-          setError(t("applicationForm.errorStudentDuplicate"));
+          setManualInputError(t("applicationForm.errorStudentDuplicate"));
         }
       } else {
-        setError(t("applicationDetail.errorStudentNotFound", { id: newStudentId }));
+        setManualInputError(t("applicationDetail.errorStudentNotFound", { id: newStudentId }));
       }
     } catch (err) {
-      setError(t("applicationDetail.errorVerifyFailed"));
+      setManualInputError(t("applicationDetail.errorVerifyFailed"));
     } finally {
       setValidating(false);
     }
@@ -383,6 +385,7 @@ const ApplicationForm: React.FC = () => {
                       setStudentInputMethod(e.target.value as StudentInputMethod);
                       setValidationResult(null);
                       setError(null);
+                      setManualInputError(null);
                     }}
                   />
                   {t("applicationForm.uploadCsv")}
@@ -396,6 +399,7 @@ const ApplicationForm: React.FC = () => {
                       setStudentInputMethod(e.target.value as StudentInputMethod);
                       setValidationResult(null);
                       setError(null);
+                      setManualInputError(null);
                     }}
                   />
                   {t("applicationForm.manualInput")}
@@ -445,6 +449,10 @@ const ApplicationForm: React.FC = () => {
                       {validating ? t("applicationDetail.verifying") : t("applicationForm.add")}
                     </button>
                   </div>
+
+                  {manualInputError && (
+                    <div className="alert alert-error inline-alert">{manualInputError}</div>
+                  )}
 
                   {manualStudents.length > 0 && (
                     <div className="validation-result">
@@ -622,6 +630,7 @@ const ApplicationForm: React.FC = () => {
                       setStudentInputMethod(e.target.value as StudentInputMethod);
                       setValidationResult(null);
                       setError(null);
+                      setManualInputError(null);
                     }}
                     />
                     {t("applicationForm.uploadCsv")}
@@ -635,6 +644,7 @@ const ApplicationForm: React.FC = () => {
                       setStudentInputMethod(e.target.value as StudentInputMethod);
                       setValidationResult(null);
                       setError(null);
+                      setManualInputError(null);
                     }}
                     />
                     {t("applicationForm.manualInput")}
@@ -670,6 +680,10 @@ const ApplicationForm: React.FC = () => {
                         {t("applicationForm.add")}
                       </button>
                     </div>
+
+                    {manualInputError && (
+                      <div className="alert alert-error inline-alert">{manualInputError}</div>
+                    )}
 
                     {manualStudents.length > 0 && (
                       <div className="validation-result">
