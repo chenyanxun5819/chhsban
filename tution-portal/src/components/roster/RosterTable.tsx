@@ -1,6 +1,7 @@
 import React from "react";
 import { useTranslation } from "react-i18next";
 import { ClassRosterEntry } from "@/types";
+import { MAX_STUDENTS_PER_CLASS } from "@/utils/validators";
 import RosterRow from "./RosterRow";
 
 interface RosterTableProps {
@@ -66,8 +67,12 @@ const RosterTable: React.FC<RosterTableProps> = ({
     setCurrentPage(1);
   }, [searchTerm, filterStatus]);
 
+  const activeCount = roster.filter((s) => s.is_active).length;
+  const withdrawnCount = roster.filter((s) => !s.is_active).length;
+  const atCapacity = activeCount >= MAX_STUDENTS_PER_CLASS;
+
   const handleAddStudent = async () => {
-    if (!newStudentId.trim()) return;
+    if (!newStudentId.trim() || atCapacity) return;
     setAdding(true);
     try {
       await onAddStudent(newStudentId.trim());
@@ -76,9 +81,6 @@ const RosterTable: React.FC<RosterTableProps> = ({
       setAdding(false);
     }
   };
-
-  const activeCount = roster.filter((s) => s.is_active).length;
-  const withdrawnCount = roster.filter((s) => !s.is_active).length;
 
   return (
     <div className="roster-table">
@@ -90,13 +92,21 @@ const RosterTable: React.FC<RosterTableProps> = ({
               type="text"
               value={newStudentId}
               onChange={(e) => setNewStudentId(e.target.value)}
-              placeholder={t("roster.addStudentPlaceholder")}
-              disabled={loading || adding}
+              placeholder={
+                atCapacity
+                  ? t("roster.maxCapacityReached", { max: MAX_STUDENTS_PER_CLASS })
+                  : t("roster.addStudentPlaceholder")
+              }
+              disabled={loading || adding || atCapacity}
               onKeyPress={(e) => {
                 if (e.key === "Enter") handleAddStudent();
               }}
             />
-            <button className="btn btn-primary" onClick={handleAddStudent} disabled={loading || adding}>
+            <button
+              className="btn btn-primary"
+              onClick={handleAddStudent}
+              disabled={loading || adding || atCapacity}
+            >
               {adding ? t("roster.adding") : t("roster.addStudent")}
             </button>
           </div>
@@ -111,6 +121,12 @@ const RosterTable: React.FC<RosterTableProps> = ({
           </button>
         </div>
       </div>
+
+      {!readOnly && atCapacity && (
+        <p className="capacity-warning">
+          {t("roster.maxCapacityReached", { max: MAX_STUDENTS_PER_CLASS })}
+        </p>
+      )}
 
       {/* 搜尋欄 */}
       <div className="search-bar">

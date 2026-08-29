@@ -173,6 +173,12 @@
   min-width: 0;
 }
 
+.student-count-hint {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
 .student-input-row .btn {
   flex: 0 0 33.3333%;
   min-width: 96px;

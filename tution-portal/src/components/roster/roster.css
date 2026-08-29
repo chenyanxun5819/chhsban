@@ -34,6 +34,15 @@
   min-width: 200px;
 }
 
+.capacity-warning {
+  margin: -8px 0 16px;
+  padding: 8px 12px;
+  background: #fff3cd;
+  color: #856404;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
 .add-student-row input:focus {
   outline: none;
   border-color: #007bff;

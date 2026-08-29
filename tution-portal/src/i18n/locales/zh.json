@@ -275,6 +275,8 @@
     "errorNoManualStudents": "請至少新增一名學生",
     "errorInvalidStudentsList": "{{count}} 名學生不存在: {{list}}",
     "errorNoValidStudent": "請選擇至少一名學生",
+    "errorMaxStudents": "已達每堂課最多 {{max}} 人上限，無法再新增",
+    "errorMaxStudentsCsv": "名單共 {{count}} 人，超過每堂課最多 {{max}} 人上限，請調整名單後重新上傳",
     "errorSubmitFailed": "提交失敗，請重試"
   },
   "schedule": {
@@ -352,6 +354,7 @@
     "enrolledLabel": "加入: {{date}}",
     "withdrawnLabel": "退出: {{date}}",
     "addStudentPlaceholder": "輸入學生 ID 新增",
+    "maxCapacityReached": "⚠️ 已達每堂課最多 {{max}} 人上限",
     "adding": "新增中...",
     "addStudent": "+ 新增學生",
     "exportExcel": "📥 匯出 Excel",

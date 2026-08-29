@@ -275,6 +275,8 @@
     "errorNoManualStudents": "Please add at least one student",
     "errorInvalidStudentsList": "{{count}} students not found: {{list}}",
     "errorNoValidStudent": "Please select at least one student",
+    "errorMaxStudents": "Reached the maximum of {{max}} students per class, cannot add more",
+    "errorMaxStudentsCsv": "The list has {{count}} students, exceeding the maximum of {{max}} per class. Please adjust and re-upload",
     "errorSubmitFailed": "Submission failed, please try again"
   },
   "schedule": {
@@ -352,6 +354,7 @@
     "enrolledLabel": "Enrolled: {{date}}",
     "withdrawnLabel": "Withdrawn: {{date}}",
     "addStudentPlaceholder": "Enter student ID to add",
+    "maxCapacityReached": "⚠️ Reached the maximum of {{max}} students per class",
     "adding": "Adding...",
     "addStudent": "+ Add Student",
     "exportExcel": "📥 Export Excel",

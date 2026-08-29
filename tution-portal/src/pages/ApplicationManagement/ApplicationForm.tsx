@@ -9,6 +9,7 @@ import {
   FORMS,
   FIXED_TIME_START,
   FIXED_TIME_END,
+  MAX_STUDENTS_PER_CLASS,
   getMinDate,
   getDayOfWeekFromDate,
   parseCSV,
@@ -136,6 +137,11 @@ const ApplicationForm: React.FC = () => {
       return;
     }
 
+    if (manualStudents.length >= MAX_STUDENTS_PER_CLASS) {
+      setManualInputError(t("applicationForm.errorMaxStudents", { max: MAX_STUDENTS_PER_CLASS }));
+      return;
+    }
+
     setValidating(true);
     try {
       const result = await validateStudents([newStudentId]);
@@ -207,7 +213,14 @@ const ApplicationForm: React.FC = () => {
       const result = await validateStudents(studentIds);
       setValidationResult(result);
 
-      if (result.invalid.length > 0) {
+      if (result.valid.length > MAX_STUDENTS_PER_CLASS) {
+        setError(
+          t("applicationForm.errorMaxStudentsCsv", {
+            count: result.valid.length,
+            max: MAX_STUDENTS_PER_CLASS,
+          })
+        );
+      } else if (result.invalid.length > 0) {
         setError(
           t("applicationForm.errorInvalidStudentsList", {
             count: result.invalid.length,
@@ -245,6 +258,16 @@ const ApplicationForm: React.FC = () => {
         studentInputMethod === "manual"
           ? t("applicationForm.errorNoManualStudents")
           : t("applicationForm.errorNoValidStudent")
+      );
+      return;
+    }
+
+    if (finalRoster.length > MAX_STUDENTS_PER_CLASS) {
+      setError(
+        t("applicationForm.errorMaxStudentsCsv", {
+          count: finalRoster.length,
+          max: MAX_STUDENTS_PER_CLASS,
+        })
       );
       return;
     }
@@ -427,13 +450,19 @@ const ApplicationForm: React.FC = () => {
                 </div>
               ) : (
                 <div className="form-group">
-                  <label>{t("applicationForm.manualInputLabel")}</label>
+                  <label>
+                    {t("applicationForm.manualInputLabel")}
+                    <span className="student-count-hint">
+                      {" "}({manualStudents.length}/{MAX_STUDENTS_PER_CLASS})
+                    </span>
+                  </label>
                   <div className="student-input-row">
                     <input
                       type="text"
                       value={newStudentId}
                       onChange={(e) => setNewStudentId(e.target.value)}
                       placeholder={t("applicationDetail.studentIdPlaceholder")}
+                      disabled={manualStudents.length >= MAX_STUDENTS_PER_CLASS}
                       onKeyPress={(e) => {
                         if (e.key === "Enter") {
                           addManualStudent();
@@ -444,7 +473,7 @@ const ApplicationForm: React.FC = () => {
                       type="button"
                       className="btn btn-secondary"
                       onClick={addManualStudent}
-                      disabled={validating}
+                      disabled={validating || manualStudents.length >= MAX_STUDENTS_PER_CLASS}
                     >
                       {validating ? t("applicationDetail.verifying") : t("applicationForm.add")}
                     </button>
@@ -513,7 +542,9 @@ const ApplicationForm: React.FC = () => {
                 onClick={submitApplication}
                 disabled={
                   loading ||
-                  (studentInputMethod === "manual" ? manualStudents.length === 0 : !validationResult)
+                  (studentInputMethod === "manual"
+                    ? manualStudents.length === 0
+                    : !validationResult || validationResult.valid.length > MAX_STUDENTS_PER_CLASS)
                 }
               >
                 {loading ? t("applicationForm.submitting") : t("applicationForm.submit")}
@@ -663,19 +694,25 @@ const ApplicationForm: React.FC = () => {
                   </div>
                 ) : (
                   <div className="form-group">
-                    <label>{t("applicationForm.manualInputLabel")}</label>
+                    <label>
+                      {t("applicationForm.manualInputLabel")}
+                      <span className="student-count-hint">
+                        {" "}({manualStudents.length}/{MAX_STUDENTS_PER_CLASS})
+                      </span>
+                    </label>
                     <div className="student-input-row">
                       <input
                         type="text"
                         value={newStudentId}
                         onChange={(e) => setNewStudentId(e.target.value)}
                         placeholder={t("applicationDetail.studentIdPlaceholder")}
+                        disabled={manualStudents.length >= MAX_STUDENTS_PER_CLASS}
                       />
                       <button
                         type="button"
                         className="btn btn-secondary"
                         onClick={addManualStudent}
-                        disabled={validating}
+                        disabled={validating || manualStudents.length >= MAX_STUDENTS_PER_CLASS}
                       >
                         {t("applicationForm.add")}
                       </button>
@@ -741,7 +778,9 @@ const ApplicationForm: React.FC = () => {
                     onClick={submitApplication}
                     disabled={
                       loading ||
-                      (studentInputMethod === "manual" ? manualStudents.length === 0 : !validationResult)
+                      (studentInputMethod === "manual"
+                    ? manualStudents.length === 0
+                    : !validationResult || validationResult.valid.length > MAX_STUDENTS_PER_CLASS)
                     }
                   >
                     {loading ? t("applicationForm.submitting") : t("applicationForm.submit")}

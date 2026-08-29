@@ -174,3 +174,8 @@ export function getDayOfWeekFromDate(dateStr: string): string {
 
 export const FIXED_TIME_START = "19:00";
 export const FIXED_TIME_END = "21:00";
+
+/**
+ * 每堂課學生人數上限
+ */
+export const MAX_STUDENTS_PER_CLASS = 30;
