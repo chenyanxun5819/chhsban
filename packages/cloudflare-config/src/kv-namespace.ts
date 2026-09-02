@@ -51,6 +51,11 @@ export const KV_NAMESPACES = {
     binding: "CLASSROOM_KV",
     id: "43882431a6344d929976a1281ffca873",
     description: "教室管理系統 - 存放教室資料（編號、名稱、班級、桌數、補習選用狀態）",
+  },
+  AUDIT_LOG_KV: {
+    binding: "AUDIT_LOG_KV",
+    id: "b04b855097f848cebbb8d71207f4159c",
+    description: "補習班系統 - 審計日誌（roster 增刪、審批、收據審核、密碼重設等關鍵操作的 who/when/what 記錄）",
   }
 } as const;
 

@@ -45,6 +45,10 @@ id = "43882431a6344d929976a1281ffca873"
 binding = "ASSETS_KV"
 id = "3159009d636640369959187fb7f85eee"
 
+[[kv_namespaces]]
+binding = "AUDIT_LOG_KV"
+id = "b04b855097f848cebbb8d71207f4159c"
+
 # R2 綁定配置（簽核紙本掃描檔存檔備份用）
 [[r2_buckets]]
 binding = "SIGNED_FORMS_BUCKET"
@@ -96,6 +100,10 @@ id = "25e53baf7822443ca6c3bc0ec0045fc8"
 [[env.production.kv_namespaces]]
 binding = "TUTION_SCHEDULE_KV"
 id = "f95d69ef1fc347f29c9936605e9ccfde"
+
+[[env.production.kv_namespaces]]
+binding = "AUDIT_LOG_KV"
+id = "04c9aeb5a82147f7a354e99d9dc56670"
 
 # 環境變數
 [env.production.vars]

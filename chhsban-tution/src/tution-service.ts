@@ -21,6 +21,28 @@ import {
  * 限制: 1,000 PUT/天（所有系統共享）
  * 詳見: /memories/repo/PUT操作成本清單.md
  */
+/**
+ * 出勤新增制下，同一 class_id+student_id+class_date 可能存在多筆歷史紀錄（每次點名都新增，
+ * 不覆寫），只有「最新一筆」代表目前狀態。用 (recorded_at, attendance_id) 排序取每組最大值；
+ * attendance_id 內嵌 13 位毫秒時間戳，字典序可比較，在 recorded_at 相同（同一次 bulk 呼叫）
+ * 時當 tie-break。course-report.ts 的報表計算也共用這個函式，避免歷史版本被重複計入。
+ */
+export function dedupeToLatestAttendance(records: TutionAttendance[]): TutionAttendance[] {
+  const latestByGroup = new Map<string, TutionAttendance>();
+  for (const record of records) {
+    const key = `${record.class_id}|${record.student_id}|${record.class_date}`;
+    const current = latestByGroup.get(key);
+    if (
+      !current ||
+      record.recorded_at > current.recorded_at ||
+      (record.recorded_at === current.recorded_at && record.attendance_id > current.attendance_id)
+    ) {
+      latestByGroup.set(key, record);
+    }
+  }
+  return Array.from(latestByGroup.values());
+}
+
 // 系統設定用的保留 key，不會被 "class_" 前綴的清單掃描掃到
 const LAST_TEACHING_DATE_KEY = "system:last_teaching_date";
 // 「各課程開課報表」快取，每日凌晨由 Cron Trigger 重新計算並整批存入，前端一律讀這份快照，
@@ -243,7 +265,7 @@ export class TutionKVService implements TutionKVManager {
         a !== null && a.student_id === studentId && a.class_id === classId,
     );
 
-    return records.sort(
+    return dedupeToLatestAttendance(records).sort(
       (a: TutionAttendance, b: TutionAttendance) =>
         new Date(a.class_date).getTime() - new Date(b.class_date).getTime(),
     );
@@ -258,7 +280,7 @@ export class TutionKVService implements TutionKVManager {
       (a: any): a is TutionAttendance => a !== null && a.class_id === classId,
     );
 
-    return records.sort(
+    return dedupeToLatestAttendance(records).sort(
       (a: TutionAttendance, b: TutionAttendance) =>
         new Date(a.class_date).getTime() - new Date(b.class_date).getTime(),
     );
@@ -287,6 +309,8 @@ export class TutionKVService implements TutionKVManager {
     return records;
   }
 
+  // 不再用於 bulk 點名流程（該流程已改為新增制，見 index.ts 的 handleAttendance）；
+  // 保留給未來「管理員手動修正單筆紀錄」這類用途。
   async updateAttendanceRecord(
     attendanceId: string,
     updates: Partial<TutionAttendance>,

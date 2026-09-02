@@ -13,6 +13,7 @@
 import type { TeacherKVManager } from "@chhsban/kv-utils";
 import type { TutionClass, TutionSchedule, TutionRoster, TutionAttendance } from "@chhsban/kv-utils";
 import type { TutionKVService } from "./tution-service";
+import { dedupeToLatestAttendance } from "./tution-service";
 
 const DAY_NAME_TO_INDEX: Record<string, number> = {
   sunday: 0,
@@ -191,7 +192,10 @@ export async function computeCourseReport(
   const teacherNameById = new Map(allTeachers.map((t) => [t.teacher_id, t.name_cn || t.name_en || ""]));
   const schedulesByClass = groupByClassId(allSchedules);
   const rosterByClass = groupByClassId(allRoster as unknown as Array<TutionRoster & { class_id: string }>);
-  const attendanceByClass = groupByClassId(allAttendance as unknown as Array<TutionAttendance & { class_id: string }>);
+  // 出勤新增制下 allAttendance 可能含同一 class_id+student_id+class_date 的多筆歷史紀錄，
+  // 先收斂成每組最新一筆，避免出席率/各狀態計數被歷史版本重複計入。
+  const dedupedAttendance = dedupeToLatestAttendance(allAttendance);
+  const attendanceByClass = groupByClassId(dedupedAttendance as unknown as Array<TutionAttendance & { class_id: string }>);
 
   const today = new Date();
 

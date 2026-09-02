@@ -30,6 +30,7 @@ import { getSemesterInfo } from "./semester";
 import { buildReceiptKey, getReceiptResponse, isAllowedReceiptContentType, isSemesterHalf, type ReceiptRecord } from "./receipt";
 import { ocrReceiptImage } from "./google-vision";
 import { computeCourseReport } from "./course-report";
+import { logAudit } from "./audit";
 
 interface Env {
   STUDENT_KV: KVNamespace;
@@ -41,6 +42,7 @@ interface Env {
   TUTION_SCHEDULE_KV: KVNamespace;
   CLASSROOM_KV: KVNamespace;
   ASSETS_KV: KVNamespace;
+  AUDIT_LOG_KV: KVNamespace;
   SIGNED_FORMS_BUCKET: R2Bucket;
   GOOGLE_SHEETS_API_KEY?: string;
   GOOGLE_SHEETS_SPREADSHEET_ID: string;
@@ -447,7 +449,7 @@ async function handleAuthLoginPassword(request: Request, env: Env): Promise<Resp
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
     const url = new URL(request.url);
     const pathname = url.pathname;
 
@@ -536,7 +538,7 @@ export default {
       }
 
       if (pathname.startsWith("/api/v1/classes")) {
-        return handleClasses(request, env, session);
+        return handleClasses(request, env, session, ctx);
       }
 
       if (pathname.startsWith("/api/v1/settings")) {
@@ -560,7 +562,7 @@ export default {
       }
 
       if (pathname.startsWith("/api/admin/teachers")) {
-        return handleAdminTeachers(request, env, session);
+        return handleAdminTeachers(request, env, session, ctx);
       }
 
       return jsonResponse({ error: "Not found" }, 404);
@@ -671,6 +673,7 @@ async function handleClasses(
   request: Request,
   env: Env,
   session: any,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   const url = new URL(request.url);
   const method = request.method;
@@ -899,6 +902,18 @@ async function handleClasses(
             };
 
       const updated = await kvService.updateClass(classId, updates);
+
+      ctx.waitUntil(
+        logAudit(env, {
+          action: subAction === "approve" ? "class.approve" : "class.reject",
+          target_type: "class",
+          target_id: classId,
+          actor_id: session.teacher_id,
+          actor_permission: session.permission,
+          before: { approval_status: tutionClass.approval_status },
+          after: updates,
+        }),
+      );
 
       try {
         await syncClassDataToSheets(env, kvService);
@@ -1145,6 +1160,18 @@ async function handleClasses(
             gender_boarding: student.gender_boarding || "-",
           } as any);
 
+      ctx.waitUntil(
+        logAudit(env, {
+          action: "roster.add",
+          target_type: "roster",
+          target_id: entry.roster_id,
+          actor_id: session.teacher_id,
+          actor_permission: session.permission,
+          metadata: { class_id: classId, student_id: resolvedStudentId },
+          after: { roster_id: entry.roster_id, enrollment_date: entry.enrollment_date },
+        }),
+      );
+
       try {
         await syncClassDataToSheets(env, kvService);
       } catch (syncError) {
@@ -1191,6 +1218,19 @@ async function handleClasses(
 
       const body = (await request.json().catch(() => ({}))) as { reason?: string };
       await kvService.removeStudentFromRoster(subId, body.reason || "");
+
+      ctx.waitUntil(
+        logAudit(env, {
+          action: "roster.withdraw",
+          target_type: "roster",
+          target_id: subId,
+          actor_id: session.teacher_id,
+          actor_permission: session.permission,
+          metadata: { class_id: classId, student_id: entry.student_id },
+          before: { withdrawal_date: entry.withdrawal_date ?? null, withdrawal_reason: entry.withdrawal_reason ?? null },
+          after: { withdrawal_date: new Date().toISOString().split("T")[0], withdrawal_reason: body.reason || "" },
+        }),
+      );
 
       try {
         await syncClassDataToSheets(env, kvService);
@@ -1477,6 +1517,19 @@ async function handleClasses(
         [fieldName]: updatedReceipt,
       } as any);
 
+      ctx.waitUntil(
+        logAudit(env, {
+          action: "receipt.review",
+          target_type: "class",
+          target_id: classId,
+          actor_id: session.teacher_id,
+          actor_permission: session.permission,
+          metadata: { half },
+          before: existing,
+          after: updatedReceipt,
+        }),
+      );
+
       return jsonResponse({ data: updated }, 200);
     }
 
@@ -1564,9 +1617,12 @@ async function handleMyClasses(
 /**
  * 點名（出勤紀錄）查詢與寫入
  *
- * GET  /api/v1/attendance?class={id}  - 查詢整班出勤紀錄（唯讀，排課表格/出勤統計頁使用）
- * POST /api/v1/attendance/bulk        - 批次寫入（覆寫）某班某日期全體學生的點名結果，
- *                                        不保留修改歷史；同一學生同一日期已有紀錄則直接覆寫。
+ * GET  /api/v1/attendance?class={id}  - 查詢整班出勤紀錄（唯讀，排課表格/出勤統計頁使用）；
+ *                                        回傳的是每組 class_id+student_id+class_date 最新一筆
+ *                                        （見 tution-service.ts 的 dedupeToLatestAttendance）。
+ * POST /api/v1/attendance/bulk        - 批次新增某班某日期全體學生的點名結果，新增制：
+ *                                        同一學生同一日期已有紀錄也一律新增一筆，不覆寫舊紀錄，
+ *                                        保留完整修改歷史。
  */
 async function handleAttendance(
   request: Request,
@@ -1660,14 +1716,8 @@ async function handleAttendance(
         return jsonResponse({ error: "This date is cancelled and cannot be marked" }, 400);
       }
 
-      // 覆寫語意：同一班同一日期同一學生若已有紀錄，直接更新；否則新增
-      const existing = await kvService.listAttendanceByClass(body.class_id);
-      const existingByStudent = new Map(
-        existing
-          .filter((r) => r.class_date === body.class_date)
-          .map((r) => [r.student_id, r] as const),
-      );
-
+      // 新增制：每次點名都新增一筆記錄，保留完整修改歷史；讀取端（listAttendanceByClass /
+      // listAttendanceByStudent）只回傳同一 class_id+student_id+class_date 裡最新的一筆。
       const now = Date.now();
       const classId = body.class_id;
       const classDate = body.class_date;
@@ -1675,15 +1725,6 @@ async function handleAttendance(
         body.records.map((record) => {
           const absenceReason =
             record.status === AttendanceStatus.EXCUSE ? record.absence_reason : undefined;
-          const found = existingByStudent.get(record.student_id);
-          if (found) {
-            return kvService.updateAttendanceRecord(found.attendance_id, {
-              status: record.status,
-              absence_reason: absenceReason,
-              recorded_at: now,
-              recorded_by: session.teacher_id,
-            });
-          }
           return kvService.recordAttendance({
             class_id: classId,
             student_id: record.student_id,
@@ -2324,6 +2365,7 @@ async function handleAdminTeachers(
   request: Request,
   env: Env,
   session: any,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   if (session.permission !== "admin" && session.permission !== "super_admin") {
     return jsonResponse({ error: "Forbidden" }, 403);
@@ -2370,6 +2412,16 @@ async function handleAdminTeachers(
       delete updated.password_created_at;
       delete updated.password_updated_at;
       await teacherManager.saveTeacher(updated);
+
+      ctx.waitUntil(
+        logAudit(env, {
+          action: "teacher.password_reset",
+          target_type: "teacher",
+          target_id: teacherId,
+          actor_id: session.teacher_id,
+          actor_permission: session.permission,
+        }),
+      );
 
       return jsonResponse({ success: true, data: { teacher_id: teacherId } });
     }
