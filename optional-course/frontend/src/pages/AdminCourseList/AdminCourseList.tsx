@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Layout } from "@/components/common/Layout";
 import {
   listAllCourses,
@@ -24,6 +24,26 @@ const AdminCourseList: React.FC = () => {
   const [subject, setSubject] = useState("");
   const [selectedTeacher, setSelectedTeacher] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
+
+  // 依科組分組並排序，供綁定老師的下拉選單使用（科組名稱排序，組內再依姓名排序）
+  const teachersByDepartment = useMemo(() => {
+    const groups = new Map<string, TeacherOption[]>();
+    for (const t of teachers) {
+      const dept = t.department || "未分類";
+      if (!groups.has(dept)) groups.set(dept, []);
+      groups.get(dept)!.push(t);
+    }
+    for (const list of groups.values()) {
+      list.sort((a, b) => (a.name_cn || a.name_en).localeCompare(b.name_cn || b.name_en, "zh-Hant"));
+    }
+    return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0], "zh-Hant"));
+  }, [teachers]);
+
+  const teacherEmailById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const t of teachers) map.set(t.teacher_id, t.email);
+    return map;
+  }, [teachers]);
 
   const load = async () => {
     try {
@@ -132,7 +152,17 @@ const AdminCourseList: React.FC = () => {
               </span>
             </div>
             <p>
-              授課老師：{course.teacher_name_cn || <em>尚未綁定</em>}
+              授課老師：
+              {course.teacher_id ? (
+                <>
+                  {course.teacher_name_cn}
+                  {teacherEmailById.get(course.teacher_id) && (
+                    <span style={{ color: "#888" }}>（{teacherEmailById.get(course.teacher_id)}）</span>
+                  )}
+                </>
+              ) : (
+                <em>尚未綁定</em>
+              )}
             </p>
 
             {!course.teacher_id && (
@@ -144,10 +174,14 @@ const AdminCourseList: React.FC = () => {
                   }
                 >
                   <option value="">選擇老師...</option>
-                  {teachers.map((t) => (
-                    <option key={t.teacher_id} value={t.teacher_id}>
-                      {t.name_cn || t.name_en}（{t.email}）
-                    </option>
+                  {teachersByDepartment.map(([dept, list]) => (
+                    <optgroup key={dept} label={dept}>
+                      {list.map((t) => (
+                        <option key={t.teacher_id} value={t.teacher_id}>
+                          {t.name_cn || t.name_en}（{t.email}）
+                        </option>
+                      ))}
+                    </optgroup>
                   ))}
                 </select>
                 <button

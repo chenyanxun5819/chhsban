@@ -99,7 +99,7 @@ const AttendanceSheet: React.FC = () => {
             <tbody>
               {roster.map((entry) => (
                 <tr key={entry.roster_id}>
-                  <td>{entry.student_id}</td>
+                  <td>{entry.student_no || entry.student_id}</td>
                   <td>{entry.student_name_cn}</td>
                   <td>
                     <select

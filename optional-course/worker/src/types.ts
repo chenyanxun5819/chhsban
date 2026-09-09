@@ -53,7 +53,8 @@ export interface OptionalCourse {
 export interface OptionalCourseRoster {
   roster_id: string; // roster_<ts>_<rand>
   course_id: string; // FK -> OptionalCourse
-  student_id: string; // FK -> STUDENT_KV（共用）
+  student_id: string; // FK -> STUDENT_KV（共用，KV 主鍵，內部編號如 "5801"）
+  student_no: string; // 學校發放的學號（STUDENT_KV 記錄的 student_no 欄位，如 "21342"），畫面顯示用
   student_name_cn: string;
   student_name_en: string;
   student_class: string;

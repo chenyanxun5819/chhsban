@@ -58,12 +58,20 @@ const RosterManagement: React.FC = () => {
     try {
       setAdding(true);
       setError(null);
-      await addRosterEntry(id, foundStudent.student_id);
+      // 直接把新增回來的 entry 加進本地名冊狀態，不要重新呼叫 listRoster() 整包重載——
+      // Cloudflare KV 的 list() 是最終一致性，剛寫入的 key 可能要等一段時間才會出現在
+      // list() 結果裡，若在這裡重新整包讀取，畫面反而會看起來像「這筆新增被蓋掉了」。
+      const entry = await addRosterEntry(id, foundStudent.student_id);
+      setRoster((prev) => [...prev, entry]);
       setFoundStudent(null);
       setStudentQuery("");
-      await load();
     } catch (err: any) {
-      setError(err.response?.data?.error || "加入名冊失敗");
+      const code = err.response?.data?.error;
+      if (code === "STUDENT_ALREADY_IN_ROSTER") {
+        setError("這位學生已經在名冊裡了");
+      } else {
+        setError(code || "加入名冊失敗");
+      }
     } finally {
       setAdding(false);
     }
@@ -74,8 +82,8 @@ const RosterManagement: React.FC = () => {
     const reason = window.prompt("請輸入退出原因（可留空）") || "";
     try {
       setError(null);
-      await withdrawRosterEntry(id, rosterId, reason);
-      await load();
+      const updated = await withdrawRosterEntry(id, rosterId, reason);
+      setRoster((prev) => prev.map((r) => (r.roster_id === rosterId ? updated : r)));
     } catch (err: any) {
       setError(err.response?.data?.error || "退出名冊失敗");
     }
@@ -94,7 +102,7 @@ const RosterManagement: React.FC = () => {
             <h3>加入學生</h3>
             <form onSubmit={handleSearch} style={{ display: "flex", gap: 8 }}>
               <input
-                placeholder="輸入學號"
+                placeholder="輸入學號（例如：21342）"
                 value={studentQuery}
                 onChange={(e) => setStudentQuery(e.target.value)}
                 style={{ flex: 1, padding: 8, border: "1px solid #d0d3d8", borderRadius: 6 }}
@@ -106,7 +114,7 @@ const RosterManagement: React.FC = () => {
             {foundStudent && (
               <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span>
-                  {foundStudent.name_cn}（{foundStudent.class}）
+                  {foundStudent.student_no || foundStudent.student_id} - {foundStudent.name_cn}（{foundStudent.class}）
                 </span>
                 <button className="btn btn--primary" disabled={adding} onClick={handleAdd}>
                   加入名冊
@@ -133,7 +141,7 @@ const RosterManagement: React.FC = () => {
                 <tbody>
                   {activeRoster.map((r) => (
                     <tr key={r.roster_id}>
-                      <td>{r.student_id}</td>
+                      <td>{r.student_no || r.student_id}</td>
                       <td>{r.student_name_cn}</td>
                       <td>{r.student_class}</td>
                       <td>{r.enrollment_date}</td>
