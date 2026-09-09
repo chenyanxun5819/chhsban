@@ -1,0 +1,2 @@
+# 本機開發用環境變數，複製為 .dev.vars 後填入實際值（.dev.vars 已加入 .gitignore，不會被提交）
+AUTH_PENDING_SECRET=請填入任意隨機字串（僅本機開發用，正式環境用 wrangler secret put 設定）

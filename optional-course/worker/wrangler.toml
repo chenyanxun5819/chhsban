@@ -1,0 +1,63 @@
+# Cloudflare Worker 配置 - optional-course-system
+# 此檔案手動維護（不透過 packages/cloudflare-config 的產生器，該產生器已與
+# chhsban-tution 現行 wrangler.toml 脫節，詳見 chhsban-tution/wrangler.toml 的維護慣例）
+
+name = "optional-course-system"
+account_id = "82d225cda80f37208228877b32268b26"
+workers_dev = true
+main = "src/index.ts"
+compatibility_date = "2026-06-30"
+
+# ===== 共用資料層：與 chhsban-tution / tution-portal 完全相同的 KV id =====
+# 目的只有讀取既有的學生、老師、登入身分資料，不重複建立一套帳號系統
+[[kv_namespaces]]
+binding = "STUDENT_KV"
+id = "9d870e2344c84c74a1ed2f2851c93408"
+
+[[kv_namespaces]]
+binding = "TEACHER_KV"
+id = "8892dc8c30984f4591850521a1b57ed8"
+
+[[kv_namespaces]]
+binding = "AUTH_KV"
+id = "8ddeccbeeae9440fafba384d35205a81"
+
+[[kv_namespaces]]
+binding = "CLASSROOM_KV"
+id = "43882431a6344d929976a1281ffca873"
+
+# ===== optional-course 專屬資料（新建 KV namespace）=====
+# 首次部署前，先執行以下指令建立，並把印出的 id 換掉下面的佔位字串：
+#   wrangler kv:namespace create OPTIONAL_COURSE_KV
+#   wrangler kv:namespace create OPTIONAL_COURSE_ROSTER_KV
+#   wrangler kv:namespace create OPTIONAL_COURSE_SCHEDULE_KV
+#   wrangler kv:namespace create OPTIONAL_COURSE_ATTENDANCE_KV
+[[kv_namespaces]]
+binding = "OPTIONAL_COURSE_KV"
+id = "REPLACE_WITH_REAL_KV_ID"
+
+[[kv_namespaces]]
+binding = "OPTIONAL_COURSE_ROSTER_KV"
+id = "REPLACE_WITH_REAL_KV_ID"
+
+[[kv_namespaces]]
+binding = "OPTIONAL_COURSE_SCHEDULE_KV"
+id = "REPLACE_WITH_REAL_KV_ID"
+
+[[kv_namespaces]]
+binding = "OPTIONAL_COURSE_ATTENDANCE_KV"
+id = "REPLACE_WITH_REAL_KV_ID"
+
+[vars]
+# 目前無需額外環境變數
+
+# 敏感資訊使用 wrangler secret 設置（不寫在此文件中）：
+# wrangler secret put AUTH_PENDING_SECRET
+# （用來簽署兩階段登入的 pending token，只在本 Worker 內部使用，
+#   不需要跟 chhsban-tution 的 AUTH_PENDING_SECRET 相同，自行產生一組新的即可）
+
+# 部署陷阱警告（沿用 chhsban-tution 的教訓，見 chhsban-tution/wrangler.toml 第 64-68 行）：
+# 正式上線一律使用「不帶 --env」的預設 wrangler deploy，本檔案刻意不定義 [env.production]。
+# 若未來真的需要區分環境，加 [env.production] 前，務必先用
+# `wrangler deployments list` 及 Cloudflare Dashboard 確認實際承接正式流量的是哪個 target，
+# 避免重演 chhsban-tution 那次 --env production 部署到未生效 Worker 的問題。

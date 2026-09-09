@@ -1,0 +1,30 @@
+{
+  "name": "optional-course-worker",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "選修課點名系統 - Cloudflare Worker",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "wrangler dev --port 8788",
+    "deploy": "wrangler deploy",
+    "type-check": "tsc --noEmit"
+  },
+  "keywords": [
+    "cloudflare",
+    "worker",
+    "optional-course",
+    "attendance"
+  ],
+  "author": "chhsban",
+  "license": "MIT",
+  "dependencies": {
+    "@chhsban/cloudflare-config": "file:../../packages/cloudflare-config",
+    "@chhsban/kv-utils": "file:../../packages/kv-utils"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240000.0",
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0",
+    "wrangler": "^3.20.0"
+  }
+}
