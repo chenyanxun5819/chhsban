@@ -4,12 +4,15 @@
 但透過綁定同一組 `STUDENT_KV`/`TEACHER_KV`/`AUTH_KV`/`CLASSROOM_KV` namespace id，
 直接共用既有的學生、老師、登入身分資料，不重複建立一套帳號系統。
 
-## 首次設置
+## 首次設置（已完成，2026-09-09）
+
+4 個專屬 KV namespace、`AUTH_PENDING_SECRET` 密鑰、正式部署都已經處理好，
+`wrangler.toml` 裡已經是真實的 KV id。以下指令留存供日後在其他機器/帳號重建時參考：
 
 ```bash
 npm install
 
-# 建立本專案專屬的 4 個 KV namespace，並把印出的 id 換掉 wrangler.toml 裡的 REPLACE_WITH_REAL_KV_ID
+# 建立本專案專屬的 4 個 KV namespace，並把印出的 id 換掉 wrangler.toml 裡的對應值
 wrangler kv:namespace create OPTIONAL_COURSE_KV
 wrangler kv:namespace create OPTIONAL_COURSE_ROSTER_KV
 wrangler kv:namespace create OPTIONAL_COURSE_SCHEDULE_KV

@@ -56,7 +56,27 @@ export const KV_NAMESPACES = {
     binding: "AUDIT_LOG_KV",
     id: "b04b855097f848cebbb8d71207f4159c",
     description: "補習班系統 - 審計日誌（roster 增刪、審批、收據審核、密碼重設等關鍵操作的 who/when/what 記錄）",
-  }
+  },
+  OPTIONAL_COURSE_KV: {
+    binding: "OPTIONAL_COURSE_KV",
+    id: "fbfbfad0ae4d41ee92488d9d2b64d0f9",
+    description: "選修課點名系統 - 課程主表（課程窗口狀態、綁定老師）",
+  },
+  OPTIONAL_COURSE_ROSTER_KV: {
+    binding: "OPTIONAL_COURSE_ROSTER_KV",
+    id: "f55dda0239ef457ab08890dcf2eedc91",
+    description: "選修課點名系統 - 學生名單",
+  },
+  OPTIONAL_COURSE_SCHEDULE_KV: {
+    binding: "OPTIONAL_COURSE_SCHEDULE_KV",
+    id: "fb6710655ea64107b98a25e625716237",
+    description: "選修課點名系統 - 排課例外記錄（無開課/調課）",
+  },
+  OPTIONAL_COURSE_ATTENDANCE_KV: {
+    binding: "OPTIONAL_COURSE_ATTENDANCE_KV",
+    id: "6ca37192e83249a0913de69dcfd0d531",
+    description: "選修課點名系統 - 學生出勤紀錄",
+  },
 } as const;
 
 export type KVNamespaceKey = keyof typeof KV_NAMESPACES;

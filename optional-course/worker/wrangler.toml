@@ -26,27 +26,22 @@ id = "8ddeccbeeae9440fafba384d35205a81"
 binding = "CLASSROOM_KV"
 id = "43882431a6344d929976a1281ffca873"
 
-# ===== optional-course 專屬資料（新建 KV namespace）=====
-# 首次部署前，先執行以下指令建立，並把印出的 id 換掉下面的佔位字串：
-#   wrangler kv:namespace create OPTIONAL_COURSE_KV
-#   wrangler kv:namespace create OPTIONAL_COURSE_ROSTER_KV
-#   wrangler kv:namespace create OPTIONAL_COURSE_SCHEDULE_KV
-#   wrangler kv:namespace create OPTIONAL_COURSE_ATTENDANCE_KV
+# ===== optional-course 專屬資料（已建立的 KV namespace，2026-09-09）=====
 [[kv_namespaces]]
 binding = "OPTIONAL_COURSE_KV"
-id = "REPLACE_WITH_REAL_KV_ID"
+id = "fbfbfad0ae4d41ee92488d9d2b64d0f9"
 
 [[kv_namespaces]]
 binding = "OPTIONAL_COURSE_ROSTER_KV"
-id = "REPLACE_WITH_REAL_KV_ID"
+id = "f55dda0239ef457ab08890dcf2eedc91"
 
 [[kv_namespaces]]
 binding = "OPTIONAL_COURSE_SCHEDULE_KV"
-id = "REPLACE_WITH_REAL_KV_ID"
+id = "fb6710655ea64107b98a25e625716237"
 
 [[kv_namespaces]]
 binding = "OPTIONAL_COURSE_ATTENDANCE_KV"
-id = "REPLACE_WITH_REAL_KV_ID"
+id = "6ca37192e83249a0913de69dcfd0d531"
 
 [vars]
 # 目前無需額外環境變數
