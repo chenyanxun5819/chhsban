@@ -14,7 +14,6 @@
 import {
   createAuthKVManager,
   createTeacherKVManager,
-  createStudentKVManager,
   createPendingToken,
   verifyPendingToken,
   hashPassword,
@@ -26,7 +25,7 @@ import {
 } from "@chhsban/kv-utils";
 import { OptionalCourseService } from "./optional-course-service";
 import { CourseWindowStatus, CourseScheduleStatus, CourseAttendanceStatus } from "./types";
-import { findStudentByNo } from "./student-lookup";
+import { findStudentByNo, getStudentClass } from "./student-lookup";
 
 interface Env {
   STUDENT_KV: KVNamespace;
@@ -302,9 +301,8 @@ function buildService(env: Env): OptionalCourseService {
 }
 
 /**
- * GET /api/v1/students/{identifier} - 任何已登入身分皆可查（名冊加人時用來核對學生）
- * identifier 優先當作學號（student_no 欄位，老師實際知道的號碼）查詢；
- * 找不到才回退用 STUDENT_KV 主鍵（student_id，內部編號）直接查一次。
+ * GET /api/v1/students/{student_no} - 任何已登入身分皆可查（名冊加人時用來核對學生）
+ * 只接受學號（student_no），見 student-lookup.ts 的說明。
  */
 async function handleStudentLookup(
   request: Request,
@@ -315,18 +313,12 @@ async function handleStudentLookup(
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  let student = await findStudentByNo(env.STUDENT_KV, env.OPTIONAL_COURSE_KV, identifier);
-
-  if (!student) {
-    const studentManager = createStudentKVManager(env.STUDENT_KV);
-    student = await studentManager.getStudent(identifier);
-  }
-
+  const student = await findStudentByNo(env.STUDENT_KV, decodeURIComponent(identifier).trim());
   if (!student) {
     return jsonResponse({ error: "Student not found" }, 404);
   }
 
-  return jsonResponse({ success: true, data: student });
+  return jsonResponse({ success: true, data: { ...student, class: getStudentClass(student) } });
 }
 
 /** GET /api/v1/teachers - 僅 admin，供綁定老師時選擇用 */
@@ -525,18 +517,13 @@ async function handleRoster(
       if (course.window_status !== CourseWindowStatus.OPEN) {
         return jsonResponse({ error: "COURSE_NOT_OPEN" }, 409);
       }
-      // body.student_id 這個欄位名稱沿用前端既有命名，但實際傳進來的是老師輸入的「學號」
-      // （student_no），優先當學號查，找不到才回退當 STUDENT_KV 主鍵直接查一次。
-      const body = (await request.json()) as { student_id?: string };
-      if (!body.student_id) {
-        return jsonResponse({ error: "Missing student_id field" }, 400);
+      const body = (await request.json()) as { student_no?: string };
+      const studentNo = body.student_no?.trim();
+      if (!studentNo) {
+        return jsonResponse({ error: "Missing student_no field" }, 400);
       }
 
-      let student = await findStudentByNo(env.STUDENT_KV, env.OPTIONAL_COURSE_KV, body.student_id);
-      if (!student) {
-        const studentManager = createStudentKVManager(env.STUDENT_KV);
-        student = await studentManager.getStudent(body.student_id);
-      }
+      const student = await findStudentByNo(env.STUDENT_KV, studentNo);
       if (!student) {
         return jsonResponse({ error: "Student not found" }, 404);
       }
@@ -544,7 +531,7 @@ async function handleRoster(
       // 同一個學生若已經在這門課的名冊裡（且尚未退出），不重複加入
       const existingRoster = await service.listRosterByCourse(course.course_id);
       const alreadyEnrolled = existingRoster.some(
-        (r) => r.student_id === student!.student_id && r.is_active,
+        (r) => r.student_id === student.student_id && r.is_active,
       );
       if (alreadyEnrolled) {
         return jsonResponse({ error: "STUDENT_ALREADY_IN_ROSTER" }, 409);
@@ -553,10 +540,10 @@ async function handleRoster(
       const entry = await service.addRosterEntry({
         course_id: course.course_id,
         student_id: student.student_id,
-        student_no: student.student_no || student.student_id,
+        student_no: student.student_no,
         student_name_cn: student.name_cn,
         student_name_en: student.name_en,
-        student_class: student.class,
+        student_class: getStudentClass(student),
         enrollment_date: new Date().toISOString().split("T")[0],
       });
       return jsonResponse({ success: true, data: entry }, 201);
@@ -726,19 +713,19 @@ export default {
 
       if (pathname.startsWith("/api/v1/students/")) {
         const identifier = pathname.split("/")[4];
-        return handleStudentLookup(request, env, identifier);
+        return await handleStudentLookup(request, env, identifier);
       }
 
       if (pathname === "/api/v1/teachers") {
-        return handleTeacherList(request, env, session);
+        return await handleTeacherList(request, env, session);
       }
 
       if (pathname.startsWith("/api/v1/my/courses")) {
-        return handleMyCourses(request, env, session);
+        return await handleMyCourses(request, env, session);
       }
 
       if (pathname.startsWith("/api/v1/courses")) {
-        return handleCourses(request, env, session);
+        return await handleCourses(request, env, session);
       }
 
       return jsonResponse({ error: "Not found" }, 404);

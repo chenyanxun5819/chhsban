@@ -61,7 +61,7 @@ const RosterManagement: React.FC = () => {
       // 直接把新增回來的 entry 加進本地名冊狀態，不要重新呼叫 listRoster() 整包重載——
       // Cloudflare KV 的 list() 是最終一致性，剛寫入的 key 可能要等一段時間才會出現在
       // list() 結果裡，若在這裡重新整包讀取，畫面反而會看起來像「這筆新增被蓋掉了」。
-      const entry = await addRosterEntry(id, foundStudent.student_id);
+      const entry = await addRosterEntry(id, foundStudent.student_no);
       setRoster((prev) => [...prev, entry]);
       setFoundStudent(null);
       setStudentQuery("");
@@ -114,7 +114,7 @@ const RosterManagement: React.FC = () => {
             {foundStudent && (
               <div style={{ marginTop: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span>
-                  {foundStudent.student_no || foundStudent.student_id} - {foundStudent.name_cn}（{foundStudent.class}）
+                  {foundStudent.student_no} - {foundStudent.name_cn}（{foundStudent.class}）
                 </span>
                 <button className="btn btn--primary" disabled={adding} onClick={handleAdd}>
                   加入名冊

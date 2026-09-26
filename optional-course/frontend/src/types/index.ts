@@ -106,7 +106,7 @@ export interface TeacherOption {
 
 export interface StudentRecord {
   student_id: string;
-  student_no?: string;
+  student_no: string;
   name_cn: string;
   name_en: string;
   class: string;

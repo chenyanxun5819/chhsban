@@ -1,83 +1,42 @@
 /**
- * 依「學號」（STUDENT_KV 記錄裡的 student_no 欄位，例如 "21342"）查詢學生。
+ * 依「學號」（student_no，例如 "20258"）查詢學生。
  *
- * STUDENT_KV 的主鍵是 student_id（例如 "5801"，內部編號），student_no 只是記錄裡的
- * 一個普通欄位，並沒有現成的二級索引可以直接查（chhsban-tution 的程式碼裡雖然有
- * `STUDENT_KV.get('student_no:'+x)` 這種查詢，但整個 repo 從來沒有任何地方寫入過
- * `student_no:` 這個 key，等於是從未真正生效過的死代碼）。
+ * STUDENT_KV 對同一位學生存在兩種 key 慣例（見 chhsban-tution/src/index.ts 的說明）：
+ * - student:{student_no}：SMS 同步寫入的原始完整資料，含 student_no / real_class_name 等欄位
+ * - student:{student_id}：另一批只含核心欄位的精簡資料（沒有 student_no，student_id 是內部編號如 "4775"）
  *
- * 為了讓老師能用學校真正發放的學號搜尋學生，這裡在 optional-course 自己的 KV
- * （不寫入共用的 STUDENT_KV，避免影響其他系統／消耗共用的 KV PUT 額度）快取一份
- * { student_no: student_id } 對照表，帶 TTL 定期重建，而不是每次搜尋都全表掃描
- * STUDENT_KV（約 3000 筆記錄）。
+ * 老師輸入的是學號，所以直接 get `student:{學號}` 一次即可拿到完整資料，
+ * 不需要（也不能）全表掃描建索引——STUDENT_KV 有數千筆 key，逐筆 get 會超過
+ * Worker 單次請求的 subrequest 上限，導致 Worker 直接崩潰、回應不帶 CORS header。
+ *
+ * 只接受 record.student_no 與輸入完全相符的資料，避免輸入內部編號時誤命中精簡版記錄，
+ * 把 student_id 當成學號存進名冊。
  */
-import { createStudentKVManager, type StudentRecord } from "@chhsban/kv-utils";
+import type { StudentRecord } from "@chhsban/kv-utils";
 
-export interface StudentRecordWithNo extends StudentRecord {
-  student_no?: string;
+export interface FullStudentRecord extends StudentRecord {
+  student_no: string;
+  real_class_name?: string;
+  input_class_name?: string;
 }
 
-const STUDENT_NO_INDEX_KEY = "system:student_no_index";
-// 12 小時：略短於 SMS 同步的最短間隔（每週日/二各一次），足夠讓新生資料在合理時間內被索引到，
-// 又不會頻繁重建整份索引。
-const STUDENT_NO_INDEX_TTL_SECONDS = 12 * 60 * 60;
-
-async function buildStudentNoIndex(studentKV: KVNamespace): Promise<Record<string, string>> {
-  const index: Record<string, string> = {};
-  let cursor: string | undefined;
-
-  do {
-    const result: any = await studentKV.list({ prefix: "student:", cursor });
-    const values = await Promise.all(result.keys.map((item: any) => studentKV.get(item.name)));
-
-    for (const raw of values) {
-      if (!raw) continue;
-      try {
-        const student: StudentRecordWithNo = JSON.parse(raw);
-        if (student.student_no && student.student_id) {
-          index[student.student_no] = student.student_id;
-        }
-      } catch {
-        // 忽略無法解析的壞資料，不中斷整個索引重建
-      }
-    }
-
-    cursor = result.list_complete ? undefined : result.cursor;
-  } while (cursor);
-
-  return index;
-}
-
-/**
- * 依學號查詢學生。找不到快取時才會觸發一次全表掃描重建索引（見上方 TTL 說明），
- * 一般情況下都是查快取，一次 KV get 即可。
- */
 export async function findStudentByNo(
   studentKV: KVNamespace,
-  cacheKV: KVNamespace,
   studentNo: string,
-): Promise<StudentRecordWithNo | null> {
-  let index: Record<string, string> | null = null;
+): Promise<FullStudentRecord | null> {
+  const raw = await studentKV.get(`student:${studentNo}`);
+  if (!raw) return null;
 
-  const cached = await cacheKV.get(STUDENT_NO_INDEX_KEY);
-  if (cached) {
-    try {
-      index = JSON.parse(cached);
-    } catch {
-      index = null;
-    }
+  try {
+    const student = JSON.parse(raw) as Partial<FullStudentRecord>;
+    if (student.student_no !== studentNo || !student.student_id) return null;
+    return student as FullStudentRecord;
+  } catch {
+    return null;
   }
+}
 
-  if (!index) {
-    index = await buildStudentNoIndex(studentKV);
-    await cacheKV.put(STUDENT_NO_INDEX_KEY, JSON.stringify(index), {
-      expirationTtl: STUDENT_NO_INDEX_TTL_SECONDS,
-    });
-  }
-
-  const studentId = index[studentNo];
-  if (!studentId) return null;
-
-  const studentManager = createStudentKVManager(studentKV);
-  return (await studentManager.getStudent(studentId)) as StudentRecordWithNo | null;
+/** 完整資料的班級欄位是 real_class_name，精簡版才有 class */
+export function getStudentClass(student: Partial<FullStudentRecord>): string {
+  return student.real_class_name || student.class || student.input_class_name || "-";
 }

@@ -17,11 +17,11 @@ export const lookupStudent = async (identifier: string): Promise<StudentRecord> 
 
 export const addRosterEntry = async (
   courseId: string,
-  studentId: string,
+  studentNo: string,
 ): Promise<OptionalCourseRoster> => {
   const res = await apiClient.post<{ success: boolean; data: OptionalCourseRoster }>(
     `/v1/courses/${courseId}/roster`,
-    { student_id: studentId },
+    { student_no: studentNo },
   );
   return res.data.data;
 };
