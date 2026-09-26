@@ -97,15 +97,6 @@ export interface OptionalCourseAttendance {
   recorded_by?: string;
 }
 
-export interface TeacherOption {
-  teacher_id: string;
-  name_cn: string;
-  name_en: string;
-  email: string;
-  department: string;
-  permission: Permission;
-}
-
 export interface StudentRecord {
   student_id: string;
   student_no: string;

@@ -12,6 +12,7 @@ import AttendanceSheet from "@/pages/AttendanceSheet/AttendanceSheet";
 import RosterManagementPage from "@/pages/RosterManagement/RosterManagement";
 import AttendanceStatsPage from "@/pages/AttendanceStats/AttendanceStats";
 import ClassroomManagement from "@/pages/ClassroomManagement/ClassroomManagement";
+import OptionalCourseAdmin from "@/pages/OptionalCourseAdmin/OptionalCourseAdmin";
 import { useEffect, useState } from "react";
 import { TutionClass } from "@/types";
 import apiClient from "@/utils/api";
@@ -97,7 +98,7 @@ const Dashboard = () => {
 // 督察員（admin）、教室管理員（classroom_manager）是窄範圍角色：無論嘗試進入哪個路由，
 // 一律導回各自唯一有權限的頁面（可能不只一個）；其餘身份（teacher/viewer/super_admin）不受此限制。
 const RESTRICTED_ALLOWED_PATHS: Record<string, string[]> = {
-  admin: ["/admin/course-report", "/admin/course-attendance"],
+  admin: ["/admin/course-report", "/admin/course-attendance", "/optional/courses"],
   classroom_manager: ["/admin/usage"],
 };
 
@@ -209,6 +210,15 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <AdminPanel />
+          </ProtectedRoute>
+        }
+      />
+      {/* 選修課（獨立的 optional-course-system Worker），與補習班的 /admin/:tab 分開 */}
+      <Route
+        path="/optional/courses"
+        element={
+          <ProtectedRoute>
+            <OptionalCourseAdmin />
           </ProtectedRoute>
         }
       />

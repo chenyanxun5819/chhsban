@@ -56,15 +56,24 @@ function jsonResponse(data: any, status: number = 200): Response {
   });
 }
 
-function isAdmin(session: AuthSessionData): boolean {
+// 權限與補習系統一致：super_admin 才能建課／綁定老師／開關窗口；
+// admin（督察員）只能查看所有課程，不能做任何修改。
+function isSuperAdmin(session: AuthSessionData): boolean {
+  return session.permission === "super_admin";
+}
+
+function canViewAllCourses(session: AuthSessionData): boolean {
   return session.permission === "admin" || session.permission === "super_admin";
 }
 
-function ownsCourseOrIsAdmin(
-  session: AuthSessionData,
-  teacherId: string | undefined,
-): boolean {
-  return teacherId === session.teacher_id || isAdmin(session);
+/** 查看單一課程（名冊／排課／點名）：授課老師本人、督察員、超級管理員 */
+function canViewCourse(session: AuthSessionData, teacherId: string | undefined): boolean {
+  return teacherId === session.teacher_id || canViewAllCourses(session);
+}
+
+/** 修改單一課程的名冊／排課／點名：授課老師本人、超級管理員（督察員不行） */
+function canEditCourse(session: AuthSessionData, teacherId: string | undefined): boolean {
+  return teacherId === session.teacher_id || isSuperAdmin(session);
 }
 
 // ============================================
@@ -331,7 +340,7 @@ async function handleTeacherList(
   if (request.method !== "GET") {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
-  if (!isAdmin(session)) {
+  if (!isSuperAdmin(session)) {
     return jsonResponse({ error: "Forbidden" }, 403);
   }
 
@@ -370,7 +379,7 @@ async function handleCourses(
 
   if (!courseId) {
     if (method === "POST") {
-      if (!isAdmin(session)) {
+      if (!isSuperAdmin(session)) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
       const body = (await request.json()) as {
@@ -406,7 +415,7 @@ async function handleCourses(
     }
 
     if (method === "GET") {
-      if (!isAdmin(session)) {
+      if (!canViewAllCourses(session)) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
       const year = parseYearParam(url);
@@ -429,14 +438,14 @@ async function handleCourses(
     if (method !== "GET") {
       return jsonResponse({ error: "Method not allowed" }, 405);
     }
-    if (!ownsCourseOrIsAdmin(session, course.teacher_id)) {
+    if (!canViewCourse(session, course.teacher_id)) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
     return jsonResponse({ success: true, data: course });
   }
 
   if (action === "bind-teacher" && method === "PUT") {
-    if (!isAdmin(session)) {
+    if (!isSuperAdmin(session)) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
     const body = (await request.json()) as { teacher_id?: string };
@@ -457,7 +466,7 @@ async function handleCourses(
   }
 
   if (action === "open" && method === "PUT") {
-    if (!isAdmin(session)) {
+    if (!isSuperAdmin(session)) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
     if (!course.teacher_id) {
@@ -471,7 +480,7 @@ async function handleCourses(
   }
 
   if (action === "close" && method === "PUT") {
-    if (!isAdmin(session)) {
+    if (!isSuperAdmin(session)) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
     const updated = await service.updateCourse(courseId, {
@@ -625,7 +634,7 @@ async function handleRoster(
     if (method !== "POST") {
       return jsonResponse({ error: "Method not allowed" }, 405);
     }
-    if (!ownsCourseOrIsAdmin(session, course.teacher_id)) {
+    if (!canEditCourse(session, course.teacher_id)) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
     if (course.window_status !== CourseWindowStatus.OPEN) {
@@ -636,7 +645,7 @@ async function handleRoster(
 
   if (!rosterId) {
     if (method === "GET") {
-      if (!ownsCourseOrIsAdmin(session, course.teacher_id)) {
+      if (!canViewCourse(session, course.teacher_id)) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
       const roster = await service.getRoster(course.course_id);
@@ -644,7 +653,7 @@ async function handleRoster(
     }
 
     if (method === "POST") {
-      if (!ownsCourseOrIsAdmin(session, course.teacher_id)) {
+      if (!canEditCourse(session, course.teacher_id)) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
       if (course.window_status !== CourseWindowStatus.OPEN) {
@@ -687,7 +696,7 @@ async function handleRoster(
   }
 
   if (method === "PUT" && new URL(request.url).pathname.endsWith("/withdraw")) {
-    if (!ownsCourseOrIsAdmin(session, course.teacher_id)) {
+    if (!canEditCourse(session, course.teacher_id)) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
     const body = (await request.json().catch(() => ({}))) as { reason?: string };
@@ -716,7 +725,7 @@ async function handleSchedules(
   }
 
   if (method === "GET") {
-    if (!ownsCourseOrIsAdmin(session, course.teacher_id)) {
+    if (!canViewCourse(session, course.teacher_id)) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
     const schedules = await service.listSchedulesByCourse(course.course_id);
@@ -724,7 +733,7 @@ async function handleSchedules(
   }
 
   if (method === "POST") {
-    if (!ownsCourseOrIsAdmin(session, course.teacher_id)) {
+    if (!canEditCourse(session, course.teacher_id)) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
     if (course.window_status !== CourseWindowStatus.OPEN) {
@@ -766,7 +775,7 @@ async function handleAttendance(
   const service = buildService(env);
 
   if (method === "GET") {
-    if (!ownsCourseOrIsAdmin(session, course.teacher_id)) {
+    if (!canViewCourse(session, course.teacher_id)) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
     const records = await service.listAttendanceByCourse(course.course_id);
@@ -774,7 +783,7 @@ async function handleAttendance(
   }
 
   if (method === "POST") {
-    if (!ownsCourseOrIsAdmin(session, course.teacher_id)) {
+    if (!canEditCourse(session, course.teacher_id)) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
     if (course.window_status !== CourseWindowStatus.OPEN) {

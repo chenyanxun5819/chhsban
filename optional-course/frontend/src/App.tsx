@@ -1,16 +1,30 @@
+import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import Login from "@/pages/Login/Login";
-import AdminCourseList from "@/pages/AdminCourseList/AdminCourseList";
 import TeacherDashboard from "@/pages/TeacherDashboard/TeacherDashboard";
 import RosterManagement from "@/pages/RosterManagement/RosterManagement";
 import ScheduleManagement from "@/pages/ScheduleManagement/ScheduleManagement";
 import AttendanceSheet from "@/pages/AttendanceSheet/AttendanceSheet";
 
-// admin 在本系統的權限範圍比 teacher 窄：只負責開課程窗口＋綁定老師，
-// 一律導回 /admin/courses；其餘身份（teacher/viewer/super_admin）不受此限制。
+// 行政端（建課、綁定老師、開關窗口）已整合到補習班／選修課管理系統（tution-portal），
+// 本站只保留老師端（名冊／排課／點名）。舊的 /admin/courses 一律轉址過去。
+const ADMIN_PORTAL_URL = "https://tution-portal.pages.dev/optional/courses";
+
+// admin（督察員）在選修課只能查看課程總覽，不會有自己的課，一律導到管理系統
 const RESTRICTED_ALLOWED_PATHS: Record<string, string[]> = {
   admin: ["/admin/courses"],
+};
+
+const RedirectToAdminPortal: React.FC = () => {
+  useEffect(() => {
+    window.location.replace(ADMIN_PORTAL_URL);
+  }, []);
+  return (
+    <div style={{ padding: 24 }}>
+      選修課行政管理已移到 <a href={ADMIN_PORTAL_URL}>補習班／選修課管理系統</a>，正在為您轉址...
+    </div>
+  );
 };
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -52,14 +66,7 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-      <Route
-        path="/admin/courses"
-        element={
-          <ProtectedRoute>
-            <AdminCourseList />
-          </ProtectedRoute>
-        }
-      />
+      <Route path="/admin/courses" element={<RedirectToAdminPortal />} />
       <Route
         path="/my/courses"
         element={

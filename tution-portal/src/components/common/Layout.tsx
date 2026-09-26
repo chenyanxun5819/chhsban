@@ -62,35 +62,58 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-// 側邊欄只保留給 super_admin / admin（督察員）/ classroom_manager（教室管理員）使用
-const ADMIN_NAV_ITEMS: Array<{ path: string; icon: string; label: string }> = [
-  { path: "/admin/approvals", icon: "📋", label: "審批管理" },
-  { path: "/admin/courses", icon: "📚", label: "已開課管理" },
-  { path: "/admin/course-report", icon: "📊", label: "各課程開課報表" },
-  { path: "/admin/course-attendance", icon: "✅", label: "各課程出席狀況" },
-  { path: "/admin/teachers", icon: "👨‍🏫", label: "老師管理" },
-  { path: "/admin/password-reset", icon: "🔑", label: "申請人密碼重設" },
-  { path: "/admin/usage", icon: "🗓️", label: "每日教室使用" },
-  { path: "/admin/classrooms", icon: "🏫", label: "教室管理" },
+type NavItem = { path: string; icon: string; label: string };
+
+// 側邊欄只保留給 super_admin / admin（督察員）/ classroom_manager（教室管理員）使用。
+// 補習班與選修課是兩個獨立系統（各自的 Worker 與資料），側邊欄分組顯示、頁面也各自獨立；
+// 老師與教室資料兩邊共用，另外放一組。
+const ADMIN_NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
+  {
+    title: "補習班",
+    items: [
+      { path: "/admin/approvals", icon: "📋", label: "審批管理" },
+      { path: "/admin/courses", icon: "📚", label: "已開課管理" },
+      { path: "/admin/course-report", icon: "📊", label: "各課程開課報表" },
+      { path: "/admin/course-attendance", icon: "✅", label: "各課程出席狀況" },
+      { path: "/admin/usage", icon: "🗓️", label: "每日教室使用" },
+    ],
+  },
+  {
+    title: "選修課",
+    items: [{ path: "/optional/courses", icon: "🎯", label: "選修課總覽" }],
+  },
+  {
+    title: "共用設定",
+    items: [
+      { path: "/admin/teachers", icon: "👨‍🏫", label: "老師管理" },
+      { path: "/admin/password-reset", icon: "🔑", label: "申請人密碼重設" },
+      { path: "/admin/classrooms", icon: "🏫", label: "教室管理" },
+    ],
+  },
 ];
 
 // 督察員／教室管理員是窄範圍角色，側邊欄只顯示各自有權限的分頁（可能不只一個）；超級管理員顯示全部
+// 與 App.tsx 的 RESTRICTED_ALLOWED_PATHS 保持一致
 const RESTRICTED_VISIBLE_PATHS: Record<string, string[]> = {
-  admin: ["/admin/course-report", "/admin/course-attendance"],
+  admin: ["/admin/course-report", "/admin/course-attendance", "/optional/courses"],
   classroom_manager: ["/admin/usage"],
 };
 
-function getVisibleNavItems(permission?: string) {
+function getVisibleNavGroups(permission?: string) {
   const allowedPaths = permission ? RESTRICTED_VISIBLE_PATHS[permission] : undefined;
-  if (!allowedPaths) return ADMIN_NAV_ITEMS;
-  return ADMIN_NAV_ITEMS.filter((item) => allowedPaths.includes(item.path));
+  if (!allowedPaths) return ADMIN_NAV_GROUPS;
+  return ADMIN_NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.filter((item) => allowedPaths.includes(item.path)),
+  })).filter((group) => group.items.length > 0);
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const visibleNavItems = getVisibleNavItems(user?.permission);
+  const visibleNavGroups = getVisibleNavGroups(user?.permission);
+  const visibleNavItems = visibleNavGroups.flatMap((group) => group.items);
 
   const handleNavClick = (path: string) => {
     navigate(path);
@@ -102,21 +125,26 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
       {/* 桌機版側邊欄 */}
       <nav className="nav-sidebar">
         <div className="logo">
-          <h2>補習班系統</h2>
+          <h2>補習班／選修課管理系統</h2>
         </div>
-        <ul className="nav-list">
-          {visibleNavItems.map((item) => (
-            <li key={item.path}>
-              <button
-                className={`nav-item ${location.pathname === item.path ? "nav-item--active" : ""}`}
-                onClick={() => handleNavClick(item.path)}
-              >
-                <span className="nav-item__icon">{item.icon}</span>
-                <span className="nav-item__label">{item.label}</span>
-              </button>
-            </li>
-          ))}
-        </ul>
+        {visibleNavGroups.map((group) => (
+          <div key={group.title} className="nav-group">
+            <div className="nav-group__title">{group.title}</div>
+            <ul className="nav-list">
+              {group.items.map((item) => (
+                <li key={item.path}>
+                  <button
+                    className={`nav-item ${location.pathname === item.path ? "nav-item--active" : ""}`}
+                    onClick={() => handleNavClick(item.path)}
+                  >
+                    <span className="nav-item__icon">{item.icon}</span>
+                    <span className="nav-item__label">{item.label}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
       </nav>
 
       {/* 手機版底部導航 */}

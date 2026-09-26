@@ -152,6 +152,23 @@
   padding: var(--spacing-md) 0;
 }
 
+/* 側邊欄分組（補習班／選修課／共用設定） */
+.nav-group + .nav-group {
+  border-top: 1px solid var(--border-color);
+}
+
+.nav-group__title {
+  padding: var(--spacing-md) var(--spacing-lg) 0;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary, #888);
+  letter-spacing: 0.05em;
+}
+
+.nav-group .nav-list {
+  padding: var(--spacing-sm, 4px) 0 var(--spacing-md);
+}
+
 .nav-list li {
   margin: 0;
 }
