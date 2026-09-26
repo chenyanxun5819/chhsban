@@ -26,6 +26,7 @@ import {
 import { OptionalCourseService } from "./optional-course-service";
 import { CourseWindowStatus, CourseScheduleStatus, CourseAttendanceStatus } from "./types";
 import { findStudentByNo, getStudentClass } from "./student-lookup";
+import { currentYear, isQueryableYear } from "./year";
 
 interface Env {
   STUDENT_KV: KVNamespace;
@@ -347,6 +348,13 @@ async function handleTeacherList(
   return jsonResponse({ success: true, data });
 }
 
+/** ?year=YYYY，未帶時為今年；超出保留範圍回傳 null */
+function parseYearParam(url: URL): number | null {
+  const raw = url.searchParams.get("year");
+  const year = raw ? Number(raw) : currentYear();
+  return isQueryableYear(year) ? year : null;
+}
+
 /** /api/v1/courses[/...] - 建課、綁定老師、開關窗口（admin），課程詳情（teacher owner 或 admin） */
 async function handleCourses(
   request: Request,
@@ -373,9 +381,16 @@ async function handleCourses(
         time_end?: string;
         venue?: string;
         max_students?: number;
+        year?: number;
       };
       if (!body.subject) {
         return jsonResponse({ error: "Missing subject field" }, 400);
+      }
+      // 只能建今年或明年（年底先建好下一年）的課
+      const thisYear = currentYear();
+      const year = body.year === undefined ? thisYear : Number(body.year);
+      if (year !== thisYear && year !== thisYear + 1) {
+        return jsonResponse({ error: "INVALID_YEAR" }, 400);
       }
       const course = await service.createCourse({
         subject: body.subject,
@@ -386,7 +401,7 @@ async function handleCourses(
         venue: body.venue,
         max_students: body.max_students,
         created_by: session.teacher_id,
-      });
+      }, year);
       return jsonResponse({ success: true, data: course }, 201);
     }
 
@@ -394,7 +409,11 @@ async function handleCourses(
       if (!isAdmin(session)) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
-      const courses = await service.listAllCourses();
+      const year = parseYearParam(url);
+      if (year === null) {
+        return jsonResponse({ error: "INVALID_YEAR" }, 400);
+      }
+      const courses = await service.listCoursesByYear(year);
       return jsonResponse({ success: true, data: courses });
     }
 
@@ -486,12 +505,16 @@ async function handleMyCourses(
   if (request.method !== "GET") {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
+  const year = parseYearParam(new URL(request.url));
+  if (year === null) {
+    return jsonResponse({ error: "INVALID_YEAR" }, 400);
+  }
   const service = buildService(env);
-  const courses = await service.listCoursesByTeacher(session.teacher_id);
+  const courses = await service.listCoursesByTeacher(session.teacher_id, year);
   return jsonResponse({ success: true, data: courses });
 }
 
-// 每位學生約 2 次 KV 操作（查 STUDENT_KV + 寫名冊），限制筆數避免超過 Worker 單次請求的 KV 操作上限
+// 每位學生 1 次 KV 讀取（查 STUDENT_KV），名冊整批只寫 1 次；限制筆數避免超過 Worker 單次請求的 KV 操作上限
 const ROSTER_BATCH_MAX = 200;
 
 type RosterBatchStatus = "ok" | "added" | "already_in_roster" | "not_found" | "duplicate_in_file";
@@ -523,7 +546,7 @@ async function handleRosterBatch(
     return jsonResponse({ error: "TOO_MANY_STUDENTS", max: ROSTER_BATCH_MAX }, 400);
   }
 
-  const existingRoster = await service.listRosterByCourse(courseId);
+  const existingRoster = await service.getRoster(courseId);
   const enrolledIds = new Set(existingRoster.filter((r) => r.is_active).map((r) => r.student_id));
 
   const seen = new Set<string>();
@@ -536,7 +559,9 @@ async function handleRosterBatch(
 
   const counted = new Set<string>();
   const enrollmentDate = new Date().toISOString().split("T")[0];
-  const results = [];
+  const results: Array<Record<string, any> & { status: RosterBatchStatus }> = [];
+  // 要寫入的學生先收集起來，最後整批寫入名冊（1 次 KV 寫入）
+  const toAdd: Array<{ resultIdx: number; item: Parameters<OptionalCourseService["addRosterEntries"]>[1][number] }> = [];
 
   for (const studentNo of studentNos) {
     if (counted.has(studentNo)) {
@@ -568,14 +593,19 @@ async function handleRosterBatch(
       continue;
     }
 
-    const entry = await service.addRosterEntry({
-      course_id: courseId,
-      student_id: student.student_id,
-      ...info,
-      enrollment_date: enrollmentDate,
-    });
     enrolledIds.add(student.student_id);
-    results.push({ ...info, status: "added" as RosterBatchStatus, entry });
+    toAdd.push({
+      resultIdx: results.length,
+      item: { student_id: student.student_id, ...info, enrollment_date: enrollmentDate },
+    });
+    results.push({ ...info, status: "added" });
+  }
+
+  if (toAdd.length > 0) {
+    const entries = await service.addRosterEntries(courseId, toAdd.map((t) => t.item));
+    toAdd.forEach((t, i) => {
+      results[t.resultIdx].entry = entries[i];
+    });
   }
 
   return jsonResponse({ success: true, data: results });
@@ -609,7 +639,7 @@ async function handleRoster(
       if (!ownsCourseOrIsAdmin(session, course.teacher_id)) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
-      const roster = await service.listRosterByCourse(course.course_id);
+      const roster = await service.getRoster(course.course_id);
       return jsonResponse({ success: true, data: roster });
     }
 
@@ -632,7 +662,7 @@ async function handleRoster(
       }
 
       // 同一個學生若已經在這門課的名冊裡（且尚未退出），不重複加入
-      const existingRoster = await service.listRosterByCourse(course.course_id);
+      const existingRoster = await service.getRoster(course.course_id);
       const alreadyEnrolled = existingRoster.some(
         (r) => r.student_id === student.student_id && r.is_active,
       );
@@ -640,15 +670,16 @@ async function handleRoster(
         return jsonResponse({ error: "STUDENT_ALREADY_IN_ROSTER" }, 409);
       }
 
-      const entry = await service.addRosterEntry({
-        course_id: course.course_id,
-        student_id: student.student_id,
-        student_no: student.student_no,
-        student_name_cn: student.name_cn,
-        student_name_en: student.name_en,
-        student_class: getStudentClass(student),
-        enrollment_date: new Date().toISOString().split("T")[0],
-      });
+      const [entry] = await service.addRosterEntries(course.course_id, [
+        {
+          student_id: student.student_id,
+          student_no: student.student_no,
+          student_name_cn: student.name_cn,
+          student_name_en: student.name_en,
+          student_class: getStudentClass(student),
+          enrollment_date: new Date().toISOString().split("T")[0],
+        },
+      ]);
       return jsonResponse({ success: true, data: entry }, 201);
     }
 
@@ -659,12 +690,11 @@ async function handleRoster(
     if (!ownsCourseOrIsAdmin(session, course.teacher_id)) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
-    const entry = await service.getRosterEntry(rosterId);
-    if (!entry || entry.course_id !== course.course_id) {
+    const body = (await request.json().catch(() => ({}))) as { reason?: string };
+    const updated = await service.withdrawRosterEntry(course.course_id, rosterId, body.reason || "");
+    if (!updated) {
       return jsonResponse({ error: "Roster entry not found" }, 404);
     }
-    const body = (await request.json().catch(() => ({}))) as { reason?: string };
-    const updated = await service.withdrawRosterEntry(rosterId, body.reason || "");
     return jsonResponse({ success: true, data: updated });
   }
 
@@ -759,24 +789,25 @@ async function handleAttendance(
     }
 
     const now = Date.now();
-    const saved = await Promise.all(
-      body.records.map((r) =>
-        service.recordAttendance({
-          course_id: course.course_id,
-          student_id: r.student_id,
-          class_date: body.class_date!,
-          status: r.status,
-          absence_reason: r.absence_reason,
-          recorded_at: now,
-          recorded_by: session.teacher_id,
-        }),
-      ),
+    const saved = await service.recordAttendance(
+      course.course_id,
+      body.class_date,
+      body.records.map((r) => ({
+        student_id: r.student_id,
+        status: r.status,
+        absence_reason: r.absence_reason,
+        recorded_at: now,
+        recorded_by: session.teacher_id,
+      })),
     );
     return jsonResponse({ success: true, data: saved }, 201);
   }
 
   return jsonResponse({ error: "Method not allowed" }, 405);
 }
+
+// 每門課清理約 40 次 KV 操作，每天最多清 10 門，未清完的隔天繼續
+const PURGE_COURSES_PER_RUN = 10;
 
 // ============================================
 // 路由分派
@@ -836,5 +867,16 @@ export default {
       console.error("Error:", error);
       return jsonResponse({ error: "Internal server error" }, 500);
     }
+  },
+
+  /** 每日排程：刪除超過保留年限（今年＋往前 2 年）的課程及其名冊／排課／點名 */
+  async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
+    ctx.waitUntil(
+      buildService(env)
+        .purgeExpiredCourses(PURGE_COURSES_PER_RUN)
+        .then((ids) => {
+          if (ids.length > 0) console.log(`Purged ${ids.length} expired courses:`, ids.join(", "));
+        }),
+    );
   },
 };

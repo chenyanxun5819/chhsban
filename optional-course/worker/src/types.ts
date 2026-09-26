@@ -22,7 +22,9 @@ export enum CourseWindowStatus {
 }
 
 export interface OptionalCourse {
-  course_id: string; // course_<ts>_<rand>
+  course_id: string; // course_<year>_<ts>_<rand>，KV key 本身帶年份，才能只列出某一年的課程
+  course_no: string; // 顯示用編號 optional-<年份後兩碼>-<該年序號>，如 optional-26-01
+  year: number; // 日曆年（馬來西亞時間），建課時決定
   teacher_id?: string; // FK -> TEACHER_KV（共用），未綁定前為空
   teacher_name_cn?: string;
   subject: string; // 選修課名稱

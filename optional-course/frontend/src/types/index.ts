@@ -24,6 +24,8 @@ export type CourseWindowStatus = "pending" | "open" | "closed";
 
 export interface OptionalCourse {
   course_id: string;
+  course_no: string; // 顯示用編號，如 optional-26-01
+  year: number;
   teacher_id?: string;
   teacher_name_cn?: string;
   subject: string;

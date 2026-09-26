@@ -43,6 +43,10 @@ id = "fb6710655ea64107b98a25e625716237"
 binding = "OPTIONAL_COURSE_ATTENDANCE_KV"
 id = "6ca37192e83249a0913de69dcfd0d531"
 
+# 每日 03:00（馬來西亞時間，= UTC 19:00）清理超過保留年限（今年＋往前 2 年）的課程資料
+[triggers]
+crons = ["0 19 * * *"]
+
 [vars]
 # 目前無需額外環境變數
 

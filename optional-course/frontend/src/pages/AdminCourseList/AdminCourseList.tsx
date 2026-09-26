@@ -9,6 +9,7 @@ import {
   listTeachers,
 } from "@/services/courseService";
 import type { OptionalCourse, TeacherOption } from "@/types";
+import { currentYear, selectableYears } from "@/utils/year";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "未綁老師",
@@ -22,6 +23,8 @@ const AdminCourseList: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [subject, setSubject] = useState("");
+  const [year, setYear] = useState(currentYear());
+  const [createYear, setCreateYear] = useState(currentYear());
   const [selectedTeacher, setSelectedTeacher] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -49,7 +52,7 @@ const AdminCourseList: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
-      const [courseList, teacherList] = await Promise.all([listAllCourses(), listTeachers()]);
+      const [courseList, teacherList] = await Promise.all([listAllCourses(year), listTeachers()]);
       setCourses(courseList);
       setTeachers(teacherList);
     } catch (err: any) {
@@ -61,16 +64,21 @@ const AdminCourseList: React.FC = () => {
 
   useEffect(() => {
     load();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [year]);
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim()) return;
     try {
       setError(null);
-      await createCourse({ subject: subject.trim() });
+      await createCourse({ subject: subject.trim(), year: createYear });
       setSubject("");
-      await load();
+      if (createYear !== year) {
+        setYear(createYear); // 切到新課程所在年份，useEffect 會重新載入
+      } else {
+        await load();
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || "建課失敗");
     }
@@ -131,22 +139,44 @@ const AdminCourseList: React.FC = () => {
               placeholder="例如：程式設計入門"
             />
           </div>
+          <div className="form-row">
+            <label htmlFor="createYear">年份</label>
+            <select id="createYear" value={createYear} onChange={(e) => setCreateYear(Number(e.target.value))}>
+              <option value={currentYear()}>{currentYear()}</option>
+              <option value={currentYear() + 1}>{currentYear() + 1}</option>
+            </select>
+          </div>
           <button type="submit" className="btn btn--primary">
             建立課程
           </button>
         </form>
       </div>
 
+      <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "8px 0" }}>
+        <label htmlFor="viewYear">年份：</label>
+        <select id="viewYear" value={year} onChange={(e) => setYear(Number(e.target.value))}>
+          {selectableYears().map((y) => (
+            <option key={y} value={y}>
+              {y}
+            </option>
+          ))}
+        </select>
+        <span style={{ color: "#888", fontSize: 13 }}>系統只保留今年及往前 2 年的課程</span>
+      </div>
+
       {error && <p className="error-text">{error}</p>}
       {loading ? (
         <p>載入中...</p>
       ) : courses.length === 0 ? (
-        <p>目前沒有任何課程。</p>
+        <p>{year} 年沒有任何課程。</p>
       ) : (
         courses.map((course) => (
           <div className="card" key={course.course_id}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <h3 style={{ margin: 0 }}>{course.subject}</h3>
+              <h3 style={{ margin: 0 }}>
+                <span style={{ color: "#888", fontWeight: "normal", marginRight: 8 }}>{course.course_no}</span>
+                {course.subject}
+              </h3>
               <span className={`badge badge--${course.window_status}`}>
                 {STATUS_LABEL[course.window_status]}
               </span>

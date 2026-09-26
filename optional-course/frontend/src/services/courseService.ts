@@ -1,13 +1,17 @@
 import apiClient from "@/utils/api";
 import type { OptionalCourse, TeacherOption } from "@/types";
 
-export const listAllCourses = async (): Promise<OptionalCourse[]> => {
-  const res = await apiClient.get<{ success: boolean; data: OptionalCourse[] }>("/v1/courses");
+export const listAllCourses = async (year: number): Promise<OptionalCourse[]> => {
+  const res = await apiClient.get<{ success: boolean; data: OptionalCourse[] }>("/v1/courses", {
+    params: { year },
+  });
   return res.data.data;
 };
 
-export const listMyCourses = async (): Promise<OptionalCourse[]> => {
-  const res = await apiClient.get<{ success: boolean; data: OptionalCourse[] }>("/v1/my/courses");
+export const listMyCourses = async (year: number): Promise<OptionalCourse[]> => {
+  const res = await apiClient.get<{ success: boolean; data: OptionalCourse[] }>("/v1/my/courses", {
+    params: { year },
+  });
   return res.data.data;
 };
 
@@ -24,6 +28,7 @@ export const createCourse = async (data: {
   time_end?: string;
   venue?: string;
   max_students?: number;
+  year?: number;
 }): Promise<OptionalCourse> => {
   const res = await apiClient.post<{ success: boolean; data: OptionalCourse }>("/v1/courses", data);
   return res.data.data;
