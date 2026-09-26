@@ -491,6 +491,96 @@ async function handleMyCourses(
   return jsonResponse({ success: true, data: courses });
 }
 
+// 每位學生約 2 次 KV 操作（查 STUDENT_KV + 寫名冊），限制筆數避免超過 Worker 單次請求的 KV 操作上限
+const ROSTER_BATCH_MAX = 200;
+
+type RosterBatchStatus = "ok" | "added" | "already_in_roster" | "not_found" | "duplicate_in_file";
+
+/**
+ * POST /api/v1/courses/{id}/roster/batch
+ * body: { student_nos: string[], dry_run?: boolean }
+ * dry_run=true 只核對學號、回報每筆結果（前端預覽用）；false 才實際把狀態為 ok 的學生寫入名冊。
+ * 同一份清單內的重複學號只算第一次，後面的標記為 duplicate_in_file。
+ */
+async function handleRosterBatch(
+  request: Request,
+  env: Env,
+  service: OptionalCourseService,
+  courseId: string,
+): Promise<Response> {
+  const body = (await request.json().catch(() => ({}))) as {
+    student_nos?: unknown;
+    dry_run?: boolean;
+  };
+  if (!Array.isArray(body.student_nos)) {
+    return jsonResponse({ error: "Missing student_nos field" }, 400);
+  }
+  const studentNos = body.student_nos.map((s) => String(s ?? "").trim()).filter(Boolean);
+  if (studentNos.length === 0) {
+    return jsonResponse({ error: "EMPTY_STUDENT_LIST" }, 400);
+  }
+  if (studentNos.length > ROSTER_BATCH_MAX) {
+    return jsonResponse({ error: "TOO_MANY_STUDENTS", max: ROSTER_BATCH_MAX }, 400);
+  }
+
+  const existingRoster = await service.listRosterByCourse(courseId);
+  const enrolledIds = new Set(existingRoster.filter((r) => r.is_active).map((r) => r.student_id));
+
+  const seen = new Set<string>();
+  const uniqueNos = studentNos.filter((no) => !seen.has(no) && seen.add(no));
+  const lookups = new Map(
+    await Promise.all(
+      uniqueNos.map(async (no) => [no, await findStudentByNo(env.STUDENT_KV, no)] as const),
+    ),
+  );
+
+  const counted = new Set<string>();
+  const enrollmentDate = new Date().toISOString().split("T")[0];
+  const results = [];
+
+  for (const studentNo of studentNos) {
+    if (counted.has(studentNo)) {
+      results.push({ student_no: studentNo, status: "duplicate_in_file" as RosterBatchStatus });
+      continue;
+    }
+    counted.add(studentNo);
+
+    const student = lookups.get(studentNo);
+    if (!student) {
+      results.push({ student_no: studentNo, status: "not_found" as RosterBatchStatus });
+      continue;
+    }
+
+    const info = {
+      student_no: studentNo,
+      student_name_cn: student.name_cn,
+      student_name_en: student.name_en,
+      student_class: getStudentClass(student),
+    };
+
+    if (enrolledIds.has(student.student_id)) {
+      results.push({ ...info, status: "already_in_roster" as RosterBatchStatus });
+      continue;
+    }
+
+    if (body.dry_run) {
+      results.push({ ...info, status: "ok" as RosterBatchStatus });
+      continue;
+    }
+
+    const entry = await service.addRosterEntry({
+      course_id: courseId,
+      student_id: student.student_id,
+      ...info,
+      enrollment_date: enrollmentDate,
+    });
+    enrolledIds.add(student.student_id);
+    results.push({ ...info, status: "added" as RosterBatchStatus, entry });
+  }
+
+  return jsonResponse({ success: true, data: results });
+}
+
 async function handleRoster(
   request: Request,
   env: Env,
@@ -500,6 +590,19 @@ async function handleRoster(
 ): Promise<Response> {
   const method = request.method;
   const service = buildService(env);
+
+  if (rosterId === "batch") {
+    if (method !== "POST") {
+      return jsonResponse({ error: "Method not allowed" }, 405);
+    }
+    if (!ownsCourseOrIsAdmin(session, course.teacher_id)) {
+      return jsonResponse({ error: "Forbidden" }, 403);
+    }
+    if (course.window_status !== CourseWindowStatus.OPEN) {
+      return jsonResponse({ error: "COURSE_NOT_OPEN" }, 409);
+    }
+    return handleRosterBatch(request, env, service, course.course_id);
+  }
 
   if (!rosterId) {
     if (method === "GET") {

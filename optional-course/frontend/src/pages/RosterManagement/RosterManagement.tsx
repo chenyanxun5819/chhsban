@@ -4,6 +4,7 @@ import { Layout } from "@/components/common/Layout";
 import { getCourse } from "@/services/courseService";
 import { listRoster, lookupStudent, addRosterEntry, withdrawRosterEntry } from "@/services/rosterService";
 import type { OptionalCourse, OptionalCourseRoster, StudentRecord } from "@/types";
+import RosterBatchImport from "./RosterBatchImport";
 
 const RosterManagement: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -122,6 +123,10 @@ const RosterManagement: React.FC = () => {
               </div>
             )}
           </div>
+
+          {id && (
+            <RosterBatchImport courseId={id} onAdded={(entries) => setRoster((prev) => [...prev, ...entries])} />
+          )}
 
           <div className="card">
             <h3>目前名冊（{activeRoster.length} 人）</h3>
