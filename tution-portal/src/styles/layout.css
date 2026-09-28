@@ -128,12 +128,11 @@
 
 /* ========== Sidebar 導航 ========== */
 
+/* 捲動交給外層 .responsive-layout__sidebar，這裡不再各自捲動，避免出現兩條捲軸 */
 .nav-sidebar {
   display: flex;
   flex-direction: column;
-  height: 100%;
   background: white;
-  overflow-y: auto;
 }
 
 .logo {
@@ -210,66 +209,12 @@
   flex: 1;
 }
 
-/* ========== 底部導航 (手機版) ========== */
-
-.nav-bottom {
-  display: flex;
-  justify-content: space-around;
-  align-items: center;
-  height: 60px;
-  background: white;
-  border-top: 1px solid var(--border-color);
-  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.05);
-}
-
-.nav-bottom__item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  flex: 1;
-  height: 100%;
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  color: var(--text-secondary);
-  font-size: 12px;
-  transition: all 0.2s;
-}
-
-.nav-bottom__item:active,
-.nav-bottom__item:hover {
-  color: var(--primary-color);
-  background: var(--bg-light);
-}
-
-.nav-bottom__item--active {
-  color: var(--primary-color);
-  font-weight: 600;
-}
-
-.nav-bottom__icon {
-  font-size: 24px;
-}
-
-.nav-bottom__label {
-  font-size: 11px;
-  font-weight: 500;
-}
-
 /* ========== 主內容 ========== */
 
 .main-content {
   flex: 1;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
-}
-
-@media (max-width: 1023px) {
-  .main-content {
-    padding-bottom: calc(60px + var(--spacing-lg));
-  }
 }
 
 /* ========== 響應式佈局容器 ========== */
@@ -319,9 +264,5 @@
     flex: 1;
     display: flex;
     flex-direction: column;
-  }
-
-  .responsive-layout--no-sidebar .nav-bottom {
-    display: none;
   }
 }

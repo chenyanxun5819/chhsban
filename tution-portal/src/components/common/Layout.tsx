@@ -113,7 +113,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   const location = useLocation();
   const { user } = useAuth();
   const visibleNavGroups = getVisibleNavGroups(user?.permission);
-  const visibleNavItems = visibleNavGroups.flatMap((group) => group.items);
 
   const handleNavClick = (path: string) => {
     navigate(path);
@@ -147,20 +146,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
         ))}
       </nav>
 
-      {/* 手機版底部導航 */}
-      <nav className="nav-bottom">
-        {visibleNavItems.map((item) => (
-          <button
-            key={item.path}
-            className={`nav-bottom__item ${location.pathname === item.path ? "nav-bottom__item--active" : ""}`}
-            onClick={() => handleNavClick(item.path)}
-            title={item.label}
-          >
-            <span className="nav-bottom__icon">{item.icon}</span>
-            <span className="nav-bottom__label">{item.label}</span>
-          </button>
-        ))}
-      </nav>
     </>
   );
 };
