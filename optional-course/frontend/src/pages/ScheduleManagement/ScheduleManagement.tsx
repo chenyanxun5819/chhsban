@@ -65,9 +65,18 @@ const ScheduleManagement: React.FC = () => {
     }
   };
 
+  // 窗口未開放（已關閉）時只能查看，後端也會拒絕任何修改
+  const readOnly = !loading && course?.window_status !== "open";
+
   return (
     <Layout title={course ? `排課管理 - ${course.subject}` : "排課管理"}>
       {error && <p className="error-text">{error}</p>}
+      {readOnly && (
+        <p className="card" style={{ color: "#92400e", background: "#fffbeb" }}>
+          此課程窗口已關閉，資料僅供查看，無法修改。如需修改請聯絡行政人員重新開放。
+        </p>
+      )}
+      {!readOnly && (
       <div className="card">
         <h3>登記停課／調課（沒有登記的上課日一律視為正常上課）</h3>
         <form onSubmit={handleSubmit}>
@@ -103,6 +112,7 @@ const ScheduleManagement: React.FC = () => {
           </button>
         </form>
       </div>
+      )}
 
       <div className="card">
         <h3>已登記的例外記錄</h3>

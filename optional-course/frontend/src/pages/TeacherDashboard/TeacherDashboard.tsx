@@ -56,20 +56,25 @@ const TeacherDashboard: React.FC = () => {
                 {STATUS_LABEL[course.window_status]}
               </span>
             </div>
-            {course.window_status !== "open" ? (
+            {course.window_status === "pending" ? (
               <p style={{ color: "#888" }}>窗口尚未開放，暫時無法管理名冊/排課/點名。</p>
             ) : (
-              <div style={{ display: "flex", gap: 8 }}>
-                <button className="btn" onClick={() => navigate(`/courses/${course.course_id}/roster`)}>
-                  名冊管理
-                </button>
-                <button className="btn" onClick={() => navigate(`/courses/${course.course_id}/schedule`)}>
-                  排課管理
-                </button>
-                <button className="btn" onClick={() => navigate(`/courses/${course.course_id}/attendance`)}>
-                  點名
-                </button>
-              </div>
+              <>
+                {course.window_status === "closed" && (
+                  <p style={{ color: "#888" }}>課程已關閉，名冊/排課/點名僅供查看。</p>
+                )}
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button className="btn" onClick={() => navigate(`/courses/${course.course_id}/roster`)}>
+                    {course.window_status === "open" ? "名冊管理" : "查看名冊"}
+                  </button>
+                  <button className="btn" onClick={() => navigate(`/courses/${course.course_id}/schedule`)}>
+                    {course.window_status === "open" ? "排課管理" : "查看排課"}
+                  </button>
+                  <button className="btn" onClick={() => navigate(`/courses/${course.course_id}/attendance`)}>
+                    {course.window_status === "open" ? "點名" : "查看點名"}
+                  </button>
+                </div>
+              </>
             )}
           </div>
         ))

@@ -91,6 +91,8 @@ const RosterManagement: React.FC = () => {
   };
 
   const activeRoster = roster.filter((r) => r.is_active);
+  // 窗口未開放（已關閉）時只能查看，後端也會拒絕任何修改
+  const readOnly = course?.window_status !== "open";
 
   return (
     <Layout title={course ? `名冊管理 - ${course.subject}` : "名冊管理"}>
@@ -99,6 +101,12 @@ const RosterManagement: React.FC = () => {
         <p>載入中...</p>
       ) : (
         <>
+          {readOnly && (
+            <p className="card" style={{ color: "#92400e", background: "#fffbeb" }}>
+          此課程窗口已關閉，資料僅供查看，無法修改。如需修改請聯絡行政人員重新開放。
+        </p>
+          )}
+          {!readOnly && (
           <div className="card">
             <h3>加入學生</h3>
             <form onSubmit={handleSearch} style={{ display: "flex", gap: 8 }}>
@@ -124,7 +132,9 @@ const RosterManagement: React.FC = () => {
             )}
           </div>
 
-          {id && (
+          )}
+
+          {id && !readOnly && (
             <RosterBatchImport courseId={id} onAdded={(entries) => setRoster((prev) => [...prev, ...entries])} />
           )}
 
@@ -140,7 +150,7 @@ const RosterManagement: React.FC = () => {
                     <th>姓名</th>
                     <th>班級</th>
                     <th>報名日期</th>
-                    <th></th>
+                    {!readOnly && <th></th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -150,11 +160,13 @@ const RosterManagement: React.FC = () => {
                       <td>{r.student_name_cn}</td>
                       <td>{r.student_class}</td>
                       <td>{r.enrollment_date}</td>
-                      <td>
-                        <button className="btn btn--danger" onClick={() => handleWithdraw(r.roster_id)}>
-                          退出
-                        </button>
-                      </td>
+                      {!readOnly && (
+                        <td>
+                          <button className="btn btn--danger" onClick={() => handleWithdraw(r.roster_id)}>
+                            退出
+                          </button>
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>

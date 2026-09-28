@@ -293,6 +293,18 @@ export const OptionalCourseAdmin: React.FC = () => {
                               關閉窗口
                             </button>
                           )}
+                          {course.window_status === "closed" && (
+                            <button
+                              className="oc-btn oc-btn--primary"
+                              disabled={busyId === course.course_id}
+                              onClick={() => {
+                                if (!window.confirm(`確定要重新開放「${course.subject}」嗎？開放後老師可再修改名冊、排課、點名。`)) return;
+                                runAction(course.course_id, () => optionalCourseService.openCourse(course.course_id), "重新開放失敗");
+                              }}
+                            >
+                              重新開放
+                            </button>
+                          )}
                           <button
                             className="oc-btn oc-btn--link-danger"
                             disabled={busyId === course.course_id}
