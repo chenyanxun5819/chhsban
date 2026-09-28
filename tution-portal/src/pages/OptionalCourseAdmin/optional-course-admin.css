@@ -96,6 +96,17 @@
   color: #ff4d4f;
 }
 
+.oc-btn--link-danger {
+  border-color: transparent;
+  background: transparent;
+  color: #9ca3af;
+  margin-left: 4px;
+}
+
+.oc-btn--link-danger:hover:not(:disabled) {
+  color: #ff4d4f;
+}
+
 .oc-hint {
   margin: 0 0 12px;
   font-size: 13px;

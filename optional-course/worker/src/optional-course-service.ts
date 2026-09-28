@@ -6,6 +6,7 @@
 // 且 list() 單次最多 1000 筆會悄悄漏資料）。
 //
 // - OPTIONAL_COURSE_KV            course_{year}_{ts}_{rand}      單一課程；依年份 prefix 列出當年課程
+//                                 counter:course_no:{year}       該年最後發出的編號序號（只增不減）
 // - OPTIONAL_COURSE_ROSTER_KV     roster:{course_id}             整門課的名冊（陣列）
 // - OPTIONAL_COURSE_SCHEDULE_KV   schedule:{course_id}           整門課的排課例外（陣列）
 // - OPTIONAL_COURSE_ATTENDANCE_KV attendance:{course_id}:{date}  一堂課的點名紀錄（陣列）
@@ -34,6 +35,8 @@ const rosterKey = (courseId: string) => `roster:${courseId}`;
 const scheduleKey = (courseId: string) => `schedule:${courseId}`;
 const attendancePrefix = (courseId: string) => `attendance:${courseId}:`;
 const attendanceKey = (courseId: string, classDate: string) => `${attendancePrefix(courseId)}${classDate}`;
+const courseNoCounterKey = (year: number) => `counter:course_no:${year}`;
+const COURSE_NO_PATTERN = /^optional-\d{2}-(\d+)$/;
 
 /** 依 cursor 分頁列出某 prefix 下的所有 key 名稱 */
 async function listAllKeys(kv: KVNamespace, prefix: string): Promise<string[]> {
@@ -69,14 +72,12 @@ export class OptionalCourseService {
     >,
     year: number,
   ): Promise<OptionalCourse> {
-    // 編號序號 = 該年已有課程數 + 1。只列 key、不讀內容，一次 list 即可；
-    // 課程只由行政人員建立、一年約 25 門，同時建課撞號的機會可忽略。
-    const sameYear = await listAllKeys(this.courseKV, `course_${year}_`);
+    const seq = await this.nextCourseNoSeq(year);
     const now = Date.now();
     const course: OptionalCourse = {
       ...data,
       course_id: `course_${year}_${now}_${randomSuffix()}`,
-      course_no: `optional-${String(year).slice(-2)}-${String(sameYear.length + 1).padStart(2, "0")}`,
+      course_no: `optional-${String(year).slice(-2)}-${String(seq).padStart(2, "0")}`,
       year,
       window_status: CourseWindowStatus.PENDING,
       created_at: now,
@@ -84,6 +85,27 @@ export class OptionalCourseService {
     };
     await this.courseKV.put(course.course_id, JSON.stringify(course));
     return course;
+  }
+
+  /**
+   * 發出該年下一個編號序號。用計數器只增不減，課程刪除後號碼空著不再使用
+   * （不能用「現有課程數或最大編號 + 1」，刪掉最後一號就會被重複發出）。
+   * 計數器不存在時（改版前建的課），以現有課程的最大編號起算。
+   * 課程只由行政人員建立、一年約 25 門，同時建課撞號的機會可忽略。
+   */
+  private async nextCourseNoSeq(year: number): Promise<number> {
+    const key = courseNoCounterKey(year);
+    let last = Number(await this.courseKV.get(key));
+    if (!Number.isInteger(last) || last <= 0) {
+      const existing = await this.listCoursesByYear(year);
+      last = Math.max(
+        0,
+        ...existing.map((c) => Number(COURSE_NO_PATTERN.exec(c.course_no)?.[1] || 0)),
+      );
+    }
+    const next = last + 1;
+    await this.courseKV.put(key, String(next));
+    return next;
   }
 
   async getCourse(courseId: string): Promise<OptionalCourse | null> {
@@ -235,16 +257,28 @@ export class OptionalCourseService {
       .slice(0, maxCourses);
 
     for (const courseId of expired) {
-      const attendanceKeys = await listAllKeys(this.attendanceKV, attendancePrefix(courseId));
-      await Promise.all([
-        ...attendanceKeys.map((k) => this.attendanceKV.delete(k)),
-        this.rosterKV.delete(rosterKey(courseId)),
-        this.scheduleKV.delete(scheduleKey(courseId)),
-      ]);
-      // 課程本身最後刪：中途失敗的話，下次排程還找得到這門課，會把剩下的關聯資料刪完
-      await this.courseKV.delete(courseId);
+      await this.deleteCourse(courseId);
     }
+
+    // 過期年份的編號計數器也一併清掉
+    const expiredCounters = (await listAllKeys(this.courseKV, "counter:course_no:")).filter(
+      (k) => Number(k.split(":").pop()) < minYear,
+    );
+    await Promise.all(expiredCounters.map((k) => this.courseKV.delete(k)));
+
     return expired;
+  }
+
+  /** 刪除課程及其名冊／排課／點名（行政人員手動刪除、過期清理共用） */
+  async deleteCourse(courseId: string): Promise<void> {
+    const attendanceKeys = await listAllKeys(this.attendanceKV, attendancePrefix(courseId));
+    await Promise.all([
+      ...attendanceKeys.map((k) => this.attendanceKV.delete(k)),
+      this.rosterKV.delete(rosterKey(courseId)),
+      this.scheduleKV.delete(scheduleKey(courseId)),
+    ]);
+    // 課程本身最後刪：中途失敗的話課程還在，可以再刪一次把剩下的關聯資料清完
+    await this.courseKV.delete(courseId);
   }
 }
 

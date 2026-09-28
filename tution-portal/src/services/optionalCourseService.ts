@@ -51,6 +51,11 @@ export const optionalCourseService = {
     return res.data.data;
   },
 
+  /** 刪除課程（連同名冊／排課／點名，無法復原），僅 super_admin */
+  async deleteCourse(courseId: string): Promise<void> {
+    await optionalCourseApi.delete(`/v1/courses/${courseId}`);
+  },
+
   async listTeachers(): Promise<OptionalCourseTeacherOption[]> {
     const res = await optionalCourseApi.get<ApiResponse<OptionalCourseTeacherOption[]>>("/v1/teachers");
     return res.data.data;

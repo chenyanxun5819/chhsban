@@ -111,6 +111,21 @@ export const OptionalCourseAdmin: React.FC = () => {
     }
   };
 
+  // 刪除無法復原，要求輸入課程編號確認，避免點錯列
+  const handleDelete = (course: OptionalCourse) => {
+    const input = window.prompt(
+      `確定要刪除「${course.course_no} ${course.subject}」嗎？\n\n` +
+        "課程的名冊、排課、點名紀錄會一併刪除，無法復原；此編號也不會再被使用。\n\n" +
+        `請輸入課程編號 ${course.course_no} 確認刪除：`,
+    );
+    if (input === null) return;
+    if (input.trim() !== course.course_no) {
+      setError("輸入的課程編號不符，未刪除");
+      return;
+    }
+    runAction(course.course_id, () => optionalCourseService.deleteCourse(course.course_id), "刪除課程失敗");
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim()) return;
@@ -278,6 +293,13 @@ export const OptionalCourseAdmin: React.FC = () => {
                               關閉窗口
                             </button>
                           )}
+                          <button
+                            className="oc-btn oc-btn--link-danger"
+                            disabled={busyId === course.course_id}
+                            onClick={() => handleDelete(course)}
+                          >
+                            刪除
+                          </button>
                         </td>
                       )}
                     </tr>

@@ -435,6 +435,14 @@ async function handleCourses(
   }
 
   if (!action) {
+    if (method === "DELETE") {
+      // 刪除課程（連同名冊／排課／點名，無法復原），只限 super_admin；編號空著不再使用
+      if (!isSuperAdmin(session)) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+      await service.deleteCourse(courseId);
+      return jsonResponse({ success: true });
+    }
     if (method !== "GET") {
       return jsonResponse({ error: "Method not allowed" }, 405);
     }
