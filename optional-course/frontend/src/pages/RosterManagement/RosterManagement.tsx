@@ -177,8 +177,7 @@ const RosterManagement: React.FC = () => {
                 <thead>
                   <tr>
                     <th>學號</th>
-                    <th>中文姓名</th>
-                    <th>英文姓名</th>
+                    <th>姓名/Name</th>
                     <th>班級</th>
                   </tr>
                 </thead>
@@ -198,8 +197,10 @@ const RosterManagement: React.FC = () => {
                       }
                     >
                       <td>{r.student_no || r.student_id}</td>
-                      <td>{r.student_name_cn}</td>
-                      <td>{r.student_name_en}</td>
+                      <td>
+                        <div>{r.student_name_cn}</div>
+                        <div className="name-en">{r.student_name_en}</div>
+                      </td>
                       <td>{r.student_class}</td>
                     </tr>
                   ))}

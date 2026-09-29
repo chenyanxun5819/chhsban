@@ -465,3 +465,8 @@ body {
   gap: 8px;
   margin-top: 8px;
 }
+
+.name-en {
+  font-size: 12px;
+  color: #666;
+}
