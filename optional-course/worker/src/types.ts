@@ -90,6 +90,45 @@ export interface OptionalCourseSchedule {
   updated_at: number;
 }
 
+// ===== 學校行事曆 =====
+// 選修課跟著學校時間表統一排課：學校當天有上課、且是該課的上課星期，就一定要點名。
+// 行事曆只存「規則＋例外」（學期起訖、假期區間、補課日），不存每一天；判定邏輯見 calendar.ts。
+
+export type Weekday =
+  | "Monday"
+  | "Tuesday"
+  | "Wednesday"
+  | "Thursday"
+  | "Friday"
+  | "Saturday"
+  | "Sunday";
+
+export type HolidayType = "public" | "school_break" | "event"; // 國定假日／學校假期／校內活動停課
+
+export interface SchoolHoliday {
+  holiday_id: string; // holiday_<ts>_<rand>
+  start_date: string; // YYYY-MM-DD
+  end_date: string; // YYYY-MM-DD（單日假期 start = end）
+  name: string;
+  type: HolidayType;
+}
+
+export interface SchoolMakeupDay {
+  date: string; // YYYY-MM-DD
+  follows_weekday: Weekday; // 當天按星期幾的課表上課（不可為 Sunday）
+  note?: string;
+}
+
+export interface SchoolCalendar {
+  year: number;
+  term_start?: string; // 開學日；未設定時視為「行事曆尚未建立」，不擋點名
+  term_end?: string; // 結業日
+  holidays: SchoolHoliday[];
+  makeup_days: SchoolMakeupDay[];
+  updated_at: number; // 0 = 尚未儲存過；PUT 時用來做樂觀鎖
+  updated_by?: string; // teacher_id
+}
+
 export enum CourseAttendanceStatus {
   PRESENT = "present",
   ABSENT = "absent",

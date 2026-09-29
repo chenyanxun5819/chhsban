@@ -7,9 +7,9 @@ import RosterManagement from "@/pages/RosterManagement/RosterManagement";
 import ScheduleManagement from "@/pages/ScheduleManagement/ScheduleManagement";
 import AttendanceSheet from "@/pages/AttendanceSheet/AttendanceSheet";
 
-// 行政端（建課、綁定老師、開關窗口）已整合到補習班／選修課管理系統（tution-portal），
+// 行政端（建課、綁定老師、開關窗口、行事曆、點名追蹤）在管理站（admin-portal），
 // 本站只保留老師端（名冊／排課／點名）。舊的 /admin/courses 一律轉址過去。
-const ADMIN_PORTAL_URL = "https://tution-portal.pages.dev/optional/courses";
+const ADMIN_PORTAL_URL = "https://chhsban-admin.pages.dev/optional/courses";
 
 // admin（督察員）在選修課只能查看課程總覽，不會有自己的課，一律導到管理系統
 const RESTRICTED_ALLOWED_PATHS: Record<string, string[]> = {
@@ -22,7 +22,7 @@ const RedirectToAdminPortal: React.FC = () => {
   }, []);
   return (
     <div style={{ padding: 24 }}>
-      選修課行政管理已移到 <a href={ADMIN_PORTAL_URL}>補習班／選修課管理系統</a>，正在為您轉址...
+      選修課行政管理已移到 <a href={ADMIN_PORTAL_URL}>行政管理站</a>，正在為您轉址...
     </div>
   );
 };

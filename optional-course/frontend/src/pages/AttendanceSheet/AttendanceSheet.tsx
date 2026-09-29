@@ -4,12 +4,15 @@ import { Layout } from "@/components/common/Layout";
 import { getCourse } from "@/services/courseService";
 import { listRoster } from "@/services/rosterService";
 import { recordAttendance, listAttendance } from "@/services/attendanceService";
+import { getCourseSessions } from "@/services/calendarService";
 import type {
+  CourseSessionsInfo,
   OptionalCourse,
   OptionalCourseRoster,
   OptionalCourseAttendance,
   CourseAttendanceStatus,
 } from "@/types";
+import { formatDate, todayMYT } from "@/utils/calendar";
 
 const STATUS_OPTIONS: Array<{ value: CourseAttendanceStatus; label: string }> = [
   { value: "present", label: "到課" },
@@ -23,32 +26,55 @@ const STATUS_LABEL = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.la
   string
 >;
 
+const ERROR_LABEL: Record<string, string> = {
+  NOT_A_SESSION_DATE: "這一天不是這門課的上課日，無法點名",
+  COURSE_NOT_OPEN: "課程窗口未開放，無法點名",
+};
+
+/**
+ * 預設日期：今天有課就選今天；否則選最近一次未點名的課；都沒有就選今天以前最近的一堂。
+ */
+function defaultDate(info: CourseSessionsInfo): string {
+  const past = info.sessions.filter((s) => s.date <= info.today);
+  if (past.some((s) => s.date === info.today)) return info.today;
+  const missing = past.filter((s) => s.missing);
+  if (missing.length > 0) return missing[missing.length - 1].date;
+  return past.length > 0 ? past[past.length - 1].date : info.sessions[0]?.date || "";
+}
+
 const AttendanceSheet: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [course, setCourse] = useState<OptionalCourse | null>(null);
   const [roster, setRoster] = useState<OptionalCourseRoster[]>([]);
+  const [info, setInfo] = useState<CourseSessionsInfo | null>(null);
   // 後端已依 course+student+date 取最新一筆，這裡拿到的就是每人每天的目前狀態
   const [records, setRecords] = useState<OptionalCourseAttendance[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
 
-  const [classDate, setClassDate] = useState(new Date().toISOString().split("T")[0]);
+  const [classDate, setClassDate] = useState(todayMYT());
   const [statusMap, setStatusMap] = useState<Record<string, CourseAttendanceStatus>>({});
   const [saving, setSaving] = useState(false);
 
   // 窗口未開放（已關閉）時只能查看，後端也會拒絕任何修改
   const readOnly = !loading && course?.window_status !== "open";
+  // 行事曆已建立且課程有上課星期時，只能從應點名日期中選；否則退回自由選日期
+  const restricted = !!info?.calendar_ready && !!info?.day_of_week;
 
   const load = async () => {
     if (!id) return;
     try {
       setLoading(true);
       setError(null);
-      const [c, r, a] = await Promise.all([getCourse(id), listRoster(id), listAttendance(id)]);
+      const [c, r, i, a] = await Promise.all([getCourse(id), listRoster(id), getCourseSessions(id), listAttendance(id)]);
       setCourse(c);
       setRoster(r.filter((entry) => entry.is_active));
+      setInfo(i);
       setRecords(a);
+      if (i.calendar_ready && i.day_of_week) {
+        setClassDate(defaultDate(i));
+      }
     } catch (err: any) {
       setError(err.response?.data?.error || "載入失敗");
     } finally {
@@ -83,7 +109,7 @@ const AttendanceSheet: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!id || roster.length === 0 || readOnly) return;
+    if (!id || roster.length === 0 || readOnly || !classDate) return;
     try {
       setSaving(true);
       setError(null);
@@ -93,14 +119,22 @@ const AttendanceSheet: React.FC = () => {
         status: statusMap[entry.student_id] || "present",
       }));
       await recordAttendance(id, classDate, payload);
-      setSuccess(`已儲存 ${classDate} 的點名紀錄`);
-      setRecords(await listAttendance(id));
+      setSuccess(`已儲存 ${formatDate(classDate)} 的點名紀錄`);
+      const [a, i] = await Promise.all([listAttendance(id), getCourseSessions(id)]);
+      setRecords(a);
+      setInfo(i);
     } catch (err: any) {
-      setError(err.response?.data?.error || "點名儲存失敗");
+      const code = err.response?.data?.error;
+      setError(ERROR_LABEL[code] || code || "點名儲存失敗");
     } finally {
       setSaving(false);
     }
   };
+
+  // 只列今天以前的上課日（不能預先點名）
+  const sessionOptions = info?.sessions.filter((s) => s.date <= info.today) ?? [];
+  const missingCount = sessionOptions.filter((s) => s.missing).length;
+  const alreadyRecorded = recordsForDate.length > 0;
 
   return (
     <Layout title={course ? `點名 - ${course.subject}` : "點名"}>
@@ -111,17 +145,43 @@ const AttendanceSheet: React.FC = () => {
           此課程窗口已關閉，資料僅供查看，無法修改。如需修改請聯絡行政人員重新開放。
         </p>
       )}
-      {loading ? (
+      {loading || !info ? (
         <p>載入中...</p>
       ) : roster.length === 0 ? (
         <p>{readOnly ? "名冊裡沒有學生。" : "名冊裡沒有學生，請先到名冊管理加入學生。"}</p>
       ) : (
         <form onSubmit={handleSubmit} className="card">
+          {!readOnly && missingCount > 0 && (
+            <p style={{ color: "#b91c1c", marginTop: 0 }}>尚有 {missingCount} 堂課未點名，請盡快補上。</p>
+          )}
           <div className="form-row">
             <label>上課日期</label>
-            <input type="date" value={classDate} onChange={(e) => setClassDate(e.target.value)} required />
+            {restricted ? (
+              sessionOptions.length === 0 ? (
+                <p style={{ color: "#888", margin: 0 }}>目前還沒有到上課日。</p>
+              ) : (
+                <select value={classDate} onChange={(e) => setClassDate(e.target.value)} required>
+                  {!sessionOptions.some((s) => s.date === classDate) && <option value="">選擇上課日...</option>}
+                  {[...sessionOptions].reverse().map((s) => (
+                    <option key={s.date} value={s.date}>
+                      {formatDate(s.date)}
+                      {s.date === info.today ? "（今天）" : ""}
+                      {s.rescheduled_from ? `（由 ${formatDate(s.rescheduled_from)} 調課）` : ""}
+                      {s.recorded ? " ✓ 已點名" : s.missing ? " ⚠ 未點名" : ""}
+                    </option>
+                  ))}
+                </select>
+              )
+            ) : (
+              <>
+                <input type="date" value={classDate} onChange={(e) => setClassDate(e.target.value)} required />
+                <small style={{ color: "#b45309" }}>
+                  {!info.calendar_ready ? "學校行事曆尚未建立，" : "這門課尚未設定上課星期，"}暫時可自由選擇日期。
+                </small>
+              </>
+            )}
           </div>
-          {recordedDates.length > 0 && (
+          {!restricted && recordedDates.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 12 }}>
               <span style={{ color: "#666", fontSize: 13 }}>已點名的日期：</span>
               {recordedDates.map((d) => (
@@ -137,11 +197,15 @@ const AttendanceSheet: React.FC = () => {
               ))}
             </div>
           )}
-          {recordsForDate.length === 0 && (
-            <p style={{ color: "#888", fontSize: 13 }}>
-              {readOnly ? "這個日期沒有點名紀錄。" : "這個日期尚未點名，預設全部「到課」。"}
-            </p>
-          )}
+          <p style={{ color: "#888", fontSize: 13 }}>
+            {alreadyRecorded
+              ? readOnly
+                ? "以下是這一天的點名紀錄。"
+                : "這一天已經點過名，以下是目前的紀錄；修改後再次儲存即可更新。"
+              : readOnly
+                ? "這個日期沒有點名紀錄。"
+                : "這個日期尚未點名，預設全部「到課」。"}
+          </p>
           <table className="table">
             <thead>
               <tr>
@@ -157,7 +221,7 @@ const AttendanceSheet: React.FC = () => {
                   <td>{entry.student_name_cn}</td>
                   <td>
                     {readOnly ? (
-                      recordsForDate.length > 0 ? STATUS_LABEL[statusMap[entry.student_id] || "present"] : "-"
+                      alreadyRecorded ? STATUS_LABEL[statusMap[entry.student_id] || "present"] : "-"
                     ) : (
                       <select
                         value={statusMap[entry.student_id] || "present"}
@@ -181,8 +245,13 @@ const AttendanceSheet: React.FC = () => {
             </tbody>
           </table>
           {!readOnly && (
-            <button type="submit" className="btn btn--primary" disabled={saving} style={{ marginTop: 12 }}>
-              {saving ? "儲存中..." : "儲存點名紀錄"}
+            <button
+              type="submit"
+              className="btn btn--primary"
+              disabled={saving || !classDate || (restricted && sessionOptions.length === 0)}
+              style={{ marginTop: 12 }}
+            >
+              {saving ? "儲存中..." : alreadyRecorded ? "更新點名紀錄" : "儲存點名紀錄"}
             </button>
           )}
         </form>

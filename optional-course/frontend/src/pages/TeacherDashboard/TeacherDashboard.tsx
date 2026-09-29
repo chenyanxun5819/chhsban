@@ -2,8 +2,10 @@ import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/common/Layout";
 import { listMyCourses } from "@/services/courseService";
+import { getCourseSessions } from "@/services/calendarService";
 import type { OptionalCourse } from "@/types";
 import { currentYear, selectableYears } from "@/utils/year";
+import { WEEKDAY_LABEL } from "@/utils/calendar";
 
 const STATUS_LABEL: Record<string, string> = {
   pending: "尚未開放",
@@ -17,12 +19,26 @@ const TeacherDashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [year, setYear] = useState(currentYear());
+  const [missing, setMissing] = useState<Record<string, number>>({});
 
   useEffect(() => {
     setLoading(true);
     setError(null);
+    setMissing({});
     listMyCourses(year)
-      .then(setCourses)
+      .then((list) => {
+        setCourses(list);
+        // 各課未點名堂數（每門課一次請求，老師通常只有一兩門課）
+        list
+          .filter((c) => c.window_status === "open")
+          .forEach((c) =>
+            getCourseSessions(c.course_id)
+              .then((info) =>
+                setMissing((prev) => ({ ...prev, [c.course_id]: info.sessions.filter((s) => s.missing).length })),
+              )
+              .catch(() => undefined),
+          );
+      })
       .catch((err) => setError(err.response?.data?.error || "載入失敗"))
       .finally(() => setLoading(false));
   }, [year]);
@@ -56,19 +72,29 @@ const TeacherDashboard: React.FC = () => {
                 {STATUS_LABEL[course.window_status]}
               </span>
             </div>
+            {course.day_of_week && (
+              <p style={{ color: "#666", margin: "8px 0" }}>
+                每{WEEKDAY_LABEL[course.day_of_week]}上課
+                {course.time_start && `　${course.time_start}${course.time_end ? `–${course.time_end}` : ""}`}
+                {course.venue && `　${course.venue}`}
+              </p>
+            )}
+            {missing[course.course_id] > 0 && (
+              <p style={{ color: "#b91c1c", margin: "8px 0" }}>您有 {missing[course.course_id]} 堂課未點名，請盡快補上。</p>
+            )}
             {course.window_status === "pending" ? (
-              <p style={{ color: "#888" }}>窗口尚未開放，暫時無法管理名冊/排課/點名。</p>
+              <p style={{ color: "#888" }}>窗口尚未開放，暫時無法管理名冊/點名。</p>
             ) : (
               <>
                 {course.window_status === "closed" && (
-                  <p style={{ color: "#888" }}>課程已關閉，名冊/排課/點名僅供查看。</p>
+                  <p style={{ color: "#888" }}>課程已關閉，名冊/上課日期/點名僅供查看。</p>
                 )}
                 <div style={{ display: "flex", gap: 8 }}>
                   <button className="btn" onClick={() => navigate(`/courses/${course.course_id}/roster`)}>
                     {course.window_status === "open" ? "名冊管理" : "查看名冊"}
                   </button>
                   <button className="btn" onClick={() => navigate(`/courses/${course.course_id}/schedule`)}>
-                    {course.window_status === "open" ? "排課管理" : "查看排課"}
+                    上課日期
                   </button>
                   <button className="btn" onClick={() => navigate(`/courses/${course.course_id}/attendance`)}>
                     {course.window_status === "open" ? "點名" : "查看點名"}

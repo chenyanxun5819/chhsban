@@ -24,9 +24,31 @@ import {
   type TeacherRecord,
 } from "@chhsban/kv-utils";
 import { OptionalCourseService } from "./optional-course-service";
-import { CourseWindowStatus, CourseScheduleStatus, CourseAttendanceStatus } from "./types";
+import {
+  CourseWindowStatus,
+  CourseScheduleStatus,
+  CourseAttendanceStatus,
+  type OptionalCourse,
+  type SchoolCalendar,
+  type SchoolHoliday,
+  type SchoolMakeupDay,
+  type HolidayType,
+  type Weekday,
+} from "./types";
 import { findStudentByNo, getStudentClass } from "./student-lookup";
 import { currentYear, isQueryableYear } from "./year";
+import {
+  dueRange,
+  isCalendarReady,
+  isValidDate,
+  listCourseSessions,
+  todayMYT,
+  weekdayOf,
+} from "./calendar";
+
+// 選修課的上課星期（星期日一律休息，不能排課）
+const SCHOOL_WEEKDAYS: Weekday[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const HOLIDAY_TYPES: HolidayType[] = ["public", "school_break", "event"];
 
 interface Env {
   STUDENT_KV: KVNamespace;
@@ -395,6 +417,9 @@ async function handleCourses(
       if (!body.subject) {
         return jsonResponse({ error: "Missing subject field" }, 400);
       }
+      if (body.day_of_week && !SCHOOL_WEEKDAYS.includes(body.day_of_week)) {
+        return jsonResponse({ error: "INVALID_DAY_OF_WEEK" }, 400);
+      }
       // 只能建今年或明年（年底先建好下一年）的課
       const thisYear = currentYear();
       const year = body.year === undefined ? thisYear : Number(body.year);
@@ -404,7 +429,7 @@ async function handleCourses(
       const course = await service.createCourse({
         subject: body.subject,
         form: body.form,
-        day_of_week: body.day_of_week,
+        day_of_week: body.day_of_week || undefined,
         time_start: body.time_start,
         time_end: body.time_end,
         venue: body.venue,
@@ -443,13 +468,44 @@ async function handleCourses(
       await service.deleteCourse(courseId);
       return jsonResponse({ success: true });
     }
-    if (method !== "GET") {
-      return jsonResponse({ error: "Method not allowed" }, 405);
+    if (method === "GET") {
+      if (!canViewCourse(session, course.teacher_id)) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+      return jsonResponse({ success: true, data: course });
     }
-    if (!canViewCourse(session, course.teacher_id)) {
-      return jsonResponse({ error: "Forbidden" }, 403);
+
+    // PUT：超級管理員設定上課時段（上課星期決定這門課的應點名日期）
+    if (method === "PUT") {
+      if (!isSuperAdmin(session)) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+      const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
+      const updates: Partial<OptionalCourse> = {};
+      if ("day_of_week" in body) {
+        if (body.day_of_week !== null && body.day_of_week !== "" && !SCHOOL_WEEKDAYS.includes(body.day_of_week as Weekday)) {
+          return jsonResponse({ error: "INVALID_DAY_OF_WEEK" }, 400);
+        }
+        updates.day_of_week = (body.day_of_week || undefined) as Weekday | undefined;
+      }
+      for (const field of ["start_date", "end_date"] as const) {
+        if (field in body) {
+          if (body[field] && !isValidDate(body[field])) {
+            return jsonResponse({ error: "INVALID_DATE", field }, 400);
+          }
+          updates[field] = (body[field] as string) || undefined;
+        }
+      }
+      for (const field of ["time_start", "time_end", "venue"] as const) {
+        if (field in body) {
+          updates[field] = body[field] ? String(body[field]).trim() : undefined;
+        }
+      }
+      const updated = await service.updateCourse(courseId, updates);
+      return jsonResponse({ success: true, data: updated });
     }
-    return jsonResponse({ success: true, data: course });
+
+    return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
   if (action === "bind-teacher" && method === "PUT") {
@@ -508,6 +564,10 @@ async function handleCourses(
 
   if (action === "attendance") {
     return handleAttendance(request, env, session, course);
+  }
+
+  if (action === "sessions") {
+    return handleCourseSessions(request, env, session, course);
   }
 
   return jsonResponse({ error: "Not found" }, 404);
@@ -728,8 +788,19 @@ async function handleSchedules(
   const method = request.method;
   const service = buildService(env);
 
+  // 課程級停課／調課只有 super_admin 能登記（選修課跟學校統一排課，老師不能自行停課；督察員只能看）
   if (scheduleId) {
-    return jsonResponse({ error: "Not found" }, 404);
+    if (method !== "DELETE") {
+      return jsonResponse({ error: "Method not allowed" }, 405);
+    }
+    if (!isSuperAdmin(session)) {
+      return jsonResponse({ error: "Forbidden" }, 403);
+    }
+    const deleted = await service.deleteSchedule(course.course_id, scheduleId);
+    if (!deleted) {
+      return jsonResponse({ error: "Schedule not found" }, 404);
+    }
+    return jsonResponse({ success: true });
   }
 
   if (method === "GET") {
@@ -741,11 +812,8 @@ async function handleSchedules(
   }
 
   if (method === "POST") {
-    if (!canEditCourse(session, course.teacher_id)) {
+    if (!isSuperAdmin(session)) {
       return jsonResponse({ error: "Forbidden" }, 403);
-    }
-    if (course.window_status !== CourseWindowStatus.OPEN) {
-      return jsonResponse({ error: "COURSE_NOT_OPEN" }, 409);
     }
     const body = (await request.json()) as {
       scheduled_date?: string;
@@ -755,9 +823,31 @@ async function handleSchedules(
       rescheduled_venue?: string;
       reschedule_reason?: string;
     };
-    if (!body.scheduled_date || !body.status) {
+    if (!isValidDate(body.scheduled_date) || !body.status) {
       return jsonResponse({ error: "Missing scheduled_date or status field" }, 400);
     }
+    if (body.status !== CourseScheduleStatus.CANCELLED && body.status !== CourseScheduleStatus.RESCHEDULED) {
+      return jsonResponse({ error: "INVALID_STATUS" }, 400);
+    }
+    if (body.status === CourseScheduleStatus.RESCHEDULED && !isValidDate(body.rescheduled_to)) {
+      return jsonResponse({ error: "Missing rescheduled_to field" }, 400);
+    }
+
+    // 原訂日期必須是這門課依行事曆本來就要上課的日子（行事曆未建立時不檢查）
+    const [calendar, schedules] = await Promise.all([
+      service.getCalendar(course.year),
+      service.listSchedulesByCourse(course.course_id),
+    ]);
+    if (schedules.some((s) => s.scheduled_date === body.scheduled_date)) {
+      return jsonResponse({ error: "SCHEDULE_ALREADY_EXISTS" }, 409);
+    }
+    if (isCalendarReady(calendar) && course.day_of_week) {
+      const regular = listCourseSessions(calendar, course, []);
+      if (!regular.some((s) => s.date === body.scheduled_date)) {
+        return jsonResponse({ error: "NOT_A_SESSION_DATE" }, 409);
+      }
+    }
+
     const schedule = await service.createSchedule({
       course_id: course.course_id,
       scheduled_date: body.scheduled_date,
@@ -801,8 +891,20 @@ async function handleAttendance(
       class_date?: string;
       records?: Array<{ student_id: string; status: CourseAttendanceStatus; absence_reason?: string }>;
     };
-    if (!body.class_date || !Array.isArray(body.records) || body.records.length === 0) {
+    if (!isValidDate(body.class_date) || !Array.isArray(body.records) || body.records.length === 0) {
       return jsonResponse({ error: "Missing class_date or records field" }, 400);
+    }
+
+    // 只能點「應點名日期」；行事曆尚未建立或課程未設定上課星期時不擋，避免上線初期卡住老師
+    const [calendar, schedules] = await Promise.all([
+      service.getCalendar(course.year),
+      service.listSchedulesByCourse(course.course_id),
+    ]);
+    if (isCalendarReady(calendar) && course.day_of_week) {
+      const sessions = listCourseSessions(calendar, course, schedules);
+      if (!sessions.some((s) => s.date === body.class_date)) {
+        return jsonResponse({ error: "NOT_A_SESSION_DATE" }, 409);
+      }
     }
 
     const now = Date.now();
@@ -821,6 +923,285 @@ async function handleAttendance(
   }
 
   return jsonResponse({ error: "Method not allowed" }, 405);
+}
+
+/**
+ * GET /api/v1/courses/{id}/sessions - 這門課的應點名日期，附每天是否已點名
+ * missing = 應該已經點名（窗口開放後、今天以前）但沒有點名紀錄
+ */
+async function handleCourseSessions(
+  request: Request,
+  env: Env,
+  session: AuthSessionData,
+  course: OptionalCourse,
+): Promise<Response> {
+  if (request.method !== "GET") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+  if (!canViewCourse(session, course.teacher_id)) {
+    return jsonResponse({ error: "Forbidden" }, 403);
+  }
+  const service = buildService(env);
+  const [calendar, schedules, recordedDates] = await Promise.all([
+    service.getCalendar(course.year),
+    service.listSchedulesByCourse(course.course_id),
+    service.listAttendanceDates(course.course_id),
+  ]);
+  const recorded = new Set(recordedDates);
+  const due = dueRange(course);
+  const sessions = listCourseSessions(calendar, course, schedules).map((s) => {
+    const isRecorded = recorded.has(s.date);
+    const isDue = !!due && s.date >= due.from && s.date <= due.to;
+    return { ...s, recorded: isRecorded, missing: isDue && !isRecorded };
+  });
+  return jsonResponse({
+    success: true,
+    data: {
+      calendar_ready: isCalendarReady(calendar),
+      day_of_week: course.day_of_week || null,
+      today: todayMYT(),
+      sessions,
+    },
+  });
+}
+
+// ============================================
+// 學校行事曆
+// ============================================
+
+type CalendarInput = Pick<SchoolCalendar, "term_start" | "term_end" | "holidays" | "makeup_days">;
+
+function generateCalendarId(prefix: string): string {
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+}
+
+/** 檢查並整理前端送來的行事曆，回傳錯誤碼或整理好的內容 */
+function normalizeCalendarInput(year: number, body: any): { error: string; detail?: string } | CalendarInput {
+  const termStart = body.term_start || undefined;
+  const termEnd = body.term_end || undefined;
+  if ((termStart && !isValidDate(termStart)) || (termEnd && !isValidDate(termEnd))) {
+    return { error: "INVALID_TERM_DATE" };
+  }
+  if (!!termStart !== !!termEnd) {
+    return { error: "TERM_INCOMPLETE" };
+  }
+  if (termStart && termEnd) {
+    if (termStart > termEnd) return { error: "TERM_START_AFTER_END" };
+    if (!termStart.startsWith(`${year}-`) || !termEnd.startsWith(`${year}-`)) {
+      return { error: "TERM_OUT_OF_YEAR" };
+    }
+  }
+
+  if (!Array.isArray(body.holidays) || !Array.isArray(body.makeup_days)) {
+    return { error: "Missing holidays or makeup_days field" };
+  }
+
+  const holidays: SchoolHoliday[] = [];
+  for (const h of body.holidays) {
+    const name = String(h?.name ?? "").trim();
+    if (!name || !isValidDate(h.start_date) || !isValidDate(h.end_date) || h.start_date > h.end_date) {
+      return { error: "INVALID_HOLIDAY", detail: name || h?.start_date };
+    }
+    if (!HOLIDAY_TYPES.includes(h.type)) {
+      return { error: "INVALID_HOLIDAY_TYPE", detail: name };
+    }
+    holidays.push({
+      holiday_id: typeof h.holiday_id === "string" && h.holiday_id ? h.holiday_id : generateCalendarId("holiday"),
+      start_date: h.start_date,
+      end_date: h.end_date,
+      name,
+      type: h.type,
+    });
+  }
+
+  const makeupDays: SchoolMakeupDay[] = [];
+  const seen = new Set<string>();
+  for (const m of body.makeup_days) {
+    if (!isValidDate(m?.date) || !SCHOOL_WEEKDAYS.includes(m.follows_weekday)) {
+      return { error: "INVALID_MAKEUP_DAY", detail: m?.date };
+    }
+    if (weekdayOf(m.date) === "Sunday") {
+      return { error: "MAKEUP_DAY_ON_SUNDAY", detail: m.date };
+    }
+    if (seen.has(m.date)) {
+      return { error: "DUPLICATE_MAKEUP_DAY", detail: m.date };
+    }
+    seen.add(m.date);
+    const note = m.note ? String(m.note).trim() : "";
+    makeupDays.push({ date: m.date, follows_weekday: m.follows_weekday, ...(note ? { note } : {}) });
+  }
+
+  holidays.sort((a, b) => a.start_date.localeCompare(b.start_date));
+  makeupDays.sort((a, b) => a.date.localeCompare(b.date));
+  return { term_start: termStart, term_end: termEnd, holidays, makeup_days: makeupDays };
+}
+
+interface CalendarConflict {
+  course_id: string;
+  course_no: string;
+  subject: string;
+  teacher_name_cn?: string;
+  date: string;
+}
+
+/**
+ * 修改行事曆的影響檢查：已經點過名、原本是上課日，改完後卻不再是這門課上課日的日期。
+ * 舊行事曆尚未建立時，所有「新行事曆下不是上課日」的點名紀錄都列出來。
+ * 每門課約 2 次 KV 操作（排課例外 1 次讀、點名 key 1 次 list）。
+ */
+async function findCalendarConflicts(
+  service: OptionalCourseService,
+  oldCalendar: SchoolCalendar,
+  newCalendar: SchoolCalendar,
+): Promise<CalendarConflict[]> {
+  const courses = (await service.listCoursesByYear(newCalendar.year)).filter((c) => c.day_of_week);
+  const oldReady = isCalendarReady(oldCalendar);
+  const perCourse = await Promise.all(
+    courses.map(async (course) => {
+      const [schedules, recordedDates] = await Promise.all([
+        service.listSchedulesByCourse(course.course_id),
+        service.listAttendanceDates(course.course_id),
+      ]);
+      if (recordedDates.length === 0) return [];
+      const oldDates = new Set(listCourseSessions(oldCalendar, course, schedules).map((s) => s.date));
+      const newDates = new Set(listCourseSessions(newCalendar, course, schedules).map((s) => s.date));
+      return recordedDates
+        .filter((d) => (!oldReady || oldDates.has(d)) && !newDates.has(d))
+        .map((date) => ({
+          course_id: course.course_id,
+          course_no: course.course_no,
+          subject: course.subject,
+          teacher_name_cn: course.teacher_name_cn,
+          date,
+        }));
+    }),
+  );
+  return perCourse
+    .flat()
+    .sort((a, b) => a.date.localeCompare(b.date) || a.course_no.localeCompare(b.course_no));
+}
+
+/**
+ * GET /api/v1/calendar?year=YYYY - 任何登入者可讀（未建立時回傳空行事曆）
+ * PUT /api/v1/calendar/{year}    - 僅 super_admin，整份覆寫
+ *   body: { term_start, term_end, holidays, makeup_days, updated_at, force? }
+ *   updated_at 必須等於目前儲存的版本（樂觀鎖），否則回 409 CALENDAR_VERSION_CONFLICT；
+ *   會影響已點名日期時回 409 CALENDAR_AFFECTS_ATTENDANCE（附 conflicts），確認後帶 force=true 再送。
+ */
+async function handleCalendar(
+  request: Request,
+  env: Env,
+  session: AuthSessionData,
+): Promise<Response> {
+  const url = new URL(request.url);
+  const parts = url.pathname.split("/").filter(Boolean); // ["api","v1","calendar", year?]
+  const service = buildService(env);
+
+  if (request.method === "GET" && !parts[3]) {
+    const year = parseYearParam(url);
+    if (year === null) {
+      return jsonResponse({ error: "INVALID_YEAR" }, 400);
+    }
+    return jsonResponse({ success: true, data: await service.getCalendar(year) });
+  }
+
+  if (request.method === "PUT" && parts[3]) {
+    if (!isSuperAdmin(session)) {
+      return jsonResponse({ error: "Forbidden" }, 403);
+    }
+    // 只能編輯今年或明年的行事曆，往年的只能看
+    const year = Number(parts[3]);
+    const thisYear = currentYear();
+    if (year !== thisYear && year !== thisYear + 1) {
+      return jsonResponse({ error: "INVALID_YEAR" }, 400);
+    }
+
+    const body = (await request.json().catch(() => ({}))) as any;
+    const input = normalizeCalendarInput(year, body);
+    if ("error" in input) {
+      return jsonResponse(input, 400);
+    }
+
+    const existing = await service.getCalendar(year);
+    if (Number(body.updated_at ?? 0) !== existing.updated_at) {
+      return jsonResponse({ error: "CALENDAR_VERSION_CONFLICT" }, 409);
+    }
+
+    const updated: SchoolCalendar = {
+      year,
+      ...input,
+      updated_at: Date.now(),
+      updated_by: session.teacher_id,
+    };
+
+    if (!body.force) {
+      const conflicts = await findCalendarConflicts(service, existing, updated);
+      if (conflicts.length > 0) {
+        return jsonResponse({ error: "CALENDAR_AFFECTS_ATTENDANCE", conflicts }, 409);
+      }
+    }
+
+    await service.putCalendar(updated);
+    return jsonResponse({ success: true, data: updated });
+  }
+
+  return jsonResponse({ error: "Method not allowed" }, 405);
+}
+
+/**
+ * GET /api/v1/attendance/summary?year=YYYY - super_admin／督察員
+ * 每門已開放（或已關閉）課程的應點名／已點名堂數，以及漏點名的日期。
+ */
+async function handleAttendanceSummary(
+  request: Request,
+  env: Env,
+  session: AuthSessionData,
+): Promise<Response> {
+  if (request.method !== "GET") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+  if (!canViewAllCourses(session)) {
+    return jsonResponse({ error: "Forbidden" }, 403);
+  }
+  const year = parseYearParam(new URL(request.url));
+  if (year === null) {
+    return jsonResponse({ error: "INVALID_YEAR" }, 400);
+  }
+
+  const service = buildService(env);
+  const [calendar, courses] = await Promise.all([service.getCalendar(year), service.listCoursesByYear(year)]);
+  const active = courses.filter((c) => c.window_status !== CourseWindowStatus.PENDING);
+
+  const data = await Promise.all(
+    active.map(async (course) => {
+      const [schedules, recordedDates] = await Promise.all([
+        service.listSchedulesByCourse(course.course_id),
+        service.listAttendanceDates(course.course_id),
+      ]);
+      const recorded = new Set(recordedDates);
+      const due = dueRange(course);
+      const sessions = listCourseSessions(calendar, course, schedules);
+      const dueDates = due ? sessions.map((s) => s.date).filter((d) => d >= due.from && d <= due.to) : [];
+      return {
+        course_id: course.course_id,
+        course_no: course.course_no,
+        subject: course.subject,
+        teacher_id: course.teacher_id,
+        teacher_name_cn: course.teacher_name_cn,
+        day_of_week: course.day_of_week || null,
+        window_status: course.window_status,
+        total_sessions: sessions.length,
+        due_count: dueDates.length,
+        recorded_count: dueDates.filter((d) => recorded.has(d)).length,
+        missing_dates: dueDates.filter((d) => !recorded.has(d)),
+      };
+    }),
+  );
+
+  return jsonResponse({
+    success: true,
+    data: { calendar_ready: isCalendarReady(calendar), today: todayMYT(), courses: data },
+  });
 }
 
 // 每門課清理約 40 次 KV 操作，每天最多清 10 門，未清完的隔天繼續
@@ -879,6 +1260,14 @@ export default {
         return await handleCourses(request, env, session);
       }
 
+      if (pathname === "/api/v1/calendar" || pathname.startsWith("/api/v1/calendar/")) {
+        return await handleCalendar(request, env, session);
+      }
+
+      if (pathname === "/api/v1/attendance/summary") {
+        return await handleAttendanceSummary(request, env, session);
+      }
+
       return jsonResponse({ error: "Not found" }, 404);
     } catch (error) {
       console.error("Error:", error);
@@ -893,6 +1282,13 @@ export default {
         .purgeExpiredCourses(PURGE_COURSES_PER_RUN)
         .then((ids) => {
           if (ids.length > 0) console.log(`Purged ${ids.length} expired courses:`, ids.join(", "));
+        }),
+    );
+    ctx.waitUntil(
+      buildService(env)
+        .purgeExpiredCalendars()
+        .then((years) => {
+          if (years.length > 0) console.log(`Purged expired calendars:`, years.join(", "));
         }),
     );
   },

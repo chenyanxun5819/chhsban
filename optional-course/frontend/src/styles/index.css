@@ -181,3 +181,8 @@ body {
   font-size: 13px;
   margin-bottom: 20px;
 }
+
+.badge--missing {
+  background: #fee2e2;
+  color: #991b1b;
+}

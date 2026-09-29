@@ -106,3 +106,29 @@ export interface StudentRecord {
   email?: string;
   phone?: string;
 }
+
+// ========== 上課日期（對應 worker 的 GET /courses/{id}/sessions） ==========
+
+export type Weekday =
+  | "Monday"
+  | "Tuesday"
+  | "Wednesday"
+  | "Thursday"
+  | "Friday"
+  | "Saturday"
+  | "Sunday";
+
+export interface CourseSession {
+  date: string;
+  rescheduled_from?: string;
+  venue?: string;
+  recorded: boolean;
+  missing: boolean; // 應該已經點名但沒有紀錄
+}
+
+export interface CourseSessionsInfo {
+  calendar_ready: boolean;
+  day_of_week: Weekday | null;
+  today: string;
+  sessions: CourseSession[];
+}

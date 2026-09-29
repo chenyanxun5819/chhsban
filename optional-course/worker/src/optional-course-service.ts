@@ -9,6 +9,7 @@
 //                                 counter:course_no:{year}       該年最後發出的編號序號（只增不減）
 // - OPTIONAL_COURSE_ROSTER_KV     roster:{course_id}             整門課的名冊（陣列）
 // - OPTIONAL_COURSE_SCHEDULE_KV   schedule:{course_id}           整門課的排課例外（陣列）
+//                                 calendar:{year}                該年度的學校行事曆（SchoolCalendar）
 // - OPTIONAL_COURSE_ATTENDANCE_KV attendance:{course_id}:{date}  一堂課的點名紀錄（陣列）
 //
 // 同一個值由同一門課的授課老師（或行政）修改，同時編輯的機會很低，接受「後寫覆蓋」的風險。
@@ -20,7 +21,9 @@ import {
   OptionalCourseSchedule,
   OptionalCourseAttendance,
   CourseWindowStatus,
+  SchoolCalendar,
 } from "./types";
+import { emptyCalendar } from "./calendar";
 import { oldestRetainedYear, yearFromCourseId } from "./year";
 
 function randomSuffix(): string {
@@ -33,6 +36,7 @@ function generateId(prefix: string): string {
 
 const rosterKey = (courseId: string) => `roster:${courseId}`;
 const scheduleKey = (courseId: string) => `schedule:${courseId}`;
+const calendarKey = (year: number) => `calendar:${year}`;
 const attendancePrefix = (courseId: string) => `attendance:${courseId}:`;
 const attendanceKey = (courseId: string, classDate: string) => `${attendancePrefix(courseId)}${classDate}`;
 const courseNoCounterKey = (year: number) => `counter:course_no:${year}`;
@@ -208,6 +212,24 @@ export class OptionalCourseService {
     return schedule;
   }
 
+  async deleteSchedule(courseId: string, scheduleId: string): Promise<boolean> {
+    const schedules = await this.listSchedulesByCourse(courseId);
+    const remaining = schedules.filter((s) => s.schedule_id !== scheduleId);
+    if (remaining.length === schedules.length) return false;
+    await this.scheduleKV.put(scheduleKey(courseId), JSON.stringify(remaining));
+    return true;
+  }
+
+  // ===== 學校行事曆 =====
+
+  async getCalendar(year: number): Promise<SchoolCalendar> {
+    return (await getJson<SchoolCalendar>(this.scheduleKV, calendarKey(year))) || emptyCalendar(year);
+  }
+
+  async putCalendar(calendar: SchoolCalendar): Promise<void> {
+    await this.scheduleKV.put(calendarKey(calendar.year), JSON.stringify(calendar));
+  }
+
   // ===== 出勤紀錄 =====
   // 沿用 tution 系統「新增制」：每次點名都追加新紀錄、不覆寫舊的（保留修改歷史），同一
   // course_id+student_id+class_date 只有 recorded_at 最新的一筆代表目前狀態。
@@ -238,6 +260,12 @@ export class OptionalCourseService {
     return dedupeToLatestAttendance(perDate.flatMap((r) => r || [])).sort(
       (a, b) => new Date(a.class_date).getTime() - new Date(b.class_date).getTime(),
     );
+  }
+
+  /** 這門課已有點名紀錄的日期（只列 key、不讀內容，1 次 list） */
+  async listAttendanceDates(courseId: string): Promise<string[]> {
+    const prefix = attendancePrefix(courseId);
+    return (await listAllKeys(this.attendanceKV, prefix)).map((k) => k.slice(prefix.length));
   }
 
   // ===== 過期資料清理 =====
@@ -279,6 +307,16 @@ export class OptionalCourseService {
     ]);
     // 課程本身最後刪：中途失敗的話課程還在，可以再刪一次把剩下的關聯資料清完
     await this.courseKV.delete(courseId);
+  }
+
+  /** 刪除保留年限之前的行事曆（一年一個 key，數量很少，一次清完） */
+  async purgeExpiredCalendars(): Promise<number[]> {
+    const minYear = oldestRetainedYear();
+    const expired = (await listAllKeys(this.scheduleKV, "calendar:"))
+      .map((k) => Number(k.slice("calendar:".length)))
+      .filter((year) => Number.isInteger(year) && year < minYear);
+    await Promise.all(expired.map((year) => this.scheduleKV.delete(calendarKey(year))));
+    return expired;
   }
 }
 
