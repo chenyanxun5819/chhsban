@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { useAuth } from "@/context/AuthContext";
 import {
   identifyTeacher,
@@ -10,6 +11,7 @@ import {
 } from "@/services/authService";
 import eyeIcon from "@/assets/eye.svg";
 import eyeClosedIcon from "@/assets/eye-closed.svg";
+import { LanguageToggle } from "@/components/common/LanguageToggle";
 
 type LoginStep =
   | { kind: "identify" }
@@ -18,6 +20,7 @@ type LoginStep =
 
 const Login: React.FC = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const { completeLogin, isAuthenticated } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPasswordInput] = useState("");
@@ -39,7 +42,7 @@ const Login: React.FC = () => {
   const handleIdentify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
-      setError("请输入 Email / Please enter your email");
+      setError(t("login.emailRequired"));
       return;
     }
     try {
@@ -52,7 +55,7 @@ const Login: React.FC = () => {
         setStep({ kind: "password_login", pendingToken: result.pendingToken, teacherName: result.teacherName });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "验证失败，请稍后再试 / Verification failed, please try again later");
+      setError(err instanceof Error ? err.message : t("login.verifyFailed"));
     } finally {
       setLoading(false);
     }
@@ -67,7 +70,7 @@ const Login: React.FC = () => {
       setPasswordInput(generated);
       setPassword2(generated);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "产生密码失败 / Failed to generate password");
+      setError(err instanceof Error ? err.message : t("login.generateFailed"));
     } finally {
       setLoading(false);
     }
@@ -77,7 +80,7 @@ const Login: React.FC = () => {
     e.preventDefault();
     if (step.kind !== "password_setup") return;
     if (password !== password2) {
-      setError("两次输入的密码不一致 / Passwords do not match");
+      setError(t("login.passwordMismatch"));
       return;
     }
     try {
@@ -86,7 +89,7 @@ const Login: React.FC = () => {
       const authData = await setPassword(step.pendingToken, password);
       handleAuthDone(authData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "设定密码失败 / Failed to set password");
+      setError(err instanceof Error ? err.message : t("login.setPasswordFailed"));
     } finally {
       setLoading(false);
     }
@@ -101,7 +104,7 @@ const Login: React.FC = () => {
       const authData = await loginWithPassword(step.pendingToken, password);
       handleAuthDone(authData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "登入失败 / Login failed");
+      setError(err instanceof Error ? err.message : t("login.loginFailed"));
     } finally {
       setLoading(false);
     }
@@ -110,21 +113,22 @@ const Login: React.FC = () => {
   return (
     <div className="login-page">
       <div className="login-card">
+        <LanguageToggle className="login-lang-toggle" />
         <h1>
           {step.kind === "password_setup"
-            ? "首次登入，设定密码 / First Login: Set Password"
+            ? t("login.setupTitle")
             : step.kind === "password_login"
-              ? "输入密码 / Enter Password"
-              : "选修课点名系统"}
+              ? t("login.passwordTitle")
+              : t("common.appTitle")}
         </h1>
-        <p className="subtitle">CHHSBAN Optional Course</p>
+        <p className="subtitle">{t("login.subtitle")}</p>
 
         {error && <p className="error-text">{error}</p>}
 
         {step.kind === "identify" && (
           <form onSubmit={handleIdentify}>
             <div className="form-row">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="email">{t("login.email")}</label>
               <input
                 id="email"
                 type="email"
@@ -135,20 +139,16 @@ const Login: React.FC = () => {
               />
             </div>
             <button type="submit" className="btn btn--primary" disabled={loading} style={{ width: "100%" }}>
-              {loading ? "验证中... / Verifying..." : "验证并登入 / Continue"}
+              {loading ? t("login.verifying") : t("login.verifyAndLogin")}
             </button>
           </form>
         )}
 
         {step.kind === "password_setup" && (
           <form onSubmit={handleSetPassword}>
-            <p>
-              {step.teacherName}，您好，这是您第一次登入，请设定密码。
-              <br />
-              Hello {step.teacherName}, this is your first login. Please set a password.
-            </p>
+            <p>{t("login.firstLoginHello", { name: step.teacherName })}</p>
             <div className="form-row">
-              <label htmlFor="password">密码 / Password（至少 10 码，含大小写字母、数字、符号 / at least 10 characters with upper and lower case letters, numbers and symbols）</label>
+              <label htmlFor="password">{t("login.passwordRule")}</label>
               <input
                 id="password"
                 type="text"
@@ -158,7 +158,7 @@ const Login: React.FC = () => {
               />
             </div>
             <div className="form-row">
-              <label htmlFor="password2">再次输入密码 / Confirm Password</label>
+              <label htmlFor="password2">{t("login.passwordAgain")}</label>
               <input
                 id="password2"
                 type="text"
@@ -168,23 +168,19 @@ const Login: React.FC = () => {
               />
             </div>
             <button type="button" className="btn" onClick={handleGeneratePassword} disabled={loading}>
-              帮我产生一组密码 / Generate a password
+              {t("login.generatePassword")}
             </button>{" "}
             <button type="submit" className="btn btn--primary" disabled={loading}>
-              {loading ? "设定中... / Saving..." : "设定密码并登入 / Set Password & Log in"}
+              {loading ? t("login.settingPassword") : t("login.setPasswordAndLogin")}
             </button>
           </form>
         )}
 
         {step.kind === "password_login" && (
           <form onSubmit={handleLoginPassword}>
-            <p>
-              {step.teacherName}，您好，请输入密码。
-              <br />
-              Hello {step.teacherName}, please enter your password.
-            </p>
+            <p>{t("login.passwordHello", { name: step.teacherName })}</p>
             <div className="form-row">
-              <label htmlFor="password">密码 / Password</label>
+              <label htmlFor="password">{t("login.password")}</label>
               <div className="password-input-wrapper">
                 <input
                   id="password"
@@ -199,15 +195,15 @@ const Login: React.FC = () => {
                   onClick={() => setShowPassword((v) => !v)}
                   disabled={loading}
                   tabIndex={-1}
-                  aria-label={showPassword ? "隐藏密码 / Hide password" : "显示密码 / Show password"}
-                  title={showPassword ? "隐藏密码 / Hide password" : "显示密码 / Show password"}
+                  aria-label={showPassword ? t("login.hidePassword") : t("login.showPassword")}
+                  title={showPassword ? t("login.hidePassword") : t("login.showPassword")}
                 >
                   <img src={showPassword ? eyeClosedIcon : eyeIcon} alt="" />
                 </button>
               </div>
             </div>
             <button type="submit" className="btn btn--primary" disabled={loading} style={{ width: "100%" }}>
-              {loading ? "登入中... / Logging in..." : "登入 / Log in"}
+              {loading ? t("login.loggingIn") : t("login.login")}
             </button>
           </form>
         )}
@@ -215,7 +211,7 @@ const Login: React.FC = () => {
         {step.kind !== "identify" && (
           <p style={{ marginTop: 16 }}>
             <button type="button" className="btn btn--ghost" onClick={() => setStep({ kind: "identify" })}>
-              返回 / Back
+              {t("login.back")}
             </button>
           </p>
         )}

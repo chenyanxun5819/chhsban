@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import Login from "@/pages/Login/Login";
 import TeacherDashboard from "@/pages/TeacherDashboard/TeacherDashboard";
@@ -17,12 +18,15 @@ const RESTRICTED_ALLOWED_PATHS: Record<string, string[]> = {
 };
 
 const RedirectToAdminPortal: React.FC = () => {
+  const { t } = useTranslation();
   useEffect(() => {
     window.location.replace(ADMIN_PORTAL_URL);
   }, []);
   return (
     <div style={{ padding: 24 }}>
-      选修课行政管理已移到 <a href={ADMIN_PORTAL_URL}>行政管理站 / Admin Portal</a>，正在为您转址... / Redirecting...
+      {t("app.redirectPrefix")}
+      <a href={ADMIN_PORTAL_URL}>{t("app.adminPortal")}</a>
+      {t("app.redirectSuffix")}
     </div>
   );
 };
@@ -30,9 +34,10 @@ const RedirectToAdminPortal: React.FC = () => {
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated, isLoading, user } = useAuth();
   const location = useLocation();
+  const { t } = useTranslation();
 
   if (isLoading) {
-    return <div style={{ padding: 24 }}>载入中... / Loading...</div>;
+    return <div style={{ padding: 24 }}>{t("common.loading")}</div>;
   }
 
   if (!isAuthenticated) {

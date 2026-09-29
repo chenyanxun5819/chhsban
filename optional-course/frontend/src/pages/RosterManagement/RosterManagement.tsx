@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { CoursePageHeader, Layout } from "@/components/common/Layout";
 import { getCourse } from "@/services/courseService";
 import { listRoster, lookupStudent, addRosterEntry, withdrawRosterEntry } from "@/services/rosterService";
@@ -7,13 +8,14 @@ import type { OptionalCourse, OptionalCourseRoster, StudentRecord } from "@/type
 import { courseSubtitle, todayMYT } from "@/utils/calendar";
 import RosterBatchImport from "./RosterBatchImport";
 
-const WITHDRAW_ERROR_LABEL: Record<string, string> = {
-  MISSING_WITHDRAWAL_REASON: "请输入退出原因 / Please enter a reason",
-  INVALID_WITHDRAWAL_DATE: "退出日期不正确（不能晚于今天） / Invalid withdrawal date (cannot be later than today)",
+const WITHDRAW_ERROR_KEY: Record<string, string> = {
+  MISSING_WITHDRAWAL_REASON: "roster.reasonRequired",
+  INVALID_WITHDRAWAL_DATE: "roster.invalidWithdrawDate",
 };
 
 const RosterManagement: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { t } = useTranslation();
   const [course, setCourse] = useState<OptionalCourse | null>(null);
   const [roster, setRoster] = useState<OptionalCourseRoster[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,7 +38,7 @@ const RosterManagement: React.FC = () => {
       setCourse(c);
       setRoster(r);
     } catch (err: any) {
-      setError(err.response?.data?.error || "载入失败 / Failed to load");
+      setError(err.response?.data?.error || t("common.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -57,7 +59,7 @@ const RosterManagement: React.FC = () => {
       const student = await lookupStudent(studentQuery.trim());
       setFoundStudent(student);
     } catch (err: any) {
-      setError(err.response?.data?.error === "Student not found" ? "查无此学生，请确认学号 / Student not found, please check the student ID" : "查询失败 / Search failed");
+      setError(err.response?.data?.error === "Student not found" ? t("roster.studentNotFound") : t("roster.searchFailed"));
     } finally {
       setSearching(false);
     }
@@ -78,9 +80,9 @@ const RosterManagement: React.FC = () => {
     } catch (err: any) {
       const code = err.response?.data?.error;
       if (code === "STUDENT_ALREADY_IN_ROSTER") {
-        setError("这位学生已经在名册里了 / This student is already in the roster");
+        setError(t("roster.alreadyInRoster"));
       } else {
-        setError(code || "加入名册失败 / Failed to add to roster");
+        setError(code || t("roster.addFailed"));
       }
     } finally {
       setAdding(false);
@@ -92,11 +94,11 @@ const RosterManagement: React.FC = () => {
     if (!id || !withdrawing) return;
     const reason = withdrawing.reason.trim();
     if (!reason) {
-      setError("请输入退出原因 / Please enter a reason");
+      setError(t("roster.reasonRequired"));
       return;
     }
     if (!withdrawing.date || withdrawing.date > todayMYT()) {
-      setError("退出日期不正确（不能晚于今天） / Invalid withdrawal date (cannot be later than today)");
+      setError(t("roster.invalidWithdrawDate"));
       return;
     }
     try {
@@ -107,7 +109,7 @@ const RosterManagement: React.FC = () => {
       setWithdrawing(null);
     } catch (err: any) {
       const code = err.response?.data?.error;
-      setError(WITHDRAW_ERROR_LABEL[code] || code || "退出名册失败 / Failed to withdraw");
+      setError(WITHDRAW_ERROR_KEY[code] ? t(WITHDRAW_ERROR_KEY[code]) : code || t("roster.withdrawFailed"));
     } finally {
       setWithdrawSaving(false);
     }
@@ -125,32 +127,30 @@ const RosterManagement: React.FC = () => {
   const readOnly = course?.window_status !== "open";
 
   return (
-    <Layout title={course && readOnly ? "查看名册 / View Roster" : "名册管理 / Roster"}>
+    <Layout title={course && readOnly ? t("roster.viewTitle") : t("roster.manageTitle")}>
       {course && <CoursePageHeader subject={course.subject} subtitle={courseSubtitle(course)} />}
       {error && <p className="error-text">{error}</p>}
       {loading ? (
-        <p>载入中... / Loading...</p>
+        <p>{t("common.loading")}</p>
       ) : (
         <>
           {readOnly && (
             <p className="card" style={{ color: "#92400e", background: "#fffbeb" }}>
-          此课程窗口已关闭，资料仅供查看，无法修改。如需修改请联络行政人员重新开放。
-          <br />
-          This course is closed and view-only. Please contact the administrator to reopen it if changes are needed.
+          {t("common.closedNotice")}
         </p>
           )}
           {!readOnly && (
           <div className="card">
-            <h3>加入学生 / Add Student</h3>
+            <h3>{t("roster.addStudent")}</h3>
             <form onSubmit={handleSearch} style={{ display: "flex", gap: 8 }}>
               <input
-                placeholder="输入学号 / Student ID（例如 e.g. 21342）"
+                placeholder={t("roster.studentNoPlaceholder")}
                 value={studentQuery}
                 onChange={(e) => setStudentQuery(e.target.value)}
                 style={{ flex: 1, padding: 8, border: "1px solid #d0d3d8", borderRadius: 6 }}
               />
               <button type="submit" className="btn" disabled={searching}>
-                查询 / Search
+                {t("roster.search")}
               </button>
             </form>
             {foundStudent && (
@@ -159,7 +159,7 @@ const RosterManagement: React.FC = () => {
                   {foundStudent.student_no} - {foundStudent.name_cn}（{foundStudent.class}）
                 </span>
                 <button className="btn btn--primary" disabled={adding} onClick={handleAdd}>
-                  加入名册 / Add
+                  {t("roster.addToRoster")}
                 </button>
               </div>
             )}
@@ -172,16 +172,16 @@ const RosterManagement: React.FC = () => {
           )}
 
           <div className="card">
-            <h3>目前名册 / Current Roster（{activeRoster.length} 人 / students）</h3>
+            <h3>{t("roster.currentRoster", { count: activeRoster.length })}</h3>
             {activeRoster.length === 0 ? (
-              <p>尚未有学生加入。 / No students yet.</p>
+              <p>{t("roster.empty")}</p>
             ) : (
               <table className="table">
                 <thead>
                   <tr>
-                    <th>学号/Student ID</th>
-                    <th>姓名/Name</th>
-                    <th>班级/Class</th>
+                    <th>{t("roster.studentNo")}</th>
+                    <th>{t("roster.name")}</th>
+                    <th>{t("roster.class")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -189,7 +189,7 @@ const RosterManagement: React.FC = () => {
                     <tr
                       key={r.roster_id}
                       className={readOnly ? undefined : "table__row--clickable"}
-                      title={readOnly ? undefined : "点击以办理退出 / Click to withdraw"}
+                      title={readOnly ? undefined : t("roster.clickToWithdraw")}
                       onClick={
                         readOnly
                           ? undefined
@@ -215,29 +215,29 @@ const RosterManagement: React.FC = () => {
           {withdrawing && withdrawingEntry && (
             <div className="modal-overlay" onClick={() => !withdrawSaving && setWithdrawing(null)}>
               <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleWithdraw}>
-                <h3 style={{ marginTop: 0 }}>确定要让这位学生退出名册吗？ / Withdraw this student from the roster?</h3>
+                <h3 style={{ marginTop: 0 }}>{t("roster.withdrawConfirm")}</h3>
                 <table className="modal__info">
                   <tbody>
                     <tr>
-                      <th>学号 / Student ID</th>
+                      <th>{t("roster.studentNo")}</th>
                       <td>{withdrawingEntry.student_no || withdrawingEntry.student_id}</td>
                     </tr>
                     <tr>
-                      <th>中文姓名 / Chinese Name</th>
+                      <th>{t("roster.nameCn")}</th>
                       <td>{withdrawingEntry.student_name_cn}</td>
                     </tr>
                     <tr>
-                      <th>英文姓名 / English Name</th>
+                      <th>{t("roster.nameEn")}</th>
                       <td>{withdrawingEntry.student_name_en}</td>
                     </tr>
                     <tr>
-                      <th>班级 / Class</th>
+                      <th>{t("roster.class")}</th>
                       <td>{withdrawingEntry.student_class}</td>
                     </tr>
                   </tbody>
                 </table>
                 <div className="form-row">
-                  <label>退出日期 / Withdrawal Date</label>
+                  <label>{t("roster.withdrawDate")}</label>
                   <input
                     type="date"
                     value={withdrawing.date}
@@ -247,11 +247,11 @@ const RosterManagement: React.FC = () => {
                   />
                 </div>
                 <div className="form-row">
-                  <label>原因 / Reason</label>
+                  <label>{t("roster.reason")}</label>
                   <input
                     value={withdrawing.reason}
                     onChange={(e) => setWithdrawing({ ...withdrawing, reason: e.target.value })}
-                    placeholder="必填 / Required"
+                    placeholder={t("roster.required")}
                     required
                     autoFocus
                   />
@@ -259,10 +259,10 @@ const RosterManagement: React.FC = () => {
                 {error && <p className="error-text">{error}</p>}
                 <div className="modal__actions">
                   <button type="button" className="btn" onClick={() => setWithdrawing(null)} disabled={withdrawSaving}>
-                    取消 / Cancel
+                    {t("common.cancel")}
                   </button>
                   <button type="submit" className="btn btn--danger" disabled={withdrawSaving}>
-                    {withdrawSaving ? "处理中... / Processing..." : "确认退出 / Confirm"}
+                    {withdrawSaving ? t("common.processing") : t("roster.confirmWithdraw")}
                   </button>
                 </div>
               </form>

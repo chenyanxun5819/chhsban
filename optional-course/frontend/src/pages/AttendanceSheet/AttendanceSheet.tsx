@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { CoursePageHeader, Layout } from "@/components/common/Layout";
 import { getCourse } from "@/services/courseService";
 import { listRoster } from "@/services/rosterService";
@@ -17,21 +18,11 @@ import type {
 import { courseSubtitle, formatDate, todayMYT } from "@/utils/calendar";
 import { AttendanceOverview, type OverviewCalendar } from "@/components/attendance/AttendanceOverview";
 
-const STATUS_OPTIONS: Array<{ value: CourseAttendanceStatus; label: string }> = [
-  { value: "present", label: "到课 / Present" },
-  { value: "absent", label: "缺课 / Absent" },
-  { value: "late", label: "迟到 / Late" },
-  { value: "excuse", label: "有理由缺席 / Excused" },
-];
+const STATUS_OPTIONS: CourseAttendanceStatus[] = ["present", "absent", "late", "excuse"];
 
-const STATUS_LABEL = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.label])) as Record<
-  CourseAttendanceStatus,
-  string
->;
-
-const ERROR_LABEL: Record<string, string> = {
-  NOT_A_SESSION_DATE: "这一天不是这门课的上课日，无法点名 / This date is not a class day",
-  COURSE_NOT_OPEN: "课程窗口未开放，无法点名 / Course is not open for attendance",
+const ERROR_KEY: Record<string, string> = {
+  NOT_A_SESSION_DATE: "attendance.notSessionDate",
+  COURSE_NOT_OPEN: "attendance.courseNotOpen",
 };
 
 /**
@@ -47,6 +38,7 @@ function defaultDate(info: CourseSessionsInfo): string {
 
 const AttendanceSheet: React.FC = () => {
   const { id } = useParams<{ id: string }>();
+  const { t } = useTranslation();
   const [course, setCourse] = useState<OptionalCourse | null>(null);
   const [fullRoster, setFullRoster] = useState<OptionalCourseRoster[]>([]); // 含已退選，總覽用
   const [roster, setRoster] = useState<OptionalCourseRoster[]>([]);
@@ -92,7 +84,7 @@ const AttendanceSheet: React.FC = () => {
         setClassDate(defaultDate(i));
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || "载入失败 / Failed to load");
+      setError(err.response?.data?.error || t("common.loadFailed"));
     } finally {
       setLoading(false);
     }
@@ -135,13 +127,13 @@ const AttendanceSheet: React.FC = () => {
         status: statusMap[entry.student_id] || "present",
       }));
       await recordAttendance(id, classDate, payload);
-      setSuccess(`已储存 ${formatDate(classDate)} 的点名纪录 / Attendance saved for ${formatDate(classDate)}`);
+      setSuccess(t("attendance.saved", { date: formatDate(classDate) }));
       const [a, i] = await Promise.all([listAttendance(id), getCourseSessions(id)]);
       setRecords(a);
       setInfo(i);
     } catch (err: any) {
       const code = err.response?.data?.error;
-      setError(ERROR_LABEL[code] || code || "点名储存失败 / Failed to save attendance");
+      setError(ERROR_KEY[code] ? t(ERROR_KEY[code]) : code || t("attendance.saveFailed"));
     } finally {
       setSaving(false);
     }
@@ -154,14 +146,14 @@ const AttendanceSheet: React.FC = () => {
 
 
   return (
-    <Layout title={readOnly ? "查看点名 / View Attendance" : "点名 / Attendance"}>
+    <Layout title={readOnly ? t("attendance.viewTitle") : t("attendance.title")}>
       {course && (
         <CoursePageHeader
           subject={course.subject}
           subtitle={courseSubtitle(course)}
           actions={
             <button type="button" className="btn" onClick={() => setShowOverview((v) => !v)}>
-              {showOverview ? "返回点名 / Back" : "查看总览 / Overview"}
+              {showOverview ? t("attendance.backToSheet") : t("attendance.viewOverview")}
             </button>
           }
         />
@@ -170,36 +162,34 @@ const AttendanceSheet: React.FC = () => {
       {success && !showOverview && <p style={{ color: "#166534" }}>{success}</p>}
       {readOnly && (
         <p className="card" style={{ color: "#92400e", background: "#fffbeb" }}>
-          此课程窗口已关闭，资料仅供查看，无法修改。如需修改请联络行政人员重新开放。
-          <br />
-          This course is closed and view-only. Please contact the administrator to reopen it if changes are needed.
+          {t("common.closedNotice")}
         </p>
       )}
       {loading || !info ? (
-        <p>载入中... / Loading...</p>
+        <p>{t("common.loading")}</p>
       ) : showOverview ? (
         <AttendanceOverview info={info} roster={fullRoster} records={records} calendar={calendar} course={course} schedules={schedules} />
       ) : roster.length === 0 ? (
-        <p>{readOnly ? "名册里没有学生。 / No students in the roster." : "名册里没有学生，请先到名册管理加入学生。 / No students in the roster, please add students first."}</p>
+        <p>{readOnly ? t("attendance.emptyRosterReadOnly") : t("attendance.emptyRoster")}</p>
       ) : (
         <form onSubmit={handleSubmit} className="card">
           {!readOnly && missingCount > 0 && (
-            <p style={{ color: "#b91c1c", marginTop: 0 }}>尚有 {missingCount} 堂课未点名，请尽快补上。 / {missingCount} session(s) not yet marked, please complete them soon.</p>
+            <p style={{ color: "#b91c1c", marginTop: 0 }}>{t("attendance.missingSessions", { count: missingCount })}</p>
           )}
           <div className="form-row">
-            <label>上课日期 / Class Date</label>
+            <label>{t("attendance.classDate")}</label>
             {restricted ? (
               sessionOptions.length === 0 ? (
-                <p style={{ color: "#888", margin: 0 }}>目前还没有到上课日。 / No class days yet.</p>
+                <p style={{ color: "#888", margin: 0 }}>{t("attendance.noSessionYet")}</p>
               ) : (
                 <select value={classDate} onChange={(e) => setClassDate(e.target.value)} required>
-                  {!sessionOptions.some((s) => s.date === classDate) && <option value="">选择上课日 / Select date...</option>}
+                  {!sessionOptions.some((s) => s.date === classDate) && <option value="">{t("attendance.selectDate")}</option>}
                   {[...sessionOptions].reverse().map((s) => (
                     <option key={s.date} value={s.date}>
                       {formatDate(s.date)}
-                      {s.date === info.today ? "（今天/Today）" : ""}
-                      {s.rescheduled_from ? `（由 ${formatDate(s.rescheduled_from)} 调课/Moved）` : ""}
-                      {s.recorded ? " ✓ 已点名/Marked" : s.missing ? " ⚠ 未点名/Not marked" : ""}
+                      {s.date === info.today ? t("attendance.today") : ""}
+                      {s.rescheduled_from ? t("attendance.movedFrom", { date: formatDate(s.rescheduled_from) }) : ""}
+                      {s.recorded ? t("attendance.optionRecorded") : s.missing ? t("attendance.optionMissing") : ""}
                     </option>
                   ))}
                 </select>
@@ -208,14 +198,15 @@ const AttendanceSheet: React.FC = () => {
               <>
                 <input type="date" value={classDate} onChange={(e) => setClassDate(e.target.value)} required />
                 <small style={{ color: "#b45309" }}>
-                  {!info.calendar_ready ? "学校行事历尚未建立，" : "这门课尚未设定上课星期，"}暂时可自由选择日期。 / Any date can be selected for now.
+                  {!info.calendar_ready ? t("attendance.calendarNotReady") : t("attendance.noWeekday")}
+                  {t("attendance.freeDate")}
                 </small>
               </>
             )}
           </div>
           {!restricted && recordedDates.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 12 }}>
-              <span style={{ color: "#666", fontSize: 13 }}>已点名的日期 / Marked dates：</span>
+              <span style={{ color: "#666", fontSize: 13 }}>{t("attendance.recordedDates")}</span>
               {recordedDates.map((d) => (
                 <button
                   key={d}
@@ -232,18 +223,18 @@ const AttendanceSheet: React.FC = () => {
           <p style={{ color: "#888", fontSize: 13 }}>
             {alreadyRecorded
               ? readOnly
-                ? "以下是这一天的点名纪录。 / Attendance record for this date."
-                : "这一天已经点过名，以下是目前的纪录；修改后再次储存即可更新。 / Already marked; edit and save again to update."
+                ? t("attendance.hintRecordedReadOnly")
+                : t("attendance.hintRecorded")
               : readOnly
-                ? "这个日期没有点名纪录。 / No attendance record for this date."
-                : "这个日期尚未点名，预设全部「到课」。 / Not marked yet; everyone defaults to Present."}
+                ? t("attendance.hintNoRecordReadOnly")
+                : t("attendance.hintNoRecord")}
           </p>
           <table className="table">
             <thead>
               <tr>
-                <th>学号/Student ID</th>
-                <th>姓名/Name</th>
-                <th>出勤状态/Status</th>
+                <th>{t("attendance.studentNo")}</th>
+                <th>{t("attendance.name")}</th>
+                <th>{t("attendance.status")}</th>
               </tr>
             </thead>
             <tbody>
@@ -253,7 +244,7 @@ const AttendanceSheet: React.FC = () => {
                   <td>{entry.student_name_cn}</td>
                   <td>
                     {readOnly ? (
-                      alreadyRecorded ? STATUS_LABEL[statusMap[entry.student_id] || "present"] : "-"
+                      alreadyRecorded ? t(`attendanceStatus.${statusMap[entry.student_id] || "present"}`) : "-"
                     ) : (
                       <select
                         value={statusMap[entry.student_id] || "present"}
@@ -265,8 +256,8 @@ const AttendanceSheet: React.FC = () => {
                         }
                       >
                         {STATUS_OPTIONS.map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
+                          <option key={opt} value={opt}>
+                            {t(`attendanceStatus.${opt}`)}
                           </option>
                         ))}
                       </select>
@@ -283,7 +274,7 @@ const AttendanceSheet: React.FC = () => {
               disabled={saving || !classDate || (restricted && sessionOptions.length === 0)}
               style={{ marginTop: 12 }}
             >
-              {saving ? "储存中... / Saving..." : alreadyRecorded ? "更新点名纪录 / Update" : "储存点名纪录 / Save"}
+              {saving ? t("attendance.saving") : alreadyRecorded ? t("attendance.update") : t("attendance.save")}
             </button>
           )}
         </form>

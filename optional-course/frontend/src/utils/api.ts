@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from "axios";
+import i18n from "@/i18n";
 
 // 根據環境變數設定 API 基礎 URL（與 tution-portal 的 utils/api.ts 完全相同的模式）
 const API_BASE_URL =
@@ -48,7 +49,7 @@ apiClient.interceptors.response.use(
     }
 
     if (!error.response) {
-      return Promise.reject(new Error(`无法连线到伺服器 / Cannot connect to server：${API_BASE_URL}`));
+      return Promise.reject(new Error(i18n.t("common.serverUnreachable", { url: API_BASE_URL })));
     }
 
     return Promise.reject(error);
