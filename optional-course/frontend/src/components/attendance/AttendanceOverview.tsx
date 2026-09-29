@@ -75,6 +75,23 @@ function listHolidaySessions(calendar: OverviewCalendar, course: OverviewCourse,
   return result;
 }
 
+/** 課程級停課／調課（與 OptionalCourseSchedule 相容） */
+export interface OverviewSchedule {
+  scheduled_date: string;
+  status: "cancelled" | "rescheduled";
+  cancellation_reason?: string;
+  rescheduled_to?: string;
+  rescheduled_venue?: string;
+  reschedule_reason?: string;
+}
+
+/** 整欄合併成一格的特殊日（假期／停課／調課） */
+interface SpecialDay {
+  code: string;
+  className: string;
+  title: string;
+}
+
 interface AttendanceOverviewProps {
   info: CourseSessionsInfo;
   roster: OptionalCourseRoster[]; // 含已退選學生，有點名紀錄的才會顯示
@@ -82,10 +99,12 @@ interface AttendanceOverviewProps {
   /** 有給才會列出假期欄（H）；行事曆讀不到時省略即可 */
   calendar?: OverviewCalendar | null;
   course?: OverviewCourse | null;
+  /** 課程級停課／調課；原訂日期整欄合併顯示 C／R */
+  schedules?: OverviewSchedule[] | null;
 }
 
-/** 「學生 × 日期」唯讀總覽：欄位是今天以前的上課日、遇到假期的上課日，以及任何已有點名紀錄的日期 */
-export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, roster, records, calendar, course }) => {
+/** 「學生 × 日期」唯讀總覽：欄位是今天以前的上課日、遇到假期／停課／調課的原訂日期，以及任何已有點名紀錄的日期 */
+export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, roster, records, calendar, course, schedules }) => {
   const isMobile = useIsMobile();
 
   const recordsByKey = useMemo(() => {
@@ -94,25 +113,55 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
     return map;
   }, [records]);
 
-  // 已有點名紀錄的日期一律當一般上課日顯示（例如行事曆事後才改成假期）
-  const holidays = useMemo(() => {
-    if (!calendar || !course) return new Map<string, string>();
-    const map = listHolidaySessions(calendar, course, info.today);
+  // 假期、停課、調課（原訂日期）：整欄合併一格。
+  // 已有點名紀錄或仍是上課日的日期一律當一般上課日顯示（例如行事曆事後才改成假期）
+  const specialDays = useMemo(() => {
+    const map = new Map<string, SpecialDay>();
+    if (calendar && course) {
+      listHolidaySessions(calendar, course, info.today).forEach((name, d) =>
+        map.set(d, { code: "H", className: "attendance-matrix-cell-holiday", title: `${formatDate(d)} 假期：${name}` }),
+      );
+    }
+    for (const s of schedules ?? []) {
+      const d = s.scheduled_date;
+      if (d > info.today) continue;
+      if (s.status === "cancelled") {
+        map.set(d, {
+          code: "C",
+          className: "attendance-matrix-cell-cancelled",
+          title: `${formatDate(d)} 停課${s.cancellation_reason ? `：${s.cancellation_reason}` : ""}`,
+        });
+      } else {
+        map.set(d, {
+          code: "R",
+          className: "attendance-matrix-cell-rescheduled",
+          title:
+            `${formatDate(d)} 調課至 ${s.rescheduled_to ? formatDate(s.rescheduled_to) : "（未指定）"}` +
+            `${s.rescheduled_venue ? `（${s.rescheduled_venue}）` : ""}${s.reschedule_reason ? `：${s.reschedule_reason}` : ""}`,
+        });
+      }
+    }
     const recorded = new Set(records.map((r) => r.class_date));
     const sessionDates = new Set(info.sessions.map((s) => s.date));
     for (const d of Array.from(map.keys())) {
       if (recorded.has(d) || sessionDates.has(d)) map.delete(d);
     }
     return map;
-  }, [calendar, course, info, records]);
+  }, [calendar, course, schedules, info, records]);
+
+  // 調課後的新日期：表頭提示原訂日期
+  const rescheduledFrom = useMemo(
+    () => new Map(info.sessions.filter((s) => s.rescheduled_from).map((s) => [s.date, s.rescheduled_from!])),
+    [info],
+  );
 
   // 行事曆未建立時 sessions 是空的，退回用已點名的日期當欄位
   const dates = useMemo(() => {
     const set = new Set(info.sessions.filter((s) => s.date <= info.today).map((s) => s.date));
     for (const r of records) set.add(r.class_date);
-    for (const d of Array.from(holidays.keys())) set.add(d);
+    for (const d of Array.from(specialDays.keys())) set.add(d);
     return Array.from(set).sort();
-  }, [info, records, holidays]);
+  }, [info, records, specialDays]);
 
   const students = useMemo(() => {
     const withRecords = new Set(records.map((r) => r.student_id));
@@ -184,11 +233,18 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
               </th>
               {visibleDates.map((d) => {
                 const [, m, day] = d.split("-");
-                const holidayName = holidays.get(d);
+                const special = specialDays.get(d);
+                const movedFrom = rescheduledFrom.get(d);
                 return (
                   <th
                     key={d}
-                    title={holidayName ? `${formatDate(d)} 假期：${holidayName}` : formatDate(d)}
+                    title={
+                      special
+                        ? special.title
+                        : movedFrom
+                          ? `${formatDate(d)}（由 ${formatDate(movedFrom)} 調課）`
+                          : formatDate(d)
+                    }
                     className={`attendance-matrix-date-col ${monthToneClass(d)}`}
                     style={dateColStyle}
                   >
@@ -220,19 +276,19 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
                   </div>
                 </td>
                 {visibleDates.map((d) => {
-                  const holidayName = holidays.get(d);
-                  if (holidayName !== undefined) {
-                    // 假期整欄合併成一格，只在第一列輸出
+                  const special = specialDays.get(d);
+                  if (special) {
+                    // 假期／停課／調課整欄合併成一格，只在第一列輸出
                     if (rowIndex > 0) return null;
                     return (
                       <td
                         key={d}
                         rowSpan={students.length}
-                        className="attendance-matrix-cell attendance-matrix-cell-holiday"
-                        title={`${formatDate(d)} 假期：${holidayName}`}
+                        className={`attendance-matrix-cell ${special.className}`}
+                        title={special.title}
                         style={dateColStyle}
                       >
-                        H
+                        {special.code}
                       </td>
                     );
                   }
@@ -299,6 +355,14 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
         <span className="attendance-legend-item">
           <span className="attendance-legend-swatch attendance-matrix-cell-holiday">H</span>
           假期
+        </span>
+        <span className="attendance-legend-item">
+          <span className="attendance-legend-swatch attendance-matrix-cell-cancelled">C</span>
+          停課
+        </span>
+        <span className="attendance-legend-item">
+          <span className="attendance-legend-swatch attendance-matrix-cell-rescheduled">R</span>
+          調課（原訂日期）
         </span>
         <span className="attendance-legend-item">
           <span className="attendance-legend-swatch attendance-matrix-cell-unmarked">·</span>

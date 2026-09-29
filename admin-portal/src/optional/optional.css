@@ -335,6 +335,19 @@
   font-weight: 700;
 }
 
+/* 課程級停課（C）／調課原訂日期（R）：同樣整欄合併一格 */
+.oc-att-matrix-cell-cancelled {
+  background: #e5e7eb;
+  color: #374151;
+  font-weight: 700;
+}
+
+.oc-att-matrix-cell-rescheduled {
+  background: #fef3c7;
+  color: #b45309;
+  font-weight: 700;
+}
+
 .oc-att-matrix-cell-empty {
   background: #fafafa;
 }

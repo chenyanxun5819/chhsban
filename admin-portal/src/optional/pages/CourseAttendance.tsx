@@ -4,12 +4,14 @@ import { Layout } from "@/shared/components/Layout";
 import { getCourse } from "@/optional/services/courseService";
 import { getCalendar, getCourseSessions } from "@/optional/services/calendarService";
 import { listAttendance, listRoster } from "@/optional/services/attendanceService";
+import { listSchedules } from "@/optional/services/scheduleService";
 import { AttendanceOverview } from "@/optional/components/AttendanceOverview";
 import type {
   CourseSessionsInfo,
   OptionalCourse,
   OptionalCourseAttendance,
   OptionalCourseRoster,
+  OptionalCourseSchedule,
   SchoolCalendar,
 } from "@/optional/types";
 import { WEEKDAY_LABEL } from "@/optional/utils/calendar";
@@ -22,6 +24,7 @@ const CourseAttendance: React.FC = () => {
   const [info, setInfo] = useState<CourseSessionsInfo | null>(null);
   const [records, setRecords] = useState<OptionalCourseAttendance[]>([]);
   const [calendar, setCalendar] = useState<SchoolCalendar | null>(null);
+  const [schedules, setSchedules] = useState<OptionalCourseSchedule[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -29,12 +32,13 @@ const CourseAttendance: React.FC = () => {
     if (!id) return;
     setLoading(true);
     setError(null);
-    Promise.all([getCourse(id), listRoster(id), getCourseSessions(id), listAttendance(id)])
-      .then(([c, r, i, a]) => {
+    Promise.all([getCourse(id), listRoster(id), getCourseSessions(id), listAttendance(id), listSchedules(id)])
+      .then(([c, r, i, a, s]) => {
         setCourse(c);
         setRoster(r);
         setInfo(i);
         setRecords(a);
+        setSchedules(s);
         // 行事曆只用來標示假期欄，讀不到就不標
         getCalendar(c.year)
           .then(setCalendar)
@@ -67,7 +71,7 @@ const CourseAttendance: React.FC = () => {
       {loading || !info ? (
         !error && <p>載入中...</p>
       ) : (
-        <AttendanceOverview info={info} roster={roster} records={records} calendar={calendar} course={course} />
+        <AttendanceOverview info={info} roster={roster} records={records} calendar={calendar} course={course} schedules={schedules} />
       )}
     </Layout>
   );

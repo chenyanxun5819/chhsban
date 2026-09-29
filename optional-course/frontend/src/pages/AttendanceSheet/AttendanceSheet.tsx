@@ -5,10 +5,12 @@ import { getCourse } from "@/services/courseService";
 import { listRoster } from "@/services/rosterService";
 import { recordAttendance, listAttendance } from "@/services/attendanceService";
 import { getCalendar, getCourseSessions } from "@/services/calendarService";
+import { listSchedules } from "@/services/scheduleService";
 import type {
   CourseSessionsInfo,
   OptionalCourse,
   OptionalCourseRoster,
+  OptionalCourseSchedule,
   OptionalCourseAttendance,
   CourseAttendanceStatus,
 } from "@/types";
@@ -50,6 +52,7 @@ const AttendanceSheet: React.FC = () => {
   const [roster, setRoster] = useState<OptionalCourseRoster[]>([]);
   const [showOverview, setShowOverview] = useState(false);
   const [calendar, setCalendar] = useState<OverviewCalendar | null>(null);
+  const [schedules, setSchedules] = useState<OptionalCourseSchedule[]>([]);
   const [info, setInfo] = useState<CourseSessionsInfo | null>(null);
   // 後端已依 course+student+date 取最新一筆，這裡拿到的就是每人每天的目前狀態
   const [records, setRecords] = useState<OptionalCourseAttendance[]>([]);
@@ -77,6 +80,10 @@ const AttendanceSheet: React.FC = () => {
       getCalendar(c.year)
         .then(setCalendar)
         .catch(() => setCalendar(null));
+      // 停課／調課同樣只用於總覽標示，讀不到就不標
+      listSchedules(c.course_id)
+        .then(setSchedules)
+        .catch(() => setSchedules([]));
       setFullRoster(r);
       setRoster(r.filter((entry) => entry.is_active));
       setInfo(i);
@@ -182,7 +189,7 @@ const AttendanceSheet: React.FC = () => {
       {loading || !info ? (
         <p>載入中...</p>
       ) : showOverview ? (
-        <AttendanceOverview info={info} roster={fullRoster} records={records} calendar={calendar} course={course} />
+        <AttendanceOverview info={info} roster={fullRoster} records={records} calendar={calendar} course={course} schedules={schedules} />
       ) : roster.length === 0 ? (
         <p>{readOnly ? "名冊裡沒有學生。" : "名冊裡沒有學生，請先到名冊管理加入學生。"}</p>
       ) : (
