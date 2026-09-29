@@ -120,6 +120,7 @@ const RosterManagement: React.FC = () => {
         (a.student_class || "").localeCompare(b.student_class || "", "zh-Hant", { numeric: true }) ||
         String(a.student_no || a.student_id).localeCompare(String(b.student_no || b.student_id), "zh-Hant", { numeric: true })
     );
+  const withdrawingEntry = withdrawing ? roster.find((r) => r.roster_id === withdrawing.rosterId) : undefined;
   // 窗口未開放（已關閉）時只能查看，後端也會拒絕任何修改
   const readOnly = course?.window_status !== "open";
 
@@ -176,67 +177,93 @@ const RosterManagement: React.FC = () => {
                 <thead>
                   <tr>
                     <th>學號</th>
-                    <th>姓名</th>
+                    <th>中文姓名</th>
+                    <th>英文姓名</th>
                     <th>班級</th>
-                    {!readOnly && <th></th>}
                   </tr>
                 </thead>
                 <tbody>
                   {activeRoster.map((r) => (
-                    <React.Fragment key={r.roster_id}>
-                      <tr>
-                        <td>{r.student_no || r.student_id}</td>
-                        <td>{r.student_name_cn}</td>
-                        <td>{r.student_class}</td>
-                        {!readOnly && (
-                          <td>
-                            {withdrawing?.rosterId !== r.roster_id && (
-                              <button
-                                className="btn btn--danger"
-                                onClick={() => setWithdrawing({ rosterId: r.roster_id, date: todayMYT(), reason: "" })}
-                              >
-                                退出
-                              </button>
-                            )}
-                          </td>
-                        )}
-                      </tr>
-                      {withdrawing?.rosterId === r.roster_id && (
-                        <tr>
-                          <td colSpan={4} style={{ background: "#fef2f2" }}>
-                            <form onSubmit={handleWithdraw} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                              <label>退出日期</label>
-                              <input
-                                type="date"
-                                value={withdrawing.date}
-                                max={todayMYT()}
-                                onChange={(e) => setWithdrawing({ ...withdrawing, date: e.target.value })}
-                                required
-                              />
-                              <label>原因</label>
-                              <input
-                                value={withdrawing.reason}
-                                onChange={(e) => setWithdrawing({ ...withdrawing, reason: e.target.value })}
-                                placeholder="必填"
-                                style={{ flex: 1, minWidth: 160 }}
-                                required
-                              />
-                              <button type="submit" className="btn btn--danger" disabled={withdrawSaving}>
-                                {withdrawSaving ? "處理中..." : "確認退出"}
-                              </button>
-                              <button type="button" className="btn" onClick={() => setWithdrawing(null)}>
-                                取消
-                              </button>
-                            </form>
-                          </td>
-                        </tr>
-                      )}
-                    </React.Fragment>
+                    <tr
+                      key={r.roster_id}
+                      className={readOnly ? undefined : "table__row--clickable"}
+                      title={readOnly ? undefined : "點擊以辦理退出"}
+                      onClick={
+                        readOnly
+                          ? undefined
+                          : () => {
+                              setError(null);
+                              setWithdrawing({ rosterId: r.roster_id, date: todayMYT(), reason: "" });
+                            }
+                      }
+                    >
+                      <td>{r.student_no || r.student_id}</td>
+                      <td>{r.student_name_cn}</td>
+                      <td>{r.student_name_en}</td>
+                      <td>{r.student_class}</td>
+                    </tr>
                   ))}
                 </tbody>
               </table>
             )}
           </div>
+
+          {withdrawing && withdrawingEntry && (
+            <div className="modal-overlay" onClick={() => !withdrawSaving && setWithdrawing(null)}>
+              <form className="modal" onClick={(e) => e.stopPropagation()} onSubmit={handleWithdraw}>
+                <h3 style={{ marginTop: 0 }}>確定要讓這位學生退出名冊嗎？</h3>
+                <table className="modal__info">
+                  <tbody>
+                    <tr>
+                      <th>學號</th>
+                      <td>{withdrawingEntry.student_no || withdrawingEntry.student_id}</td>
+                    </tr>
+                    <tr>
+                      <th>中文姓名</th>
+                      <td>{withdrawingEntry.student_name_cn}</td>
+                    </tr>
+                    <tr>
+                      <th>英文姓名</th>
+                      <td>{withdrawingEntry.student_name_en}</td>
+                    </tr>
+                    <tr>
+                      <th>班級</th>
+                      <td>{withdrawingEntry.student_class}</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <div className="form-row">
+                  <label>退出日期</label>
+                  <input
+                    type="date"
+                    value={withdrawing.date}
+                    max={todayMYT()}
+                    onChange={(e) => setWithdrawing({ ...withdrawing, date: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-row">
+                  <label>原因</label>
+                  <input
+                    value={withdrawing.reason}
+                    onChange={(e) => setWithdrawing({ ...withdrawing, reason: e.target.value })}
+                    placeholder="必填"
+                    required
+                    autoFocus
+                  />
+                </div>
+                {error && <p className="error-text">{error}</p>}
+                <div className="modal__actions">
+                  <button type="button" className="btn" onClick={() => setWithdrawing(null)} disabled={withdrawSaving}>
+                    取消
+                  </button>
+                  <button type="submit" className="btn btn--danger" disabled={withdrawSaving}>
+                    {withdrawSaving ? "處理中..." : "確認退出"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
         </>
       )}
     </Layout>
