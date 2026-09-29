@@ -323,41 +323,40 @@ body {
   font-weight: 400;
 }
 
-.attendance-matrix-cell-unmarked {
-  background: #eee;
-  color: #999;
+/* 未點名：不加底色，只顯示深色的點（表格與圖例共用，蓋過圖例預設的白字） */
+.attendance-matrix-cell-unmarked,
+.attendance-legend-swatch.attendance-matrix-cell-unmarked {
+  background: transparent;
+  color: #29241a;
+  font-weight: 700;
 }
 
-/* 奇數月／偶數月交替底色（日期表頭、未點名、不在名冊的格子；已點名的格子維持狀態色） */
+/* 奇數月／偶數月交替底色（日期表頭、不在名冊的格子；已點名的格子維持狀態色，未點名不加底色） */
 .attendance-matrix th.attendance-month-even {
   background: #e3ecf7;
-}
-
-.attendance-matrix-cell-unmarked.attendance-month-even {
-  background: #d9e3ef;
 }
 
 .attendance-matrix-cell-not-joined.attendance-month-even {
   background: #edf2f8;
 }
 
-/* 遇到假期的上課日：整欄合併一格，粉紅底紅字 H */
+/* 遇到假期的上課日：整欄合併一格，藍底白字 H */
 .attendance-matrix-cell-holiday {
-  background: #fde2e8;
-  color: #dc2626;
+  background: #2aceff;
+  color: #fff;
   font-weight: 700;
 }
 
 /* 課程級停課（C）／調課原訂日期（R）：同樣整欄合併一格 */
 .attendance-matrix-cell-cancelled {
-  background: #e5e7eb;
-  color: #374151;
+  background: #3c3c3c;
+  color: #fff;
   font-weight: 700;
 }
 
 .attendance-matrix-cell-rescheduled {
-  background: #fef3c7;
-  color: #b45309;
+  background: #185abd;
+  color: #fff;
   font-weight: 700;
 }
 
