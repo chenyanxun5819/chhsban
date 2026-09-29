@@ -4,7 +4,7 @@ import { Layout } from "@/components/common/Layout";
 import { getCourse } from "@/services/courseService";
 import { listRoster } from "@/services/rosterService";
 import { recordAttendance, listAttendance } from "@/services/attendanceService";
-import { getCourseSessions } from "@/services/calendarService";
+import { getCalendar, getCourseSessions } from "@/services/calendarService";
 import type {
   CourseSessionsInfo,
   OptionalCourse,
@@ -13,7 +13,7 @@ import type {
   CourseAttendanceStatus,
 } from "@/types";
 import { WEEKDAY_LABEL, formatDate, todayMYT } from "@/utils/calendar";
-import { AttendanceOverview } from "@/components/attendance/AttendanceOverview";
+import { AttendanceOverview, type OverviewCalendar } from "@/components/attendance/AttendanceOverview";
 
 const STATUS_OPTIONS: Array<{ value: CourseAttendanceStatus; label: string }> = [
   { value: "present", label: "到課" },
@@ -49,6 +49,7 @@ const AttendanceSheet: React.FC = () => {
   const [fullRoster, setFullRoster] = useState<OptionalCourseRoster[]>([]); // 含已退選，總覽用
   const [roster, setRoster] = useState<OptionalCourseRoster[]>([]);
   const [showOverview, setShowOverview] = useState(false);
+  const [calendar, setCalendar] = useState<OverviewCalendar | null>(null);
   const [info, setInfo] = useState<CourseSessionsInfo | null>(null);
   // 後端已依 course+student+date 取最新一筆，這裡拿到的就是每人每天的目前狀態
   const [records, setRecords] = useState<OptionalCourseAttendance[]>([]);
@@ -72,6 +73,10 @@ const AttendanceSheet: React.FC = () => {
       setError(null);
       const [c, r, i, a] = await Promise.all([getCourse(id), listRoster(id), getCourseSessions(id), listAttendance(id)]);
       setCourse(c);
+      // 行事曆只用來在總覽標示假期欄，讀不到就不標
+      getCalendar(c.year)
+        .then(setCalendar)
+        .catch(() => setCalendar(null));
       setFullRoster(r);
       setRoster(r.filter((entry) => entry.is_active));
       setInfo(i);
@@ -177,7 +182,7 @@ const AttendanceSheet: React.FC = () => {
       {loading || !info ? (
         <p>載入中...</p>
       ) : showOverview ? (
-        <AttendanceOverview info={info} roster={fullRoster} records={records} />
+        <AttendanceOverview info={info} roster={fullRoster} records={records} calendar={calendar} course={course} />
       ) : roster.length === 0 ? (
         <p>{readOnly ? "名冊裡沒有學生。" : "名冊裡沒有學生，請先到名冊管理加入學生。"}</p>
       ) : (

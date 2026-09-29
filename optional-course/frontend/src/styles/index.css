@@ -323,6 +323,31 @@ body {
   font-weight: 400;
 }
 
+.attendance-matrix-cell-unmarked {
+  background: #eee;
+  color: #999;
+}
+
+/* 奇數月／偶數月交替底色（日期表頭、未點名、不在名冊的格子；已點名的格子維持狀態色） */
+.attendance-matrix th.attendance-month-even {
+  background: #e3ecf7;
+}
+
+.attendance-matrix-cell-unmarked.attendance-month-even {
+  background: #d9e3ef;
+}
+
+.attendance-matrix-cell-not-joined.attendance-month-even {
+  background: #edf2f8;
+}
+
+/* 遇到假期的上課日：整欄合併一格，粉紅底紅字 H */
+.attendance-matrix-cell-holiday {
+  background: #fde2e8;
+  color: #dc2626;
+  font-weight: 700;
+}
+
 .attendance-matrix-cell-empty {
   background: #fafafa;
 }
