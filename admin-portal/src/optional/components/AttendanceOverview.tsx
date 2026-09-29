@@ -267,7 +267,7 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
                 <td className="oc-att-matrix-student-col" style={studentColStyle}>
                   <div className="oc-att-matrix-student-name">
                     {student.student_name_cn || student.student_name_en}
-                    {!student.is_active && <span className="oc-att-matrix-withdrawn">已退選</span>}
+                    {!student.is_active && <span className="oc-att-matrix-withdrawn">已退出</span>}
                   </div>
                   <div className="oc-att-matrix-student-meta">
                     <span className="oc-att-matrix-student-no">{student.student_no}</span>
@@ -294,21 +294,17 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
                     );
                   }
                   const record = recordsByKey.get(`${student.student_id}|${d}`);
-                  // 加入前／退選後的日期：反灰，不算未點名
+                  // 退出日期（含）之後：反灰，不算未點名。加入日期不看（選修課名冊常在開課後才建立）
                   const outOfRoster =
-                    !record &&
-                    ((student.enrollment_date && student.enrollment_date > d) ||
-                      (!student.is_active && student.withdrawal_date && student.withdrawal_date <= d));
+                    !record && !student.is_active && !!student.withdrawal_date && student.withdrawal_date <= d;
                   if (outOfRoster) {
                     return (
                       <td
                         key={d}
                         className={`oc-att-matrix-cell oc-att-matrix-cell-not-joined ${monthToneClass(d)}`}
-                        title={
-                          student.enrollment_date && student.enrollment_date > d
-                            ? `${formatDate(d)} 尚未加入名冊（${formatDate(student.enrollment_date)} 加入）`
-                            : `${formatDate(d)} 已退選`
-                        }
+                        title={`${formatDate(d)} 已退出（${formatDate(student.withdrawal_date!)} 退出${
+                          student.withdrawal_reason ? `：${student.withdrawal_reason}` : ""
+                        }）`}
                         style={dateColStyle}
                       >
                         -
@@ -375,7 +371,7 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
         </span>
         <span className="oc-att-legend-item">
           <span className="oc-att-legend-swatch oc-att-matrix-cell-not-joined">-</span>
-          不在名冊（加入前／退選後）
+          已退出
         </span>
       </div>
     </div>

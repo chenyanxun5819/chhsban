@@ -64,6 +64,7 @@ export interface OptionalCourseRoster {
   student_class: string;
   enrollment_date: string;
   withdrawal_date?: string;
+  withdrawal_reason?: string;
   is_active: boolean;
 }
 

@@ -317,7 +317,7 @@ body {
   width: 34px;
 }
 
-/* 不在名冊（加入前／退選後）：淡灰底、灰色「-」（表格與圖例共用，蓋過圖例預設的白字） */
+/* 已退出（退出日期之後）：淡灰底、灰色「-」（表格與圖例共用，蓋過圖例預設的白字） */
 .attendance-matrix-cell-not-joined,
 .attendance-legend-swatch.attendance-matrix-cell-not-joined {
   background: #f5f5f5;
