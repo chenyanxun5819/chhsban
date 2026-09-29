@@ -52,6 +52,32 @@ export interface OptionalCourseSchedule {
   updated_at: number;
 }
 
+// ===== 名冊／點名（點名總覽用，唯讀） =====
+
+export interface OptionalCourseRoster {
+  roster_id: string;
+  course_id: string;
+  student_id: string;
+  student_no: string;
+  student_name_cn: string;
+  student_name_en: string;
+  student_class: string;
+  enrollment_date: string;
+  withdrawal_date?: string;
+  is_active: boolean;
+}
+
+export type CourseAttendanceStatus = "present" | "absent" | "late" | "excuse";
+
+export interface OptionalCourseAttendance {
+  attendance_id: string;
+  course_id: string;
+  student_id: string;
+  class_date: string;
+  status: CourseAttendanceStatus;
+  absence_reason?: string;
+}
+
 // ===== 學校行事曆 =====
 
 export type HolidayType = "public" | "school_break" | "event";

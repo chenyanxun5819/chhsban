@@ -108,7 +108,7 @@ const AttendanceTracking: React.FC = () => {
                         <tr>
                           <td>
                             <span style={{ color: "#888", marginRight: 6 }}>{c.course_no}</span>
-                            {c.subject}
+                            <Link to={`/optional/courses/${c.course_id}/attendance`}>{c.subject}</Link>
                           </td>
                           <td>{c.teacher_name_cn || "-"}</td>
                           <td>{c.day_of_week ? WEEKDAY_LABEL[c.day_of_week] : <em style={{ color: "#b45309" }}>未設定</em>}</td>
@@ -165,7 +165,7 @@ const AttendanceTracking: React.FC = () => {
                         {list.map((c) => (
                           <div key={c.course_id}>
                             <span style={{ color: "#888", marginRight: 6 }}>{c.course_no}</span>
-                            {c.subject}
+                            <Link to={`/optional/courses/${c.course_id}/attendance`}>{c.subject}</Link>
                             <span style={{ color: "#666" }}>（{c.teacher_name_cn || "-"}）</span>
                           </div>
                         ))}

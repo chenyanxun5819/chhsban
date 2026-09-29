@@ -173,3 +173,185 @@
   background: #ede9fe;
   color: #5b21b6;
 }
+
+/* ===== 點名總覽矩陣（學生 × 日期，與 optional-course 老師端相同） ===== */
+.oc-att-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.oc-att-page-header h2 {
+  margin: 0 0 4px;
+}
+
+.oc-att-subtitle {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+.oc-att-overview {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.oc-att-overview-scroll {
+  overflow-x: auto;
+}
+
+.oc-att-matrix {
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+/* 手機模式改用 JS 算好的百分比欄寬，表格撐滿卡片寬度 */
+.oc-att-matrix--fill {
+  width: 100%;
+}
+
+.oc-att-matrix th,
+.oc-att-matrix td {
+  box-sizing: border-box;
+  border: 1px solid #eee;
+  text-align: center;
+  padding: 0.3rem 0.25rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.oc-att-matrix-student-col {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: white;
+  text-align: left !important;
+  font-weight: 600;
+  width: 110px;
+  padding: 0.3rem 0.4rem;
+}
+
+.oc-att-matrix-student-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.oc-att-matrix-withdrawn {
+  margin-left: 4px;
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: #b45309;
+}
+
+.oc-att-matrix-student-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.15rem;
+  font-weight: 400;
+}
+
+.oc-att-matrix-student-no {
+  font-size: 0.7rem;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.oc-att-matrix-student-class {
+  font-size: 0.68rem;
+  color: #555;
+  background: #eef2f7;
+  border-radius: 3px;
+  padding: 1px;
+  flex-shrink: 0;
+}
+
+.oc-att-matrix-date-col {
+  width: 34px;
+  padding: 0.2rem 0.1rem;
+}
+
+.oc-att-date-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.oc-att-date-month {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #888;
+  letter-spacing: 0.02em;
+  padding-bottom: 0.15rem;
+  border-bottom: 1px solid #ddd;
+  width: 100%;
+}
+
+.oc-att-date-day {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #333;
+  padding-top: 0.15rem;
+}
+
+.oc-att-matrix-cell {
+  font-weight: 700;
+  width: 34px;
+}
+
+.oc-att-matrix-cell-not-joined {
+  background: #f5f5f5;
+  color: #ccc;
+  font-weight: 400;
+}
+
+.oc-att-matrix-cell-empty {
+  background: #fafafa;
+}
+
+.oc-att-matrix-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.oc-att-matrix-page-info {
+  font-size: 0.85rem;
+  color: #555;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.oc-att-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.oc-att-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.oc-att-legend-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: white;
+  font-weight: 700;
+  font-size: 0.75rem;
+}

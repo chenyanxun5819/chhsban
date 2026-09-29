@@ -6,6 +6,7 @@ import {
   listCourses,
   createCourse,
   updateCourseWeekday,
+  updateCourseSlot,
   bindTeacher,
   openCourse,
   closeCourse,
@@ -45,6 +46,11 @@ const CourseList: React.FC = () => {
   const [subject, setSubject] = useState("");
   const [createYear, setCreateYear] = useState(currentYear());
   const [createWeekday, setCreateWeekday] = useState<Weekday | "">("");
+  const [createTimeStart, setCreateTimeStart] = useState("");
+  const [createTimeEnd, setCreateTimeEnd] = useState("");
+  const [createVenue, setCreateVenue] = useState("");
+  // 各列「時間／地點」的編輯草稿，key 為 course_id；沒有草稿代表未在編輯
+  const [slotDraft, setSlotDraft] = useState<Record<string, { time_start: string; time_end: string; venue: string }>>({});
   const [selectedTeacher, setSelectedTeacher] = useState<Record<string, string>>({});
   const [busyId, setBusyId] = useState<string | null>(null);
 
@@ -120,14 +126,52 @@ const CourseList: React.FC = () => {
     runAction(course.course_id, () => deleteCourse(course.course_id), "刪除課程失敗");
   };
 
+  const clearSlotDraft = (courseId: string) =>
+    setSlotDraft((prev) => {
+      const next = { ...prev };
+      delete next[courseId];
+      return next;
+    });
+
+  const handleSaveSlot = (courseId: string) => {
+    const draft = slotDraft[courseId];
+    if (!draft) return;
+    if (draft.time_start && draft.time_end && draft.time_end <= draft.time_start) {
+      setError("結束時間必須晚於開始時間");
+      return;
+    }
+    runAction(
+      courseId,
+      async () => {
+        await updateCourseSlot(courseId, { ...draft, venue: draft.venue.trim() });
+        clearSlotDraft(courseId);
+      },
+      "設定上課時間／地點失敗",
+    );
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subject.trim()) return;
+    if (createTimeStart && createTimeEnd && createTimeEnd <= createTimeStart) {
+      setError("結束時間必須晚於開始時間");
+      return;
+    }
     try {
       setError(null);
-      await createCourse({ subject: subject.trim(), year: createYear, day_of_week: createWeekday || undefined });
+      await createCourse({
+        subject: subject.trim(),
+        year: createYear,
+        day_of_week: createWeekday || undefined,
+        time_start: createTimeStart || undefined,
+        time_end: createTimeEnd || undefined,
+        venue: createVenue.trim() || undefined,
+      });
       setSubject("");
       setCreateWeekday("");
+      setCreateTimeStart("");
+      setCreateTimeEnd("");
+      setCreateVenue("");
       if (createYear !== year) {
         setYear(createYear); // 切到新課程所在年份，useEffect 會重新載入
       } else {
@@ -158,6 +202,23 @@ const CourseList: React.FC = () => {
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label htmlFor="createTimeStart">上課時間</label>
+              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <input
+                  id="createTimeStart"
+                  type="time"
+                  value={createTimeStart}
+                  onChange={(e) => setCreateTimeStart(e.target.value)}
+                />
+                <span>–</span>
+                <input type="time" value={createTimeEnd} onChange={(e) => setCreateTimeEnd(e.target.value)} />
+              </div>
+            </div>
+            <div className="form-row" style={{ marginBottom: 0 }}>
+              <label htmlFor="createVenue">上課地點</label>
+              <input id="createVenue" value={createVenue} onChange={(e) => setCreateVenue(e.target.value)} placeholder="例如：A301" />
             </div>
             <div className="form-row" style={{ marginBottom: 0 }}>
               <label htmlFor="createYear">年份</label>
@@ -213,6 +274,7 @@ const CourseList: React.FC = () => {
                 <th>選修課名稱</th>
                 <th>授課老師</th>
                 <th>上課星期</th>
+                <th>時間／地點</th>
                 <th>點名</th>
                 <th>狀態</th>
                 <th>操作</th>
@@ -262,6 +324,62 @@ const CourseList: React.FC = () => {
                         WEEKDAY_LABEL[course.day_of_week]
                       ) : (
                         <em style={{ color: "#b45309" }}>未設定</em>
+                      )}
+                    </td>
+                    <td>
+                      {slotDraft[course.course_id] ? (
+                        (() => {
+                          const draft = slotDraft[course.course_id];
+                          const setField = (field: "time_start" | "time_end" | "venue", value: string) =>
+                            setSlotDraft((prev) => ({ ...prev, [course.course_id]: { ...draft, [field]: value } }));
+                          return (
+                            <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                                <input type="time" value={draft.time_start} onChange={(e) => setField("time_start", e.target.value)} />
+                                <span>–</span>
+                                <input type="time" value={draft.time_end} onChange={(e) => setField("time_end", e.target.value)} />
+                              </div>
+                              <input value={draft.venue} onChange={(e) => setField("venue", e.target.value)} placeholder="上課地點" />
+                              <div style={{ display: "flex", gap: 4 }}>
+                                <button className="btn btn--small btn--primary" disabled={busy} onClick={() => handleSaveSlot(course.course_id)}>
+                                  儲存
+                                </button>
+                                <button className="btn btn--small" onClick={() => clearSlotDraft(course.course_id)}>
+                                  取消
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })()
+                      ) : (
+                        <>
+                          <div style={{ whiteSpace: "nowrap" }}>
+                            {course.time_start ? (
+                              `${course.time_start}${course.time_end ? `–${course.time_end}` : ""}`
+                            ) : (
+                              <em style={{ color: "#888" }}>時間未設定</em>
+                            )}
+                          </div>
+                          <div>{course.venue || <em style={{ color: "#888" }}>地點未設定</em>}</div>
+                          {canManage && (
+                            <button
+                              className="btn btn--small"
+                              style={{ marginTop: 4 }}
+                              onClick={() =>
+                                setSlotDraft((prev) => ({
+                                  ...prev,
+                                  [course.course_id]: {
+                                    time_start: course.time_start || "",
+                                    time_end: course.time_end || "",
+                                    venue: course.venue || "",
+                                  },
+                                }))
+                              }
+                            >
+                              修改
+                            </button>
+                          )}
+                        </>
                       )}
                     </td>
                     <td style={{ whiteSpace: "nowrap" }}>
@@ -343,6 +461,11 @@ const CourseList: React.FC = () => {
                           >
                             重新開放
                           </button>
+                        )}
+                        {course.window_status !== "pending" && (
+                          <Link className="btn btn--small" to={`/optional/courses/${course.course_id}/attendance`}>
+                            點名總覽
+                          </Link>
                         )}
                         <Link className="btn btn--small" to={`/optional/courses/${course.course_id}/schedule`}>
                           上課日期{canManage ? "／停課" : ""}

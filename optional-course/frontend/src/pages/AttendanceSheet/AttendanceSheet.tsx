@@ -12,7 +12,8 @@ import type {
   OptionalCourseAttendance,
   CourseAttendanceStatus,
 } from "@/types";
-import { formatDate, todayMYT } from "@/utils/calendar";
+import { WEEKDAY_LABEL, formatDate, todayMYT } from "@/utils/calendar";
+import { AttendanceOverview } from "@/components/attendance/AttendanceOverview";
 
 const STATUS_OPTIONS: Array<{ value: CourseAttendanceStatus; label: string }> = [
   { value: "present", label: "到課" },
@@ -45,7 +46,9 @@ function defaultDate(info: CourseSessionsInfo): string {
 const AttendanceSheet: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const [course, setCourse] = useState<OptionalCourse | null>(null);
+  const [fullRoster, setFullRoster] = useState<OptionalCourseRoster[]>([]); // 含已退選，總覽用
   const [roster, setRoster] = useState<OptionalCourseRoster[]>([]);
+  const [showOverview, setShowOverview] = useState(false);
   const [info, setInfo] = useState<CourseSessionsInfo | null>(null);
   // 後端已依 course+student+date 取最新一筆，這裡拿到的就是每人每天的目前狀態
   const [records, setRecords] = useState<OptionalCourseAttendance[]>([]);
@@ -69,6 +72,7 @@ const AttendanceSheet: React.FC = () => {
       setError(null);
       const [c, r, i, a] = await Promise.all([getCourse(id), listRoster(id), getCourseSessions(id), listAttendance(id)]);
       setCourse(c);
+      setFullRoster(r);
       setRoster(r.filter((entry) => entry.is_active));
       setInfo(i);
       setRecords(a);
@@ -136,10 +140,35 @@ const AttendanceSheet: React.FC = () => {
   const missingCount = sessionOptions.filter((s) => s.missing).length;
   const alreadyRecorded = recordsForDate.length > 0;
 
+  const subtitle = course
+    ? [
+        course.course_no,
+        course.teacher_name_cn && `授課老師：${course.teacher_name_cn}`,
+        course.day_of_week &&
+          `每${WEEKDAY_LABEL[course.day_of_week]}${
+            course.time_start ? ` ${course.time_start}${course.time_end ? `-${course.time_end}` : ""}` : ""
+          }`,
+        course.venue,
+      ]
+        .filter(Boolean)
+        .join(" ・ ")
+    : "";
+
   return (
-    <Layout title={course ? `點名 - ${course.subject}` : "點名"}>
+    <Layout title="點名">
+      {course && (
+        <div className="attendance-page-header">
+          <div>
+            <h2>{course.subject}</h2>
+            <p className="attendance-subtitle">{subtitle}</p>
+          </div>
+          <button type="button" className="btn" onClick={() => setShowOverview((v) => !v)}>
+            {showOverview ? "返回點名" : "查看總覽"}
+          </button>
+        </div>
+      )}
       {error && <p className="error-text">{error}</p>}
-      {success && <p style={{ color: "#166534" }}>{success}</p>}
+      {success && !showOverview && <p style={{ color: "#166534" }}>{success}</p>}
       {readOnly && (
         <p className="card" style={{ color: "#92400e", background: "#fffbeb" }}>
           此課程窗口已關閉，資料僅供查看，無法修改。如需修改請聯絡行政人員重新開放。
@@ -147,6 +176,8 @@ const AttendanceSheet: React.FC = () => {
       )}
       {loading || !info ? (
         <p>載入中...</p>
+      ) : showOverview ? (
+        <AttendanceOverview info={info} roster={fullRoster} records={records} />
       ) : roster.length === 0 ? (
         <p>{readOnly ? "名冊裡沒有學生。" : "名冊裡沒有學生，請先到名冊管理加入學生。"}</p>
       ) : (

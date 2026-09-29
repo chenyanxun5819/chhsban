@@ -13,7 +13,14 @@ export const getCourse = async (courseId: string): Promise<OptionalCourse> => {
   return res.data.data;
 };
 
-export const createCourse = async (data: { subject: string; year: number; day_of_week?: Weekday }): Promise<OptionalCourse> => {
+export const createCourse = async (data: {
+  subject: string;
+  year: number;
+  day_of_week?: Weekday;
+  time_start?: string;
+  time_end?: string;
+  venue?: string;
+}): Promise<OptionalCourse> => {
   const res = await optionalApi.post<ApiResponse<OptionalCourse>>("/v1/courses", data);
   return res.data.data;
 };
@@ -21,6 +28,15 @@ export const createCourse = async (data: { subject: string; year: number; day_of
 /** 設定上課星期（空字串代表清除）；上課星期決定這門課的應點名日期 */
 export const updateCourseWeekday = async (courseId: string, dayOfWeek: Weekday | ""): Promise<OptionalCourse> => {
   const res = await optionalApi.put<ApiResponse<OptionalCourse>>(`/v1/courses/${courseId}`, { day_of_week: dayOfWeek });
+  return res.data.data;
+};
+
+/** 設定上課時間與地點（空字串代表清除） */
+export const updateCourseSlot = async (
+  courseId: string,
+  data: { time_start: string; time_end: string; venue: string },
+): Promise<OptionalCourse> => {
+  const res = await optionalApi.put<ApiResponse<OptionalCourse>>(`/v1/courses/${courseId}`, data);
   return res.data.data;
 };
 
