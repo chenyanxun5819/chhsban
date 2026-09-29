@@ -304,7 +304,11 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
                       <td
                         key={d}
                         className={`oc-att-matrix-cell oc-att-matrix-cell-not-joined ${monthToneClass(d)}`}
-                        title={`${formatDate(d)} 不在名冊內`}
+                        title={
+                          student.enrollment_date && student.enrollment_date > d
+                            ? `${formatDate(d)} 尚未加入名冊（${formatDate(student.enrollment_date)} 加入）`
+                            : `${formatDate(d)} 已退選`
+                        }
                         style={dateColStyle}
                       >
                         -
@@ -368,6 +372,10 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
         <span className="oc-att-legend-item">
           <span className="oc-att-legend-swatch oc-att-matrix-cell-unmarked">·</span>
           未點名
+        </span>
+        <span className="oc-att-legend-item">
+          <span className="oc-att-legend-swatch oc-att-matrix-cell-not-joined">-</span>
+          不在名冊（加入前／退選後）
         </span>
       </div>
     </div>

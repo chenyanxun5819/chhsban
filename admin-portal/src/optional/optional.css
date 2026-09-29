@@ -304,9 +304,11 @@
   width: 34px;
 }
 
-.oc-att-matrix-cell-not-joined {
+/* 不在名冊（加入前／退選後）：淡灰底、灰色「-」（表格與圖例共用，蓋過圖例預設的白字） */
+.oc-att-matrix-cell-not-joined,
+.oc-att-legend-swatch.oc-att-matrix-cell-not-joined {
   background: #f5f5f5;
-  color: #ccc;
+  color: #8a8a8a;
   font-weight: 400;
 }
 
