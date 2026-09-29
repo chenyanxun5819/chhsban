@@ -9,9 +9,9 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
-// Header 版面沿用 tution-portal：左邊頁面標題，右邊老師姓名 + 回首頁 + 登出圖示
+// Header 版面沿用 tution-portal：左邊頁面標題，右邊回首頁 + 登出圖示（老師姓名改在首頁歡迎語顯示）
 export const Layout: React.FC<LayoutProps> = ({ title, children }) => {
-  const { user, logout } = useAuth();
+  const { logout } = useAuth();
   const navigate = useNavigate();
 
   return (
@@ -19,7 +19,6 @@ export const Layout: React.FC<LayoutProps> = ({ title, children }) => {
       <header className="app-header">
         <span className="app-header__title">{title || "选修课点名系统"}</span>
         <div className="app-header__right">
-          {user && <span className="app-header__user">{user.teacherName}</span>}
           <button className="app-header__icon-btn" onClick={() => navigate("/")} aria-label="回首页" title="回首页">
             <img src={houseIcon} alt="" />
           </button>

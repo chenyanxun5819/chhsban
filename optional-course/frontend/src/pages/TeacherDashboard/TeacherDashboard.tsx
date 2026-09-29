@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Layout } from "@/components/common/Layout";
+import { useAuth } from "@/context/AuthContext";
 import { listMyCourses } from "@/services/courseService";
 import { getCourseSessions } from "@/services/calendarService";
 import type { OptionalCourse } from "@/types";
@@ -14,6 +15,7 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const TeacherDashboard: React.FC = () => {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [courses, setCourses] = useState<OptionalCourse[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,7 +46,11 @@ const TeacherDashboard: React.FC = () => {
   }, [year]);
 
   return (
-    <Layout title="我的选修课">
+    <Layout title="选修课点名系统">
+      <div className="welcome-header">
+        <h1>欢迎, {user?.teacherName}!</h1>
+        <p>我的选修课</p>
+      </div>
       <div style={{ display: "flex", gap: 8, alignItems: "center", margin: "8px 0" }}>
         <label htmlFor="viewYear">年份：</label>
         <select id="viewYear" value={year} onChange={(e) => setYear(Number(e.target.value))}>

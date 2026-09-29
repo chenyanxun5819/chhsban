@@ -46,11 +46,6 @@ body {
   flex-shrink: 0;
 }
 
-.app-header__user {
-  color: #666;
-  font-size: 14px;
-}
-
 .app-header__icon-btn {
   display: flex;
   align-items: center;
@@ -79,9 +74,33 @@ body {
   .app-header__title {
     font-size: 18px;
   }
+}
 
-  .app-header__user {
-    display: none;
+/* ========== 首頁歡迎語（沿用 tution-portal 首頁） ========== */
+.welcome-header {
+  margin-bottom: 24px;
+  text-align: center;
+}
+
+.welcome-header h1 {
+  margin: 0 0 8px;
+  font-size: 32px;
+  font-weight: 700;
+}
+
+.welcome-header p {
+  margin: 0;
+  font-size: 16px;
+  color: #666;
+}
+
+@media (max-width: 767px) {
+  .welcome-header h1 {
+    font-size: 24px;
+  }
+
+  .welcome-header p {
+    font-size: 14px;
   }
 }
 
