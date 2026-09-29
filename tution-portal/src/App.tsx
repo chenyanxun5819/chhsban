@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation, useParams } from "react-router-dom";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import { Layout } from "@/components/common/Layout";
 import Login from "@/pages/Login/Login";
@@ -6,12 +6,12 @@ import Welcome from "@/pages/Welcome/Welcome";
 import ApplicationForm from "@/pages/ApplicationManagement/ApplicationForm";
 import ApplicationList from "@/pages/ApplicationManagement/ApplicationList";
 import ApplicationDetail from "@/pages/ApplicationManagement/ApplicationDetail";
-import AdminPanel from "@/pages/AdminPanel/AdminPanel";
+// 原本管理頁樣式裡未加前綴、也套用到老師端的規則（管理頁已搬到 admin-portal）；放在原本 import 管理頁的位置，維持樣式載入順序
+import "./styles/legacy-admin-globals.css";
 import ScheduleManagement from "@/pages/ScheduleManagement/ScheduleManagement";
 import AttendanceSheet from "@/pages/AttendanceSheet/AttendanceSheet";
 import RosterManagementPage from "@/pages/RosterManagement/RosterManagement";
 import AttendanceStatsPage from "@/pages/AttendanceStats/AttendanceStats";
-import ClassroomManagement from "@/pages/ClassroomManagement/ClassroomManagement";
 import { useEffect, useState } from "react";
 import { TutionClass } from "@/types";
 import apiClient from "@/utils/api";
@@ -94,25 +94,39 @@ const Dashboard = () => {
   );
 };
 
-// 督察員（admin）、教室管理員（classroom_manager）是窄範圍角色：無論嘗試進入哪個路由，
-// 一律導回各自唯一有權限的頁面（可能不只一個）；其餘身份（teacher/viewer/super_admin）不受此限制。
-const RESTRICTED_ALLOWED_PATHS: Record<string, string[]> = {
-  admin: ["/admin/course-report", "/admin/course-attendance"],
-  classroom_manager: ["/admin/usage"],
+// 行政管理頁已全部搬到行政管理站（admin-portal，2026-09-29），本站只剩補習班老師端。
+const ADMIN_PORTAL_URL = "https://chhsban-admin.pages.dev";
+
+// 舊的管理頁網址 → 管理站對應頁，避免書籤失效
+const ADMIN_TAB_TO_PORTAL_PATH: Record<string, string> = {
+  approvals: "/tution/approvals",
+  courses: "/tution/courses",
+  "course-report": "/tution/course-report",
+  "course-attendance": "/tution/course-attendance",
+  usage: "/tution/usage",
+  teachers: "/settings/teachers",
+  "password-reset": "/settings/password-reset",
+  classrooms: "/settings/classrooms",
 };
 
-// 選修課管理已搬到行政管理站（admin-portal），舊網址 /optional/courses 一律轉過去，避免書籤失效
-const ADMIN_PORTAL_OPTIONAL_URL = "https://chhsban-admin.pages.dev/optional/courses";
+// 督察員、教室管理員在本站沒有可用的頁面，進任何頁面都直接轉到管理站
+const ADMIN_ONLY_PERMISSIONS = ["admin", "classroom_manager"];
 
-const RedirectToAdminPortal: React.FC = () => {
+const RedirectToAdminPortal: React.FC<{ path?: string }> = ({ path = "/" }) => {
+  const url = `${ADMIN_PORTAL_URL}${path}`;
   useEffect(() => {
-    window.location.replace(ADMIN_PORTAL_OPTIONAL_URL);
-  }, []);
+    window.location.replace(url);
+  }, [url]);
   return (
     <div style={{ padding: 24 }}>
-      選修課管理已移到 <a href={ADMIN_PORTAL_OPTIONAL_URL}>行政管理站</a>，正在為您轉址...
+      管理頁已移到 <a href={url}>行政管理站</a>，正在為您轉址...
     </div>
   );
+};
+
+const RedirectAdminTab: React.FC = () => {
+  const { tab } = useParams<{ tab: string }>();
+  return <RedirectToAdminPortal path={ADMIN_TAB_TO_PORTAL_PATH[tab || ""] || "/"} />;
 };
 
 // 受保護的路由組件
@@ -129,9 +143,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/login" replace />;
   }
 
-  const allowedPaths = user ? RESTRICTED_ALLOWED_PATHS[user.permission] : undefined;
-  if (allowedPaths && !allowedPaths.includes(location.pathname)) {
-    return <Navigate to={allowedPaths[0]} replace />;
+  // 督察員、教室管理員一律轉到管理站；超級管理員只有首頁轉過去，
+  // 從管理站「已開課管理」點過來的名冊／排課／出席頁仍在本站開啟
+  if (user && (ADMIN_ONLY_PERMISSIONS.includes(user.permission) || (user.permission === "super_admin" && location.pathname === "/"))) {
+    return <RedirectToAdminPortal />;
   }
 
   return <>{children}</>;
@@ -217,27 +232,11 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-      <Route path="/admin" element={<Navigate to="/admin/approvals" replace />} />
-      <Route
-        path="/admin/:tab"
-        element={
-          <ProtectedRoute>
-            <AdminPanel />
-          </ProtectedRoute>
-        }
-      />
-      {/* 選修課管理已搬到行政管理站（admin-portal） */}
-      <Route path="/optional/courses" element={<RedirectToAdminPortal />} />
-      <Route
-        path="/classrooms"
-        element={
-          <ProtectedRoute>
-            <Layout title="教室管理">
-              <ClassroomManagement />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
+      {/* 行政管理頁已搬到管理站（admin-portal），舊網址轉過去 */}
+      <Route path="/admin" element={<RedirectToAdminPortal />} />
+      <Route path="/admin/:tab" element={<RedirectAdminTab />} />
+      <Route path="/optional/courses" element={<RedirectToAdminPortal path="/optional/courses" />} />
+      <Route path="/classrooms" element={<RedirectToAdminPortal path="/settings/classrooms" />} />
       <Route
         path="/dashboard"
         element={

@@ -16,5 +16,8 @@ export interface AuthState {
   error: string | null;
 }
 
-/** 可以進入管理站的身分：super_admin 可修改，admin（督察員）只能查看 */
-export const ADMIN_PERMISSIONS: Permission[] = ["super_admin", "admin"];
+/**
+ * 可以進入管理站的身分：super_admin（全部）、admin（督察員，只能查看）、classroom_manager（教室管理員）。
+ * 各自能進哪些頁面見 shared/access.ts。
+ */
+export const ADMIN_PERMISSIONS: Permission[] = ["super_admin", "admin", "classroom_manager"];

@@ -1,0 +1,476 @@
+/* 由 tution-portal 搬入並加上作用域（.tu-scope），只影響該作用域內的頁面 */
+
+/* AdminPanel Styles */
+
+.tu-scope .admin-panel {
+  padding: 20px;
+}
+
+/* Section Styling */
+.tu-scope .admin-section {
+  margin-bottom: 40px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.tu-scope .section-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin: 0 0 20px 0;
+  padding-bottom: 12px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+/* 手風琴詳情共用欄位（由 ApprovalList / RejectModal 之外的地方引用） */
+.tu-scope .application-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.tu-scope .detail-field {
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+}
+
+.tu-scope .detail-field--full {
+  grid-column: 1 / -1;
+}
+
+.tu-scope .detail-label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #6b7280;
+}
+
+.tu-scope .detail-value {
+  display: block;
+  font-size: 14px;
+  color: #111827;
+  word-break: break-word;
+}
+
+.tu-scope .application-detail-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.tu-scope .venue-assign {
+  margin-top: 14px;
+}
+
+.tu-scope .venue-assign__row {
+  display: flex;
+  gap: 8px;
+  margin-top: 6px;
+}
+
+.tu-scope .venue-assign__input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.tu-scope .venue-assign__input:focus {
+  outline: none;
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.tu-scope .venue-assign__hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.tu-scope .venue-assign__error {
+  margin: 8px 0 0;
+  font-size: 13px;
+  color: #dc2626;
+}
+
+/* 已開課管理 - 排序／匯出工具列 */
+.tu-scope .course-list-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.tu-scope .course-list-toolbar__sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.tu-scope .course-list-toolbar__sort select,
+.tu-scope .course-list-toolbar__sort input[type="date"] {
+  padding: 6px 10px;
+  border: 1px solid #d0d0d0;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.tu-scope .course-list-toolbar__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #374151;
+  cursor: pointer;
+}
+
+.tu-scope .course-list-toolbar__checkbox input[type="checkbox"] {
+  cursor: pointer;
+}
+
+.tu-scope .course-row__no {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: #f3f4f6;
+  white-space: nowrap;
+}
+
+/* 已開課管理 - 課程清單 */
+.tu-scope .course-list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tu-scope .course-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 20px;
+  padding: 14px 18px;
+}
+
+.tu-scope .course-row:nth-child(odd) {
+  background: #fff;
+}
+
+.tu-scope .course-row:nth-child(even) {
+  background: #f3f4f9;
+}
+
+.tu-scope .course-row + .course-row {
+  border-top: 1px solid #e5e7eb;
+}
+
+.tu-scope .course-row__main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 180px;
+}
+
+.tu-scope .course-row__title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.tu-scope .course-row__title--chip {
+  padding: 4px 12px;
+  border-radius: 6px;
+  background: rgba(37, 99, 235, 0.1);
+  color: #1d4ed8;
+}
+
+.tu-scope .course-row__badge {
+  font-size: 12px;
+  color: #6b7280;
+  white-space: nowrap;
+}
+
+.tu-scope .course-row__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+  color: #6b7280;
+  flex: 1;
+}
+
+.tu-scope .course-row__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.tu-scope .course-row__receipts {
+  flex-basis: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 0;
+  border-top: 1px dashed #e5e7eb;
+  border-bottom: 1px dashed #e5e7eb;
+}
+
+.tu-scope .receipt-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  color: #374151;
+}
+
+.tu-scope .receipt-status-row__label {
+  font-weight: 600;
+  min-width: 70px;
+}
+
+.tu-scope .receipt-status-row__empty {
+  color: #9ca3af;
+}
+
+.tu-scope .receipt-status-row__reason {
+  color: #dc2626;
+  font-size: 12px;
+}
+
+.tu-scope .receipt-status-row__ocr-detail {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding-left: 80px;
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.tu-scope .badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tu-scope .badge-reviewing {
+  background: rgba(24, 144, 255, 0.15);
+  color: #1890ff;
+}
+
+.tu-scope .badge-approved {
+  background: rgba(82, 196, 26, 0.15);
+  color: #52c41a;
+}
+
+.tu-scope .badge-rejected {
+  background: rgba(255, 77, 79, 0.15);
+  color: #ff4d4f;
+}
+
+/* 老師管理 */
+.tu-scope .teacher-management-card {
+  padding: 24px;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  background: #f9fafb;
+}
+
+.tu-scope .teacher-management-card p {
+  margin: 0 0 16px;
+  color: #6b7280;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* 申請人密碼重設 */
+.tu-scope .password-reset-list__toolbar {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.tu-scope .password-reset-list__toolbar .search-input {
+  flex: 1;
+  max-width: 360px;
+}
+
+.tu-scope .password-reset-table {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tu-scope .password-reset-table__header,
+.tu-scope .password-reset-table__row {
+  display: grid;
+  grid-template-columns: 90px 100px 120px 1fr 180px 140px;
+  gap: 12px;
+  align-items: center;
+  padding: 12px 16px;
+}
+
+.tu-scope .password-reset-table__status-date {
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.tu-scope .password-reset-table__header {
+  background: #f9fafb;
+  font-weight: 600;
+  font-size: 13px;
+  color: #6b7280;
+}
+
+.tu-scope .password-reset-table__row {
+  font-size: 14px;
+  color: #1a1a1a;
+}
+
+.tu-scope .password-reset-table__row + .password-reset-table__row {
+  border-top: 1px solid #f0f0f0;
+}
+
+.tu-scope .password-reset-table__row:nth-child(even) {
+  background: #fafafa;
+}
+
+@media (max-width: 768px) {
+  .tu-scope .password-reset-table__header {
+    display: none;
+  }
+
+  .tu-scope .password-reset-table__row {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 12px 16px;
+  }
+
+  .tu-scope .password-reset-table__row span:nth-child(1)::before { content: "教師 ID："; color: #999; }
+  .tu-scope .password-reset-table__row span:nth-child(2)::before { content: "姓名："; color: #999; }
+  .tu-scope .password-reset-table__row span:nth-child(3)::before { content: "部門："; color: #999; }
+  .tu-scope .password-reset-table__row span:nth-child(4)::before { content: "Email："; color: #999; }
+  .tu-scope .password-reset-table__row span:nth-child(5)::before { content: "密碼設定時間："; color: #999; }
+}
+
+/* Empty / Loading / Error */
+.tu-scope .empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+  font-size: 14px;
+}
+
+.tu-scope .loading-text {
+  text-align: center;
+  padding: 60px 20px;
+  color: #666;
+  font-size: 16px;
+}
+
+.tu-scope .error-banner {
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  background: #fee;
+  border-left: 3px solid #ef4444;
+  border-radius: 4px;
+  color: #dc2626;
+  font-size: 14px;
+  margin-top: 20px;
+}
+
+.tu-scope .course-report__table-container {
+  overflow-x: auto;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+}
+
+.tu-scope .course-report__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.tu-scope .course-report__table th,
+.tu-scope .course-report__table td {
+  padding: 10px 12px;
+  text-align: center;
+  border-bottom: 1px solid #eee;
+}
+
+.tu-scope .course-report__table th:first-child,
+.tu-scope .course-report__table td:first-child {
+  text-align: left;
+}
+
+.tu-scope .course-report__table thead th {
+  background: #f9fafb;
+  font-weight: 600;
+  color: #374151;
+}
+
+.tu-scope .course-report__table tbody tr:hover {
+  background: #f9fafb;
+}
+
+.tu-scope .course-report__cell--danger {
+  background: #fee2e2;
+  color: #dc2626;
+  font-weight: 600;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .tu-scope .admin-panel {
+    padding: 12px;
+  }
+
+  .tu-scope .admin-section {
+    padding: 16px;
+    margin-bottom: 24px;
+  }
+
+  .tu-scope .section-title {
+    font-size: 18px;
+    margin-bottom: 16px;
+  }
+
+  .tu-scope .application-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .tu-scope .application-detail-actions {
+    flex-direction: column;
+  }
+
+  .tu-scope .application-detail-actions .btn {
+    width: 100%;
+  }
+
+  .tu-scope .course-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}

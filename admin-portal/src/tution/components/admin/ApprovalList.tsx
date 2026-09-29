@@ -1,0 +1,419 @@
+import React, { useMemo, useState } from "react";
+import type { ClassroomRecord, TutionClass } from "@/tution/types";
+import { adminService } from "@/tution/services/adminService";
+
+interface ApprovalListProps {
+  applications: TutionClass[];
+  classrooms: ClassroomRecord[];
+  occupiedVenueDays: Set<string>;
+  onApprove: (classId: string) => Promise<void>;
+  onReject: (classId: string) => void;
+  onAssignVenue: (classId: string, venue: string) => Promise<void>;
+  onDelete: (classId: string) => void;
+  loading?: boolean;
+  empty?: boolean;
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  pending: "⏳ 待審批",
+  reviewing: "🔍 審核中",
+  approved: "✅ 已批准",
+  rejected: "❌ 已拒絕",
+  active: "🚀 進行中",
+  ended: "🏁 已結束",
+};
+
+const formatDate = (timestamp?: number) => {
+  if (!timestamp) return "-";
+  return new Date(timestamp).toLocaleString("zh-TW", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
+interface ApprovalRowProps {
+  application: TutionClass;
+  classrooms: ClassroomRecord[];
+  occupiedVenueDays: Set<string>;
+  onApprove: (classId: string) => Promise<void>;
+  onReject: (classId: string) => void;
+  onAssignVenue: (classId: string, venue: string) => Promise<void>;
+  onDelete: (classId: string) => void;
+}
+
+const ApprovalRow: React.FC<ApprovalRowProps> = ({
+  application,
+  classrooms,
+  occupiedVenueDays,
+  onApprove,
+  onReject,
+  onAssignVenue,
+  onDelete,
+}) => {
+  const [expanded, setExpanded] = useState(false);
+  const [venueInput, setVenueInput] = useState(application.venue || "");
+  const [assigning, setAssigning] = useState(false);
+  const [venueError, setVenueError] = useState<string | null>(null);
+  const [approving, setApproving] = useState(false);
+  const [printing, setPrinting] = useState(false);
+  const [printError, setPrintError] = useState<string | null>(null);
+
+  // 只有「審核中」（已確定教室）才能批准；「拒絕」在待審批／審核中都可以按
+  const canApprove = application.approval_status === "reviewing";
+  const canReject =
+    application.approval_status === "pending" || application.approval_status === "reviewing";
+
+  const isVenueOccupied = (classroomName: string) =>
+    occupiedVenueDays.has(`${application.day_of_week}|${classroomName}`);
+
+  const handleApprove = async () => {
+    setApproving(true);
+    try {
+      await onApprove(application.class_id);
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const handlePrintApplication = async () => {
+    setPrintError(null);
+    // 先開一個空白分頁，避免瀏覽器把非同步觸發的 window.open 當成彈窗封鎖
+    const printWindow = window.open("", "_blank");
+    setPrinting(true);
+    try {
+      const blob = await adminService.downloadApplicationPdf(application.class_id);
+      const url = window.URL.createObjectURL(blob);
+      if (printWindow) {
+        printWindow.location.href = url;
+      } else {
+        window.open(url, "_blank");
+      }
+    } catch (err) {
+      printWindow?.close();
+      setPrintError(err instanceof Error ? err.message : "申請表產生失敗");
+    } finally {
+      setPrinting(false);
+    }
+  };
+
+  const handleAssignVenue = async () => {
+    setVenueError(null);
+
+    if (!venueInput.trim()) {
+      setVenueError("請選擇上課地點");
+      return;
+    }
+    if (isVenueOccupied(venueInput.trim())) {
+      setVenueError("這間教室在此上課日期已被其他課程使用，請重新選擇");
+      return;
+    }
+    setAssigning(true);
+    try {
+      await onAssignVenue(application.class_id, venueInput.trim());
+    } catch (err) {
+      setVenueError(err instanceof Error ? err.message : "確定教室失敗");
+    } finally {
+      setAssigning(false);
+    }
+  };
+
+  return (
+    <div className="approval-row">
+      <button
+        type="button"
+        className="approval-row__header"
+        onClick={() => setExpanded((v) => !v)}
+      >
+        <span className="approval-row__teacher">{application.teacher_name_cn}</span>
+        <span className="approval-row__subject">
+          {application.subject}（{application.form}）
+        </span>
+        <span className="approval-row__badge">
+          {STATUS_LABELS[application.approval_status] || application.approval_status}
+        </span>
+        <span className="approval-row__date">{formatDate(application.created_at)}</span>
+        <span className="approval-row__chevron">{expanded ? "▲" : "▼"}</span>
+      </button>
+
+      {expanded && (
+        <div className="approval-row__detail">
+          <div className="application-detail-grid">
+            <div className="detail-field">
+              <span className="detail-label">申請編號</span>
+              <span className="detail-value">
+                {application.application_no || application.class_id}
+              </span>
+            </div>
+            <div className="detail-field">
+              <span className="detail-label">教師 ID</span>
+              <span className="detail-value">{application.teacher_id}</span>
+            </div>
+            <div className="detail-field">
+              <span className="detail-label">上課時間</span>
+              <span className="detail-value">
+                {application.day_of_week} {application.time_start}-{application.time_end}
+              </span>
+            </div>
+            <div className="detail-field">
+              <span className="detail-label">開課日期</span>
+              <span className="detail-value">{application.start_date}</span>
+            </div>
+            <div className="detail-field">
+              <span className="detail-label">地點</span>
+              <span className="detail-value">{application.venue || "-"}</span>
+            </div>
+            <div className="detail-field">
+              <span className="detail-label">學費</span>
+              <span className="detail-value">RM {application.fees}</span>
+            </div>
+            <div className="detail-field">
+              <span className="detail-label">名單人數</span>
+              <span className="detail-value">
+                {application.initial_roster?.length || 0} 人
+              </span>
+            </div>
+            <div className="detail-field">
+              <span className="detail-label">建立時間</span>
+              <span className="detail-value">{formatDate(application.created_at)}</span>
+            </div>
+            {application.rejection_reason && (
+              <div className="detail-field detail-field--full">
+                <span className="detail-label">拒絕原因</span>
+                <span className="detail-value">{application.rejection_reason}</span>
+              </div>
+            )}
+          </div>
+
+          {application.approval_status === "pending" && (
+            <div className="venue-assign">
+              <span className="detail-label">指定上課地點</span>
+              <div className="venue-assign__row">
+                <select
+                  className="venue-assign__input"
+                  value={venueInput}
+                  onChange={(e) => setVenueInput(e.target.value)}
+                  disabled={assigning}
+                >
+                  <option value="">請選擇教室</option>
+                  {classrooms.map((classroom) => {
+                    const occupied = isVenueOccupied(classroom.classroom_name);
+                    return (
+                      <option
+                        key={classroom.classroom_id}
+                        value={classroom.classroom_name}
+                        disabled={occupied}
+                      >
+                        {classroom.classroom_name}
+                        {occupied ? "（此日期已被使用）" : ""}
+                      </option>
+                    );
+                  })}
+                </select>
+                <button
+                  type="button"
+                  className="btn btn--primary btn--small"
+                  onClick={handleAssignVenue}
+                  disabled={assigning}
+                >
+                  {assigning ? "確認中..." : "確定教室"}
+                </button>
+              </div>
+              <p className="venue-assign__hint">
+                只列出補習選用勾選為可用的教室；{application.day_of_week}
+                已被其他課程使用的教室會反灰無法選取。確定教室後申請狀態將轉為「審核中」，才能按「批准」，申請人也將無法再編輯此申請。
+              </p>
+              {venueError && <p className="venue-assign__error">❌ {venueError}</p>}
+            </div>
+          )}
+
+          {application.approval_status === "reviewing" && (
+            <div className="venue-assign">
+              <p className="venue-assign__hint">
+                教室已確定。請先列印申請表交付上級簽核，簽核通過後才按「批准」。
+              </p>
+              {printError && <p className="venue-assign__error">❌ {printError}</p>}
+            </div>
+          )}
+
+          <div className="application-detail-actions">
+            <button
+              type="button"
+              className="btn btn--secondary btn--small"
+              onClick={() => window.open(`/applications/${application.class_id}`, "_blank")}
+            >
+              開啟完整頁面
+            </button>
+            {application.approval_status === "reviewing" && (
+              <button
+                type="button"
+                className="btn btn--secondary btn--small"
+                onClick={handlePrintApplication}
+                disabled={printing}
+              >
+                {printing ? "產生中..." : "🖨️ 列印申請表"}
+              </button>
+            )}
+            {canReject && (
+              <button
+                type="button"
+                className="btn btn--danger btn--small"
+                onClick={() => onReject(application.class_id)}
+                disabled={approving}
+              >
+                拒絕
+              </button>
+            )}
+            {canApprove && (
+              <button
+                type="button"
+                className="btn btn--primary btn--small"
+                onClick={handleApprove}
+                disabled={approving}
+              >
+                {approving ? "批准中..." : "批准"}
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn--danger btn--small"
+              onClick={() => onDelete(application.class_id)}
+            >
+              🗑️ 刪除申請
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export const ApprovalList: React.FC<ApprovalListProps> = ({
+  applications,
+  classrooms,
+  occupiedVenueDays,
+  onApprove,
+  onReject,
+  onAssignVenue,
+  onDelete,
+  loading = false,
+  empty = false,
+}) => {
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterSubject, setFilterSubject] = useState("");
+
+  // 獲取所有科目列表用於篩選
+  const subjects = useMemo(() => {
+    const unique = new Set(applications.map((app) => app.subject));
+    return Array.from(unique).sort();
+  }, [applications]);
+
+  // 篩選和搜尋應用
+  const filteredApplications = useMemo(() => {
+    return applications.filter((app) => {
+      const matchesSearch =
+        searchTerm === "" ||
+        app.teacher_name_cn.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        app.class_id.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (app.application_no || "").toLowerCase().includes(searchTerm.toLowerCase());
+
+      const matchesSubject = filterSubject === "" || app.subject === filterSubject;
+
+      return matchesSearch && matchesSubject;
+    });
+  }, [applications, searchTerm, filterSubject]);
+
+  if (empty) {
+    return (
+      <div className="empty-state">
+        <div className="empty-icon">📋</div>
+        <p className="empty-title">暫無待審申請</p>
+        <p className="empty-description">所有申請都已處理完成</p>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner"></div>
+        <p>載入申請中...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="approval-list">
+      {/* 搜尋和篩選區 */}
+      <div className="list-filters">
+        <div className="search-box">
+          <input
+            type="text"
+            className="search-input"
+            placeholder="搜尋教師名稱或申請代碼..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        <div className="filter-box">
+          <select
+            className="filter-select"
+            value={filterSubject}
+            onChange={(e) => setFilterSubject(e.target.value)}
+          >
+            <option value="">所有科目</option>
+            {subjects.map((subject) => (
+              <option key={subject} value={subject}>
+                {subject}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {(searchTerm || filterSubject) && (
+          <button
+            className="btn btn--secondary btn--small"
+            onClick={() => {
+              setSearchTerm("");
+              setFilterSubject("");
+            }}
+          >
+            清除篩選
+          </button>
+        )}
+      </div>
+
+      {/* 結果計數 */}
+      <div className="list-count">
+        顯示 <strong>{filteredApplications.length}</strong> / <strong>{applications.length}</strong> 項申請
+      </div>
+
+      {/* 申請清單（手風琴） */}
+      {filteredApplications.length > 0 ? (
+        <div className="approval-accordion">
+          {filteredApplications.map((application) => (
+            <ApprovalRow
+              key={application.class_id}
+              application={application}
+              classrooms={classrooms}
+              occupiedVenueDays={occupiedVenueDays}
+              onApprove={onApprove}
+              onReject={onReject}
+              onAssignVenue={onAssignVenue}
+              onDelete={onDelete}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="empty-state">
+          <div className="empty-icon">🔍</div>
+          <p className="empty-title">未找到符合條件的申請</p>
+          <p className="empty-description">嘗試調整搜尋條件或篩選條件</p>
+        </div>
+      )}
+    </div>
+  );
+};

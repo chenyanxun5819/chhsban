@@ -37,6 +37,7 @@ jobs:
         run: npm run build
         env:
           VITE_AUTH_API_BASE_URL: https://tution-system.astcws.workers.dev/api
+          VITE_TUTION_API_BASE_URL: https://tution-system.astcws.workers.dev/api
           VITE_OPTIONAL_COURSE_API_BASE_URL: https://optional-course-system.astcws.workers.dev/api
 
       # Cloudflare Pages 專案名稱 chhsban-admin → https://chhsban-admin.pages.dev

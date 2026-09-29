@@ -1,0 +1,65 @@
+/* 由 tution-portal 搬入並加上作用域（.tu-scope, .st-scope），只影響該作用域內的頁面 */
+
+.tu-scope,
+.tu-scope *,
+.st-scope,
+.st-scope * {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.tu-scope,
+.st-scope {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial,
+    "Noto Sans", sans-serif, "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.tu-scope a,
+.st-scope a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.tu-scope button,
+.st-scope button {
+  cursor: pointer;
+  border: none;
+  font-family: inherit;
+}
+
+.tu-scope input,
+.st-scope input,
+.tu-scope textarea,
+.st-scope textarea,
+.tu-scope select,
+.st-scope select {
+  font-family: inherit;
+}
+
+/* Variables */
+.tu-scope,
+.st-scope {
+  --primary-color: #1890ff;
+  --success-color: #52c41a;
+  --warning-color: #faad14;
+  --danger-color: #ff4d4f;
+  --text-primary: #262626;
+  --text-secondary: #8c8c8c;
+  --border-color: #d9d9d9;
+  --bg-light: #fafafa;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+}
+
+/* tution-portal 的 .btn-small 定義在老師端的樣式檔裡，管理頁也有用到，這裡補上 */
+.tu-scope .btn-small,
+.st-scope .btn-small {
+  padding: 6px 12px;
+  font-size: 12px;
+}

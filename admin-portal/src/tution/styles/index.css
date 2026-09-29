@@ -1,0 +1,12 @@
+/*
+ * 從 tution-portal 搬來的管理頁樣式，依原本在 tution-portal 的載入順序排列
+ * （AdminPanel 先載入各元件的 admin.css、classroom-usage.css，再 ClassroomManagement，最後 admin-panel.css）。
+ * 原本這些檔案裡有未加前綴的規則（.btn、.modal-*、.form-group…）會互相套用到所有管理頁，
+ * 所以補習班與共用設定頁的外框都同時帶 .tu-scope 與 .st-scope，重現原本的效果。
+ */
+@import "./base.css";
+@import "./admin.css";
+@import "./classroom-usage.css";
+@import "../../settings/styles/classroom-management.css";
+@import "./admin-panel.css";
+@import "./attendance-sheet.css";

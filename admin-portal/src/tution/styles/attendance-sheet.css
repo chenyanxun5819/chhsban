@@ -1,0 +1,546 @@
+/* 由 tution-portal 搬入並加上作用域（.tu-scope），只影響該作用域內的頁面 */
+
+/* ========== 點名頁面（AttendanceSheet） ========== */
+
+.tu-scope .attendance-sheet {
+  padding: 20px;
+}
+
+.tu-scope .attendance-page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.tu-scope .attendance-page-header h2 {
+  margin: 0 0 4px 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.tu-scope .attendance-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+}
+
+.tu-scope .attendance-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  color: #999;
+}
+
+/* ========== 工具列（日期選擇 + 全部到課） ========== */
+.tu-scope .attendance-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.tu-scope .attendance-date-picker {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.tu-scope .attendance-date-picker .form-control {
+  min-width: 220px;
+}
+
+.tu-scope .attendance-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+/* ========== 點名清單（單一日期，每位學生一列） ========== */
+.tu-scope .attendance-list {
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 1.25rem;
+}
+
+.tu-scope .attendance-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.tu-scope .attendance-row:last-child {
+  border-bottom: none;
+}
+
+/* 姓名、學號、狀態下拉選單固定排成一行，不換行；請假理由（若有）另起一行 */
+.tu-scope .attendance-row-main {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex-wrap: nowrap;
+}
+
+.tu-scope .attendance-row-info {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+}
+
+.tu-scope .attendance-row-line1,
+.tu-scope .attendance-row-line2 {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.tu-scope .attendance-row-name {
+  font-weight: 600;
+  color: #333;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tu-scope .attendance-row-name-en {
+  font-size: 0.8rem;
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tu-scope .attendance-row-no {
+  font-size: 0.8rem;
+  color: #999;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tu-scope .attendance-row-class,
+.tu-scope .attendance-row-gender {
+  font-size: 0.75rem;
+  color: #666;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.tu-scope .attendance-status-select {
+  flex: 0 0 auto;
+  min-width: 0;
+  width: auto;
+}
+
+/* 加入日期晚於選定上課日的學生：整列反灰，不能點名 */
+.tu-scope .attendance-row-disabled {
+  opacity: 0.55;
+  background: #f5f5f5;
+}
+
+.tu-scope .attendance-not-joined-badge {
+  flex: 0 0 auto;
+  font-size: 0.8rem;
+  color: #999;
+  background: #eee;
+  border-radius: 4px;
+  padding: 0.3rem 0.6rem;
+  white-space: nowrap;
+}
+
+.tu-scope .attendance-reason {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.tu-scope .attendance-reason .form-control {
+  flex: 1 1 auto;
+}
+
+/* ========== 總覽矩陣（另外點擊才展開，唯讀） ========== */
+.tu-scope .attendance-overview {
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 1rem;
+}
+
+.tu-scope .attendance-overview-scroll {
+  overflow-x: auto;
+}
+
+.tu-scope .attendance-matrix {
+  border-collapse: collapse;
+  /* 固定表格排版＋不設 width:100% —— 欄寬完全依各欄自己宣告的寬度，日期欄少時也不會被瀏覽器拉伸
+     撐開成畸形寬欄；欄數多超出容器寬度時交給外層 overflow-x 捲動（桌機預設走這條路）。 */
+  table-layout: fixed;
+}
+
+/* 手機模式：改用 JS 算好的百分比欄寬（見 AttendanceOverview 的 studentColStyle/dateColStyle），
+   這裡才需要 width:100% 讓表格確實撐滿卡片寬度，不會在欄位右側留白。 */
+.tu-scope .attendance-matrix--fill {
+  width: 100%;
+}
+
+.tu-scope .attendance-matrix th,
+.tu-scope .attendance-matrix td {
+  box-sizing: border-box;
+  border: 1px solid #eee;
+  text-align: center;
+  padding: 0.3rem 0.25rem;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.tu-scope .attendance-matrix-student-col {
+  position: sticky;
+  left: 0;
+  background: white;
+  text-align: left !important;
+  font-weight: 600;
+  /* 桌機預設寬度；手機模式改由 inline style 覆寫成百分比（見 studentColStyle）。
+     table-layout:fixed 只認 width，故意不設 min/max-width，避免夾住 inline 覆寫的值。 */
+  width: 76px;
+  padding: 0.3rem 0.4rem;
+}
+
+.tu-scope .attendance-matrix-student-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tu-scope .attendance-matrix-student-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  margin-top: 0.15rem;
+  font-weight: 400;
+}
+
+.tu-scope .attendance-matrix-student-no {
+  font-size: 0.7rem;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tu-scope .attendance-matrix-student-class {
+  font-size: 0.68rem;
+  color: #555;
+  background: #eef2f7;
+  border-radius: 3px;
+  padding: 1px;
+  flex-shrink: 0;
+}
+
+/* 日期表頭欄：桌機預設寬度，儘量窄；手機模式改由 inline style 覆寫成百分比（見 dateColStyle）。
+   同樣故意不設 min/max-width，理由同學生欄。 */
+.tu-scope .attendance-matrix-date-col {
+  width: 28px;
+  padding: 0.2rem 0.1rem;
+}
+
+.tu-scope .attendance-date-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.tu-scope .attendance-date-month {
+  font-size: 0.62rem;
+  font-weight: 700;
+  color: #888;
+  letter-spacing: 0.02em;
+  padding-bottom: 0.15rem;
+  border-bottom: 1px solid #ddd;
+  width: 100%;
+}
+
+.tu-scope .attendance-date-day {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #333;
+  padding-top: 0.15rem;
+}
+
+.tu-scope .attendance-matrix-cell {
+  font-weight: 700;
+  width: 28px;
+}
+
+/* ========== 總覽矩陣分頁（僅手機模式，欄數鎖死不橫向捲動） ========== */
+.tu-scope .attendance-matrix-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+
+.tu-scope .attendance-matrix-pagination .btn {
+  flex-shrink: 0;
+}
+
+.tu-scope .attendance-matrix-page-info {
+  font-size: 0.85rem;
+  color: #555;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* 加入日期晚於該堂課日期的儲存格：反灰，不算「尚未點名」 */
+.tu-scope .attendance-matrix-cell-not-joined {
+  background: #f5f5f5;
+  color: #ccc;
+  font-weight: 400;
+}
+
+/* 分頁湊數用的空白補位欄（例如最後一頁只剩 1 天）：維持跟正常欄一樣的格線與欄寬，只是不放內容，
+   讓整頁看起來仍是一個完整的 6 欄格子，不會因為日期不夠而被拉伸或看起來缺一角 */
+.tu-scope .attendance-matrix-date-col-empty,
+.tu-scope .attendance-matrix-cell-empty {
+  background: #fafafa;
+}
+
+/* ========== 本月排課紀錄（總覽矩陣下方的文字條列） ========== */
+.tu-scope .attendance-schedule-log {
+  margin-top: 1rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid #eee;
+}
+
+.tu-scope .attendance-schedule-log-title {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #555;
+}
+
+.tu-scope .attendance-schedule-log-empty {
+  margin: 0;
+  font-size: 0.85rem;
+  color: #999;
+}
+
+.tu-scope .attendance-schedule-log-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.tu-scope .attendance-schedule-log-item {
+  font-size: 0.85rem;
+  color: #333;
+  padding-left: 0.75rem;
+  border-left: 3px solid #28a745;
+}
+
+.tu-scope .attendance-schedule-log-item.status-cancelled {
+  border-left-color: #dc3545;
+  color: #a12833;
+}
+
+.tu-scope .attendance-schedule-log-item.status-rescheduled {
+  border-left-color: #fd7e14;
+  color: #995612;
+}
+
+.tu-scope .attendance-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.75rem;
+}
+
+.tu-scope .attendance-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: #555;
+}
+
+.tu-scope .attendance-legend-swatch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 4px;
+  color: white;
+  font-weight: 700;
+  font-size: 0.75rem;
+}
+
+/* ========== Form / Button / Alert（本頁自成一套，不依賴其他頁面 CSS） ========== */
+.tu-scope .form-control {
+  padding: 0.6rem 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.tu-scope .form-control:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.tu-scope .btn {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* 全站 CSS 會打包成同一份檔案，其他頁面（如 pdf-download.css）有一條沒加範圍的全域規則
+   .btn { @media max-width:1023px 時 min-width:200px }，光憑同一個 .btn 選擇器改不掉它
+   （cascade 順序不保證誰在後面）。這裡用雙層 class 拉高優先權，確保這頁的按鈕永遠不會被撐爆。 */
+.tu-scope .attendance-sheet .btn {
+  width: auto;
+  min-width: 0;
+}
+
+.tu-scope .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tu-scope .btn-primary {
+  background: #007bff;
+  color: white;
+}
+
+.tu-scope .btn-primary:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.tu-scope .btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.tu-scope .btn-secondary:hover:not(:disabled) {
+  background: #545b62;
+}
+
+.tu-scope .btn-outline-secondary {
+  background: white;
+  color: #555;
+  border: 1px solid #ccc;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+.tu-scope .btn-outline-secondary:hover:not(:disabled) {
+  background: #f5f5f5;
+}
+
+.tu-scope .alert {
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tu-scope .alert-danger {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+.tu-scope .alert-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: inherit;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.tu-scope .alert-close:hover {
+  opacity: 0.7;
+}
+
+/* ========== Responsive ========== */
+@media (max-width: 767px) {
+  .tu-scope .attendance-sheet {
+    padding: 12px;
+  }
+
+  .tu-scope .attendance-page-header h2 {
+    font-size: 18px;
+  }
+
+  .tu-scope .attendance-row-name {
+    font-size: 0.9rem;
+  }
+
+  .tu-scope .attendance-row-no {
+    font-size: 0.72rem;
+  }
+
+  .tu-scope .attendance-status-select {
+    font-size: 0.82rem;
+    padding: 0.4rem 0.5rem;
+  }
+
+  .tu-scope .attendance-reason {
+    flex-direction: column;
+  }
+
+  .tu-scope .attendance-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tu-scope .attendance-date-picker {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tu-scope .attendance-toolbar-actions {
+    align-items: stretch;
+  }
+
+  .tu-scope .attendance-toolbar-actions .btn {
+    flex: 1 1 0;
+  }
+}

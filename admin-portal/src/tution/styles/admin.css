@@ -1,0 +1,489 @@
+/* 由 tution-portal 搬入並加上作用域（.tu-scope），只影響該作用域內的頁面 */
+
+/* ============================================
+   Admin Components Styles
+   （全部選擇器以 .admin-panel 為前綴，避免與其他頁面的
+   全域樣式（.btn / .badge 等同名 class）互相污染）
+   ============================================ */
+
+.tu-scope .admin-panel .tab-navigation {
+  display: flex;
+  gap: 1rem;
+  margin-bottom: 2rem;
+  border-bottom: 2px solid #e0e0e0;
+  padding-bottom: 0;
+}
+
+.tu-scope .admin-panel .tab-button {
+  background: none;
+  border: none;
+  padding: 1rem 1.5rem;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  color: #666;
+  border-bottom: 3px solid transparent;
+  transition: all 0.3s ease;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tu-scope .admin-panel .tab-button:hover {
+  color: #333;
+  background: rgba(0, 0, 0, 0.02);
+}
+
+.tu-scope .admin-panel .tab-button--active {
+  color: #007bff;
+  border-bottom-color: #007bff;
+}
+
+.tu-scope .admin-panel .badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  height: 1.5rem;
+  padding: 0 0.5rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  margin-left: 0.5rem;
+}
+
+.tu-scope .admin-panel .badge--danger {
+  background: #dc3545;
+  color: white;
+}
+
+/* ============================================
+   ApprovalList Styles
+   ============================================ */
+
+.tu-scope .admin-panel .approval-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.tu-scope .admin-panel .list-filters {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-radius: 8px;
+}
+
+.tu-scope .admin-panel .search-box {
+  flex: 1;
+  min-width: 250px;
+}
+
+.tu-scope .admin-panel .search-input {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+}
+
+.tu-scope .admin-panel .search-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.tu-scope .admin-panel .filter-box {
+  flex: 0 1 auto;
+  min-width: 150px;
+}
+
+.tu-scope .admin-panel .filter-select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  background: white;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.tu-scope .admin-panel .filter-select:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.tu-scope .admin-panel .list-count {
+  padding: 0.75rem 1.5rem;
+  background: #e7f3ff;
+  border-left: 3px solid #007bff;
+  border-radius: 4px;
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.tu-scope .admin-panel .list-count strong {
+  color: #007bff;
+  font-weight: 600;
+}
+
+/* ============================================
+   Approval Accordion (清單 + 展開詳情)
+   ============================================ */
+
+.tu-scope .admin-panel .approval-accordion {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #dee2e6;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.tu-scope .admin-panel .approval-row + .approval-row {
+  border-top: 1px solid #dee2e6;
+}
+
+.tu-scope .admin-panel .approval-row__header {
+  width: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+  padding: 14px 18px;
+  background: #fff;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  transition: background 0.2s ease;
+}
+
+.tu-scope .admin-panel .approval-row__header:hover {
+  background: #f8f9fa;
+}
+
+.tu-scope .admin-panel .approval-row__teacher {
+  font-weight: 600;
+  color: #1a1a1a;
+  min-width: 90px;
+}
+
+.tu-scope .admin-panel .approval-row__subject {
+  color: #333;
+  min-width: 140px;
+}
+
+.tu-scope .admin-panel .approval-row__badge {
+  font-size: 13px;
+  color: #555;
+}
+
+.tu-scope .admin-panel .approval-row__date {
+  font-size: 12px;
+  color: #999;
+  margin-left: auto;
+}
+
+.tu-scope .admin-panel .approval-row__chevron {
+  font-size: 12px;
+  color: #999;
+}
+
+.tu-scope .admin-panel .approval-row__detail {
+  padding: 18px;
+  background: #f8fbff;
+  border-top: 1px solid #dbeafe;
+}
+
+/* ============================================
+   Button Styles
+   ============================================ */
+
+.tu-scope .admin-panel .btn {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  white-space: nowrap;
+}
+
+.tu-scope .admin-panel .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tu-scope .admin-panel .btn--primary {
+  background: #007bff;
+  color: white;
+}
+
+.tu-scope .admin-panel .btn--primary:hover:not(:disabled) {
+  background: #0056b3;
+  box-shadow: 0 2px 8px rgba(0, 123, 255, 0.3);
+}
+
+.tu-scope .admin-panel .btn--secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.tu-scope .admin-panel .btn--secondary:hover:not(:disabled) {
+  background: #5a6268;
+  box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
+}
+
+.tu-scope .admin-panel .btn--danger {
+  background: #dc3545;
+  color: white;
+}
+
+.tu-scope .admin-panel .btn--danger:hover:not(:disabled) {
+  background: #c82333;
+  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+}
+
+.tu-scope .admin-panel .btn--small {
+  padding: 0.5rem 0.9rem;
+  font-size: 0.85rem;
+}
+
+/* ============================================
+   RejectModal Styles
+   ============================================ */
+
+.tu-scope .admin-panel .modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  animation: admin-fade-in 0.2s ease;
+}
+
+@keyframes admin-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.tu-scope .admin-panel .modal-content {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  max-width: 500px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  animation: admin-slide-up 0.3s ease;
+}
+
+@keyframes admin-slide-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.tu-scope .admin-panel .modal-header {
+  padding: 1.5rem;
+  border-bottom: 1px solid #dee2e6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tu-scope .admin-panel .modal-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.tu-scope .admin-panel .modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #666;
+  padding: 0.25rem 0.5rem;
+  transition: color 0.3s ease;
+}
+
+.tu-scope .admin-panel .modal-close-btn:hover:not(:disabled) {
+  color: #333;
+}
+
+.tu-scope .admin-panel .modal-body {
+  padding: 1.5rem;
+}
+
+.tu-scope .admin-panel .modal-info {
+  margin: 0 0 1rem 0;
+  font-size: 0.95rem;
+  color: #666;
+}
+
+.tu-scope .admin-panel .modal-info strong {
+  color: #333;
+  font-weight: 600;
+}
+
+.tu-scope .admin-panel .form-group {
+  margin-bottom: 1.5rem;
+}
+
+.tu-scope .admin-panel .form-label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.tu-scope .admin-panel .required {
+  color: #dc3545;
+}
+
+.tu-scope .admin-panel .form-textarea {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #dee2e6;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  font-family: inherit;
+  resize: vertical;
+  transition: all 0.3s ease;
+}
+
+.tu-scope .admin-panel .form-textarea:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.tu-scope .admin-panel .form-textarea:disabled {
+  background: #f8f9fa;
+  color: #666;
+}
+
+.tu-scope .admin-panel .form-error {
+  padding: 0.75rem 1rem;
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+}
+
+.tu-scope .admin-panel .modal-footer {
+  padding: 1.5rem;
+  background: #f8f9fa;
+  border-top: 1px solid #dee2e6;
+  display: flex;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+/* ============================================
+   Empty / Loading States
+   ============================================ */
+
+.tu-scope .admin-panel .empty-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+.tu-scope .admin-panel .empty-title {
+  margin: 0 0 0.5rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #666;
+}
+
+.tu-scope .admin-panel .empty-description {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #999;
+}
+
+.tu-scope .admin-panel .loading-container {
+  padding: 3rem 1.5rem;
+  text-align: center;
+}
+
+.tu-scope .admin-panel .loading-spinner {
+  display: inline-block;
+  width: 40px;
+  height: 40px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #007bff;
+  border-radius: 50%;
+  animation: admin-spin 1s linear infinite;
+  margin-bottom: 1rem;
+}
+
+@keyframes admin-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============================================
+   Responsive Design
+   ============================================ */
+
+@media (max-width: 768px) {
+  .tu-scope .admin-panel .approval-row__header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tu-scope .admin-panel .approval-row__date {
+    margin-left: 0;
+  }
+
+  .tu-scope .admin-panel .list-filters {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .tu-scope .admin-panel .search-box,
+.tu-scope .admin-panel .filter-box {
+    min-width: 100%;
+  }
+
+  .tu-scope .admin-panel .modal-content {
+    max-height: 100vh;
+  }
+}

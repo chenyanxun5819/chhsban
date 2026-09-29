@@ -1,0 +1,529 @@
+/* 由 tution-portal 搬入並加上作用域（.st-scope），只影響該作用域內的頁面 */
+
+/* 教室管理頁面樣式 */
+
+.st-scope .classroom-management {
+  padding: 20px;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.st-scope .page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.st-scope .page-header h1 {
+  margin: 0;
+  font-size: 24px;
+  color: #333;
+}
+
+.st-scope .header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* 錯誤訊息 */
+.st-scope .error-message {
+  padding: 12px;
+  background-color: #fee;
+  color: #c33;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  border-left: 4px solid #c33;
+}
+
+/* 搜尋和過濾區域 */
+.st-scope .filters {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.st-scope .search-input {
+  flex: 1;
+  min-width: 250px;
+  padding: 10px 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.st-scope .search-input:focus {
+  outline: none;
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
+}
+
+.st-scope .filter-select {
+  padding: 10px 15px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+  background-color: white;
+  cursor: pointer;
+}
+
+.st-scope .filter-select:focus {
+  outline: none;
+  border-color: #4CAF50;
+}
+
+/* 批量更新區域 */
+.st-scope .batch-update-section {
+  background-color: #f8f9fa;
+  padding: 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  border: 1px solid #dee2e6;
+}
+
+.st-scope .batch-update-section h3 {
+  margin: 0 0 15px 0;
+  font-size: 18px;
+  color: #495057;
+}
+
+.st-scope .batch-info {
+  margin: 0 0 10px 0;
+  font-size: 13px;
+  color: #6c757d;
+  font-style: italic;
+}
+
+.st-scope .batch-controls {
+  display: flex;
+  gap: 15px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.st-scope .batch-controls input[type="file"] {
+  flex: 1;
+  min-width: 250px;
+}
+
+.st-scope .batch-result {
+  margin-top: 15px;
+  padding: 12px;
+  background-color: white;
+  border-radius: 4px;
+  border: 1px solid #dee2e6;
+}
+
+.st-scope .batch-result p {
+  margin: 0 0 10px 0;
+}
+
+.st-scope .batch-result details {
+  margin-top: 10px;
+}
+
+.st-scope .batch-result summary {
+  cursor: pointer;
+  font-weight: 500;
+  color: #007bff;
+}
+
+.st-scope .batch-result ul {
+  margin: 10px 0 0 0;
+  padding-left: 20px;
+}
+
+.st-scope .batch-result li {
+  color: #c33;
+  margin: 5px 0;
+}
+
+.st-scope .batch-error {
+  margin-top: 12px;
+  padding: 12px;
+  background-color: #fee;
+  color: #c33;
+  border-radius: 4px;
+  border-left: 4px solid #c33;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 教室計數 + 批量修改按鈕 */
+.st-scope .classroom-count-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.st-scope .classroom-count-row--bottom {
+  margin-top: 15px;
+  margin-bottom: 0;
+  justify-content: flex-end;
+}
+
+.st-scope .classroom-count {
+  margin: 0;
+  color: #666;
+  font-size: 14px;
+}
+
+/* 教室表格 */
+.st-scope .classroom-table-container {
+  overflow-x: auto;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.st-scope .classroom-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.st-scope .classroom-table thead {
+  background-color: #f8f9fa;
+}
+
+.st-scope .classroom-table th {
+  padding: 12px 15px;
+  text-align: left;
+  font-weight: 600;
+  color: #495057;
+  border-bottom: 2px solid #dee2e6;
+  white-space: nowrap;
+}
+
+.st-scope .classroom-table td {
+  padding: 12px 15px;
+  border-bottom: 1px solid #dee2e6;
+  color: #212529;
+}
+
+.st-scope .classroom-table tbody tr:hover {
+  background-color: #f8f9fa;
+}
+
+.st-scope .classroom-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.st-scope .empty-message {
+  text-align: center;
+  color: #999;
+  padding: 40px 20px !important;
+}
+
+/* 補習選用勾選框 */
+.st-scope .availability-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #495057;
+}
+
+.st-scope .availability-checkbox input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+/* 操作按鈕 */
+.st-scope .action-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* 按鈕樣式 */
+.st-scope .btn {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 4px;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.st-scope .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.st-scope .btn-primary {
+  background-color: #4CAF50;
+  color: white;
+}
+
+.st-scope .btn-primary:hover:not(:disabled) {
+  background-color: #45a049;
+}
+
+.st-scope .btn-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.st-scope .btn-secondary:hover:not(:disabled) {
+  background-color: #5a6268;
+}
+
+.st-scope .btn-outline {
+  background-color: white;
+  color: #495057;
+  border: 1px solid #ced4da;
+}
+
+.st-scope .btn-outline:hover:not(:disabled) {
+  background-color: #f8f9fa;
+  border-color: #adb5bd;
+}
+
+.st-scope .batch-template-hint {
+  margin-top: 10px;
+  margin-bottom: 0;
+}
+
+.st-scope .batch-init-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  background-color: #fff8e1;
+  border: 1px solid #ffe082;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #7a5c00;
+  cursor: pointer;
+}
+
+.st-scope .batch-init-toggle input[type="checkbox"] {
+  margin-top: 2px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.st-scope .btn-sm {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.st-scope .btn-edit {
+  background-color: #007bff;
+  color: white;
+}
+
+.st-scope .btn-edit:hover {
+  background-color: #0056b3;
+}
+
+.st-scope .btn-delete {
+  background-color: #dc3545;
+  color: white;
+}
+
+.st-scope .btn-delete:hover {
+  background-color: #c82333;
+}
+
+/* 模態框 */
+.st-scope .modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.st-scope .modal-content {
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.st-scope .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px;
+  border-bottom: 1px solid #dee2e6;
+}
+
+.st-scope .modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #333;
+}
+
+.st-scope .modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  color: #999;
+  cursor: pointer;
+  padding: 0;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.st-scope .modal-close:hover {
+  background-color: #f8f9fa;
+  color: #333;
+}
+
+/* 表單樣式 */
+.st-scope .classroom-form {
+  padding: 20px;
+}
+
+.st-scope .form-error {
+  padding: 12px;
+  background-color: #fee;
+  color: #c33;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  border-left: 4px solid #c33;
+}
+
+.st-scope .form-group {
+  margin-bottom: 20px;
+}
+
+.st-scope .form-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #495057;
+}
+
+.st-scope .form-group .required {
+  color: #dc3545;
+}
+
+.st-scope .form-group input[type="text"],
+.st-scope .form-group input[type="number"] {
+  width: 100%;
+  padding: 10px 15px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  font-size: 14px;
+  box-sizing: border-box;
+}
+
+.st-scope .form-group input:focus {
+  outline: none;
+  border-color: #4CAF50;
+  box-shadow: 0 0 0 2px rgba(76, 175, 80, 0.1);
+}
+
+.st-scope .form-group input:disabled {
+  background-color: #e9ecef;
+  cursor: not-allowed;
+}
+
+.st-scope .checkbox-group {
+  display: flex;
+  align-items: center;
+}
+
+.st-scope .checkbox-group label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  margin: 0;
+}
+
+.st-scope .checkbox-group input[type="checkbox"] {
+  margin-right: 8px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+}
+
+.st-scope .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #dee2e6;
+}
+
+/* 載入狀態 */
+.st-scope .loading {
+  text-align: center;
+  padding: 40px 20px;
+  color: #666;
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+  .st-scope .classroom-management {
+    padding: 15px;
+  }
+
+  .st-scope .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+
+  .st-scope .filters {
+    flex-direction: column;
+  }
+
+  .st-scope .search-input,
+.st-scope .filter-select {
+    width: 100%;
+  }
+
+  .st-scope .batch-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .st-scope .batch-controls input[type="file"] {
+    width: 100%;
+  }
+
+  .st-scope .classroom-table-container {
+    overflow-x: scroll;
+  }
+
+  .st-scope .classroom-table {
+    min-width: 800px;
+  }
+
+  .st-scope .action-buttons {
+    flex-direction: column;
+  }
+
+  .st-scope .modal-content {
+    max-width: 100%;
+    margin: 0 10px;
+  }
+}
