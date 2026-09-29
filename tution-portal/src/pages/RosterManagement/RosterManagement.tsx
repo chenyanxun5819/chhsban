@@ -102,12 +102,22 @@ const RosterManagement: React.FC = () => {
     if (!classId) return;
     setState((prev) => ({ ...prev, saving: true, error: "" }));
     try {
-      await withdrawRosterStudent(classId, student.roster_id, student.withdrawal_reason || "");
+      await withdrawRosterStudent(
+        classId,
+        student.roster_id,
+        student.withdrawal_reason || "",
+        student.withdrawal_date || ""
+      );
       await fetchRoster();
     } catch (err: any) {
+      const code = err.response?.data?.error;
+      const codeLabel: Record<string, string> = {
+        INVALID_WITHDRAWAL_DATE: t("roster.errorInvalidWithdrawDate"),
+        WITHDRAWAL_BEFORE_ENROLLMENT: t("roster.errorWithdrawBeforeEnroll"),
+      };
       setState((prev) => ({
         ...prev,
-        error: err.response?.data?.error || err.message || t("roster.errorWithdrawFailed"),
+        error: codeLabel[code] || code || err.message || t("roster.errorWithdrawFailed"),
         saving: false,
       }));
       throw err;

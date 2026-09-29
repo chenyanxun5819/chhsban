@@ -24,10 +24,12 @@ export async function addRosterStudent(
 export async function withdrawRosterStudent(
   classId: string,
   rosterId: string,
-  reason: string
+  reason: string,
+  withdrawalDate: string
 ): Promise<void> {
   await apiClient.put(`/v1/classes/${classId}/roster/${rosterId}/withdraw`, {
     reason,
+    withdrawal_date: withdrawalDate,
   });
 }
 

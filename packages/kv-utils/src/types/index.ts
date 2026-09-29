@@ -331,7 +331,7 @@ export interface TutionKVManager {
   getRosterEntry(rosterId: string): Promise<TutionRoster | null>;
   listRosterByClass(classId: string): Promise<TutionRoster[]>;
   updateRosterEntry(rosterId: string, updates: Partial<TutionRoster>): Promise<TutionRoster>;
-  removeStudentFromRoster(rosterId: string, withdrawalReason: string): Promise<void>;
+  removeStudentFromRoster(rosterId: string, withdrawalReason: string, withdrawalDate: string): Promise<void>;
 
   // ===== 出勤紀錄操作 =====
   recordAttendance(attendanceData: Omit<TutionAttendance, "attendance_id">): Promise<TutionAttendance>;

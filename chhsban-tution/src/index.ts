@@ -1216,8 +1216,23 @@ async function handleClasses(
         return jsonResponse({ error: "Roster entry not found" }, 404);
       }
 
-      const body = (await request.json().catch(() => ({}))) as { reason?: string };
-      await kvService.removeStudentFromRoster(subId, body.reason || "");
+      // 退出日期可事後補登（不一定是當天），但不能晚於今天（馬來西亞時間），也不能早於加入日期
+      const body = (await request.json().catch(() => ({}))) as { reason?: string; withdrawal_date?: string };
+      const todayMYT = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const withdrawalDate = body.withdrawal_date || todayMYT;
+      const parsed = new Date(`${withdrawalDate}T00:00:00Z`);
+      if (
+        !/^\d{4}-\d{2}-\d{2}$/.test(withdrawalDate) ||
+        Number.isNaN(parsed.getTime()) ||
+        parsed.toISOString().split("T")[0] !== withdrawalDate ||
+        withdrawalDate > todayMYT
+      ) {
+        return jsonResponse({ error: "INVALID_WITHDRAWAL_DATE" }, 400);
+      }
+      if (entry.enrollment_date && withdrawalDate < entry.enrollment_date) {
+        return jsonResponse({ error: "WITHDRAWAL_BEFORE_ENROLLMENT" }, 400);
+      }
+      await kvService.removeStudentFromRoster(subId, body.reason || "", withdrawalDate);
 
       ctx.waitUntil(
         logAudit(env, {
@@ -1228,7 +1243,7 @@ async function handleClasses(
           actor_permission: session.permission,
           metadata: { class_id: classId, student_id: entry.student_id },
           before: { withdrawal_date: entry.withdrawal_date ?? null, withdrawal_reason: entry.withdrawal_reason ?? null },
-          after: { withdrawal_date: new Date().toISOString().split("T")[0], withdrawal_reason: body.reason || "" },
+          after: { withdrawal_date: withdrawalDate, withdrawal_reason: body.reason || "" },
         }),
       );
 

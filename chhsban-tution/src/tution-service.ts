@@ -218,9 +218,10 @@ export class TutionKVService implements TutionKVManager {
   async removeStudentFromRoster(
     rosterId: string,
     withdrawalReason: string,
+    withdrawalDate: string,
   ): Promise<void> {
     await this.updateRosterEntry(rosterId, {
-      withdrawal_date: new Date().toISOString().split("T")[0],
+      withdrawal_date: withdrawalDate,
       withdrawal_reason: withdrawalReason,
     });
   }
