@@ -5,9 +5,9 @@ import { formatDate, weekdayOf } from "@/utils/calendar";
 // 版面沿用 tution-portal 的 AttendanceOverviewTable（學生 × 日期矩陣，手機依月份分頁）
 
 export const ATTENDANCE_STATUS_META: Record<CourseAttendanceStatus, { label: string; code: string; color: string }> = {
-  present: { label: "到課", code: "P", color: "#28a745" },
-  absent: { label: "缺課", code: "A", color: "#dc3545" },
-  late: { label: "遲到", code: "L", color: "#fd7e14" },
+  present: { label: "到课", code: "P", color: "#28a745" },
+  absent: { label: "缺课", code: "A", color: "#dc3545" },
+  late: { label: "迟到", code: "L", color: "#fd7e14" },
   excuse: { label: "有理由缺席", code: "E", color: "#6f42c1" },
 };
 
@@ -129,14 +129,14 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
         map.set(d, {
           code: "C",
           className: "attendance-matrix-cell-cancelled",
-          title: `${formatDate(d)} 停課${s.cancellation_reason ? `：${s.cancellation_reason}` : ""}`,
+          title: `${formatDate(d)} 停课${s.cancellation_reason ? `：${s.cancellation_reason}` : ""}`,
         });
       } else {
         map.set(d, {
           code: "R",
           className: "attendance-matrix-cell-rescheduled",
           title:
-            `${formatDate(d)} 調課至 ${s.rescheduled_to ? formatDate(s.rescheduled_to) : "（未指定）"}` +
+            `${formatDate(d)} 调课至 ${s.rescheduled_to ? formatDate(s.rescheduled_to) : "（未指定）"}` +
             `${s.rescheduled_venue ? `（${s.rescheduled_venue}）` : ""}${s.reschedule_reason ? `：${s.reschedule_reason}` : ""}`,
         });
       }
@@ -194,10 +194,10 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
   const dateColStyle = isMobile ? { width: `${(100 - NAME_COL_PERCENT) / totalCols}%` } : undefined;
 
   if (students.length === 0) {
-    return <p>名冊裡沒有學生。</p>;
+    return <p>名册里没有学生。</p>;
   }
   if (dates.length === 0) {
-    return <p style={{ color: "#888" }}>目前還沒有到上課日，也沒有任何點名紀錄。</p>;
+    return <p style={{ color: "#888" }}>目前还没有到上课日，也没有任何点名纪录。</p>;
   }
 
   return (
@@ -210,7 +210,7 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
             onClick={() => setPageIndex(Math.max(0, currentPageIndex - 1))}
             disabled={currentPageIndex === 0}
           >
-            ← 上個月
+            ← 上个月
           </button>
           <span className="attendance-matrix-page-info">{currentMonth?.label}</span>
           <button
@@ -219,7 +219,7 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
             onClick={() => setPageIndex(Math.min(totalPages - 1, currentPageIndex + 1))}
             disabled={currentPageIndex === totalPages - 1}
           >
-            下個月 →
+            下个月 →
           </button>
         </div>
       )}
@@ -229,7 +229,7 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
           <thead>
             <tr>
               <th className="attendance-matrix-student-col" style={studentColStyle}>
-                學生
+                学生
               </th>
               {visibleDates.map((d) => {
                 const [, m, day] = d.split("-");
@@ -242,7 +242,7 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
                       special
                         ? special.title
                         : movedFrom
-                          ? `${formatDate(d)}（由 ${formatDate(movedFrom)} 調課）`
+                          ? `${formatDate(d)}（由 ${formatDate(movedFrom)} 调课）`
                           : formatDate(d)
                     }
                     className={`attendance-matrix-date-col ${monthToneClass(d)}`}
@@ -316,7 +316,7 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
                       <td
                         key={d}
                         className={`attendance-matrix-cell attendance-matrix-cell-unmarked ${monthToneClass(d)}`}
-                        title={`${formatDate(d)} 未點名`}
+                        title={`${formatDate(d)} 未点名`}
                         style={dateColStyle}
                       >
                         ·
@@ -358,15 +358,15 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
         </span>
         <span className="attendance-legend-item">
           <span className="attendance-legend-swatch attendance-matrix-cell-cancelled">C</span>
-          停課
+          停课
         </span>
         <span className="attendance-legend-item">
           <span className="attendance-legend-swatch attendance-matrix-cell-rescheduled">R</span>
-          調課（原訂日期）
+          调课（原订日期）
         </span>
         <span className="attendance-legend-item">
           <span className="attendance-legend-swatch attendance-matrix-cell-unmarked">·</span>
-          未點名
+          未点名
         </span>
         <span className="attendance-legend-item">
           <span className="attendance-legend-swatch attendance-matrix-cell-not-joined">-</span>

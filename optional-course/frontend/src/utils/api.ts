@@ -48,7 +48,7 @@ apiClient.interceptors.response.use(
     }
 
     if (!error.response) {
-      return Promise.reject(new Error(`無法連線到伺服器：${API_BASE_URL}`));
+      return Promise.reject(new Error(`无法连线到伺服器：${API_BASE_URL}`));
     }
 
     return Promise.reject(error);

@@ -18,9 +18,9 @@ interface PreviewRow extends SheetRow {
 const STATUS_LABEL: Record<RosterBatchStatus, string> = {
   ok: "可加入",
   added: "已加入",
-  already_in_roster: "已在名冊中",
-  not_found: "查無此學號",
-  duplicate_in_file: "檔案內重複",
+  already_in_roster: "已在名册中",
+  not_found: "查无此学号",
+  duplicate_in_file: "档案内重复",
 };
 
 const cellText = (v: unknown): string => (v === null || v === undefined ? "" : String(v).trim());
@@ -82,17 +82,17 @@ const RosterBatchImport: React.FC<Props> = ({ courseId, onAdded }) => {
       setBusy(true);
       const rows = await parseSheet(file);
       if (rows.length === 0) {
-        setError("檔案裡沒有讀到任何學號，請確認使用的是範本格式");
+        setError("档案里没有读到任何学号，请确认使用的是范本格式");
         return;
       }
       if (rows.length > BATCH_MAX) {
-        setError(`一次最多匯入 ${BATCH_MAX} 位學生，這個檔案有 ${rows.length} 位`);
+        setError(`一次最多汇入 ${BATCH_MAX} 位学生，这个档案有 ${rows.length} 位`);
         return;
       }
       const results = await addRosterBatch(courseId, rows.map((r) => r.student_no), true);
       setPreview(rows.map((r, i) => ({ ...r, result: results[i] })));
     } catch (err: any) {
-      setError(err.response?.data?.error || "讀取檔案失敗，請確認是 .xlsx 格式");
+      setError(err.response?.data?.error || "读取档案失败，请确认是 .xlsx 格式");
     } finally {
       setBusy(false);
     }
@@ -108,10 +108,10 @@ const RosterBatchImport: React.FC<Props> = ({ courseId, onAdded }) => {
       const results = await addRosterBatch(courseId, okRows.map((r) => r.student_no), false);
       const entries = results.filter((r) => r.status === "added" && r.entry).map((r) => r.entry!);
       onAdded(entries);
-      setMessage(`已加入 ${entries.length} 位學生`);
+      setMessage(`已加入 ${entries.length} 位学生`);
       reset();
     } catch (err: any) {
-      setError(err.response?.data?.error || "批量加入失敗");
+      setError(err.response?.data?.error || "批量加入失败");
     } finally {
       setBusy(false);
     }
@@ -124,14 +124,14 @@ const RosterBatchImport: React.FC<Props> = ({ courseId, onAdded }) => {
     <div className="card">
       <h3>批量加入（Excel）</h3>
       <p style={{ margin: "4px 0 12px", color: "#666" }}>
-        先下載範本，填好學號（姓名、班級可一併填寫，方便核對）後上傳。上傳後會先顯示核對結果，確認無誤才會加入名冊。
+        先下载范本，填好学号（姓名、班级可一并填写，方便核对）后上传。上传后会先显示核对结果，确认无误才会加入名册。
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-        <a className="btn" href="/roster-template.xlsx" download="選修課名冊範本.xlsx">
-          下載範本
+        <a className="btn" href="/roster-template.xlsx" download="选修课名册范本.xlsx">
+          下载范本
         </a>
         <input ref={fileRef} type="file" accept=".xlsx" onChange={handleFile} disabled={busy} />
-        {busy && <span>處理中...</span>}
+        {busy && <span>处理中...</span>}
       </div>
 
       {error && <p className="error-text">{error}</p>}
@@ -140,21 +140,21 @@ const RosterBatchImport: React.FC<Props> = ({ courseId, onAdded }) => {
       {preview && (
         <div style={{ marginTop: 12 }}>
           <p>
-            共 {preview.length} 筆，可加入 {okRows.length} 筆
+            共 {preview.length} 笔，可加入 {okRows.length} 笔
             {preview.some(nameMismatch) && (
-              <span style={{ color: "#c62828" }}>；有姓名與系統不符的資料（紅字），請確認學號是否填錯</span>
+              <span style={{ color: "#c62828" }}>；有姓名与系统不符的资料（红字），请确认学号是否填错</span>
             )}
           </p>
           <div style={{ overflowX: "auto" }}>
             <table className="table">
               <thead>
                 <tr>
-                  <th>學號</th>
-                  <th>填寫姓名</th>
-                  <th>填寫班級</th>
-                  <th>系統姓名</th>
-                  <th>系統班級</th>
-                  <th>狀態</th>
+                  <th>学号</th>
+                  <th>填写姓名</th>
+                  <th>填写班级</th>
+                  <th>系统姓名</th>
+                  <th>系统班级</th>
+                  <th>状态</th>
                 </tr>
               </thead>
               <tbody>
@@ -175,7 +175,7 @@ const RosterBatchImport: React.FC<Props> = ({ courseId, onAdded }) => {
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <button className="btn btn--primary" disabled={busy || okRows.length === 0} onClick={handleConfirm}>
-              確認加入 {okRows.length} 位
+              确认加入 {okRows.length} 位
             </button>
             <button className="btn" disabled={busy} onClick={reset}>
               取消

@@ -21,7 +21,7 @@ export interface IdentifyResponse {
 function extractErrorMessage(error: unknown, fallback: string): string {
   if (axios.isAxiosError(error)) {
     if (!error.response) {
-      throw new Error("無法連線到登入服務，請檢查網路後再試");
+      throw new Error("无法连线到登入服务，请检查网路后再试");
     }
     const apiError = error.response.data as
       | { error?: string; message?: string }
@@ -57,9 +57,9 @@ export const identifyTeacher = async (email: string): Promise<IdentifyResponse> 
     };
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 401) {
-      throw new Error("Email 未在系統中註冊，請檢查輸入是否正確");
+      throw new Error("Email 未在系统中注册，请检查输入是否正确");
     }
-    throw new Error(extractErrorMessage(error, "驗證失敗，請稍後再試"));
+    throw new Error(extractErrorMessage(error, "验证失败，请稍后再试"));
   }
 };
 
@@ -84,7 +84,7 @@ export const generateSystemPassword = async (pendingToken: string): Promise<stri
     );
     return response.data.data.password;
   } catch (error) {
-    throw new Error(extractErrorMessage(error, "產生密碼失敗，請稍後再試"));
+    throw new Error(extractErrorMessage(error, "产生密码失败，请稍后再试"));
   }
 };
 
@@ -101,7 +101,7 @@ export const setPassword = async (
     persistSession(authData);
     return authData;
   } catch (error) {
-    throw new Error(extractErrorMessage(error, "設定密碼失敗，請稍後再試"));
+    throw new Error(extractErrorMessage(error, "设定密码失败，请稍后再试"));
   }
 };
 
@@ -123,19 +123,19 @@ export const loginWithPassword = async (
         | { error?: string; remainingAttempts?: number; retryAfterSeconds?: number }
         | undefined;
       if (error.response?.status === 401) {
-        const err = new Error("密碼錯誤") as Error & { remainingAttempts?: number };
+        const err = new Error("密码错误") as Error & { remainingAttempts?: number };
         err.remainingAttempts = data?.remainingAttempts;
         throw err;
       }
       if (error.response?.status === 429) {
-        const err = new Error("嘗試次數過多，請稍後再試") as Error & {
+        const err = new Error("尝试次数过多，请稍后再试") as Error & {
           retryAfterSeconds?: number;
         };
         err.retryAfterSeconds = data?.retryAfterSeconds;
         throw err;
       }
     }
-    throw new Error(extractErrorMessage(error, "登入失敗，請稍後再試"));
+    throw new Error(extractErrorMessage(error, "登入失败，请稍后再试"));
   }
 };
 

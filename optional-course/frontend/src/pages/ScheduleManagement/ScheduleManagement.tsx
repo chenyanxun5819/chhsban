@@ -29,42 +29,42 @@ const ScheduleManagement: React.FC = () => {
         setSchedules(s);
         setInfo(i);
       })
-      .catch((err) => setError(err.response?.data?.error || "載入失敗"))
+      .catch((err) => setError(err.response?.data?.error || "载入失败"))
       .finally(() => setLoading(false));
   }, [id]);
 
   return (
-    <Layout title="上課日期">
+    <Layout title="上课日期">
       {course && <CoursePageHeader subject={course.subject} subtitle={courseSubtitle(course)} />}
       {error && <p className="error-text">{error}</p>}
 
       {loading || !info ? (
-        <p>載入中...</p>
+        <p>载入中...</p>
       ) : (
         <>
           {course?.window_status === "closed" && (
             <p className="card" style={{ color: "#92400e", background: "#fffbeb" }}>
-              此課程窗口已關閉，資料僅供查看。
+              此课程窗口已关闭，资料仅供查看。
             </p>
           )}
           <div className="card">
-            <h3 style={{ marginTop: 0 }}>上課日期表</h3>
+            <h3 style={{ marginTop: 0 }}>上课日期表</h3>
             {!info.calendar_ready ? (
-              <p style={{ color: "#b45309" }}>學校行事曆尚未建立，暫時無法推算上課日期。</p>
+              <p style={{ color: "#b45309" }}>学校行事历尚未建立，暂时无法推算上课日期。</p>
             ) : !info.day_of_week ? (
-              <p style={{ color: "#b45309" }}>這門課尚未設定上課星期，請聯絡行政人員。</p>
+              <p style={{ color: "#b45309" }}>这门课尚未设定上课星期，请联络行政人员。</p>
             ) : (
               <>
                 <p style={{ color: "#666", marginTop: 0 }}>
-                  每{WEEKDAY_LABEL[info.day_of_week]}上課，依學校行事曆全年共 {info.sessions.length} 堂
-                  （已扣除假期；補課日按指定課表加入）。停課或調課請聯絡行政人員。
+                  每{WEEKDAY_LABEL[info.day_of_week]}上课，依学校行事历全年共 {info.sessions.length} 堂
+                  （已扣除假期；补课日按指定课表加入）。停课或调课请联络行政人员。
                 </p>
                 <table className="table">
                   <thead>
                     <tr>
                       <th>日期</th>
-                      <th>說明</th>
-                      <th>點名</th>
+                      <th>说明</th>
+                      <th>点名</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -72,14 +72,14 @@ const ScheduleManagement: React.FC = () => {
                       <tr key={s.date} style={s.date === info.today ? { background: "#eff6ff" } : undefined}>
                         <td>{formatDate(s.date)}</td>
                         <td>
-                          {s.rescheduled_from ? `由 ${formatDate(s.rescheduled_from)} 調課` : ""}
-                          {s.venue ? `（地點：${s.venue}）` : ""}
+                          {s.rescheduled_from ? `由 ${formatDate(s.rescheduled_from)} 调课` : ""}
+                          {s.venue ? `（地点：${s.venue}）` : ""}
                         </td>
                         <td>
                           {s.recorded ? (
-                            <span style={{ color: "#166534" }}>✓ 已點名</span>
+                            <span style={{ color: "#166534" }}>✓ 已点名</span>
                           ) : s.missing ? (
-                            <span className="badge badge--missing">未點名</span>
+                            <span className="badge badge--missing">未点名</span>
                           ) : (
                             <span style={{ color: "#999" }}>—</span>
                           )}
@@ -94,20 +94,20 @@ const ScheduleManagement: React.FC = () => {
 
           {schedules.length > 0 && (
             <div className="card">
-              <h3>停課／調課記錄</h3>
+              <h3>停课／调课记录</h3>
               <table className="table">
                 <thead>
                   <tr>
-                    <th>原訂日期</th>
-                    <th>狀態</th>
-                    <th>說明</th>
+                    <th>原订日期</th>
+                    <th>状态</th>
+                    <th>说明</th>
                   </tr>
                 </thead>
                 <tbody>
                   {schedules.map((s) => (
                     <tr key={s.schedule_id}>
                       <td>{formatDate(s.scheduled_date)}</td>
-                      <td>{s.status === "cancelled" ? "停課" : `調至 ${s.rescheduled_to ? formatDate(s.rescheduled_to) : "-"}`}</td>
+                      <td>{s.status === "cancelled" ? "停课" : `调至 ${s.rescheduled_to ? formatDate(s.rescheduled_to) : "-"}`}</td>
                       <td>{s.cancellation_reason || s.reschedule_reason || "-"}</td>
                     </tr>
                   ))}

@@ -37,7 +37,7 @@ export const courseSubtitle = (course: {
 }): string =>
   [
     course.course_no,
-    course.teacher_name_cn && `授課老師：${course.teacher_name_cn}`,
+    course.teacher_name_cn && `授课老师：${course.teacher_name_cn}`,
     course.day_of_week &&
       `每${WEEKDAY_LABEL[course.day_of_week]}${
         course.time_start ? ` ${course.time_start}${course.time_end ? `-${course.time_end}` : ""}` : ""
