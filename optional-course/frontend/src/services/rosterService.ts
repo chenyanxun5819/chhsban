@@ -30,10 +30,11 @@ export const withdrawRosterEntry = async (
   courseId: string,
   rosterId: string,
   reason: string,
+  withdrawalDate: string,
 ): Promise<OptionalCourseRoster> => {
   const res = await apiClient.put<{ success: boolean; data: OptionalCourseRoster }>(
     `/v1/courses/${courseId}/roster/${rosterId}/withdraw`,
-    { reason },
+    { reason, withdrawal_date: withdrawalDate },
   );
   return res.data.data;
 };

@@ -767,8 +767,17 @@ async function handleRoster(
     if (!canEditCourse(session, course.teacher_id)) {
       return jsonResponse({ error: "Forbidden" }, 403);
     }
-    const body = (await request.json().catch(() => ({}))) as { reason?: string };
-    const updated = await service.withdrawRosterEntry(course.course_id, rosterId, body.reason || "");
+    // 退出日期可事後補登（不一定是當天），但不能晚於今天；原因必填
+    const body = (await request.json().catch(() => ({}))) as { reason?: string; withdrawal_date?: string };
+    const reason = (body.reason || "").trim();
+    if (!reason) {
+      return jsonResponse({ error: "MISSING_WITHDRAWAL_REASON" }, 400);
+    }
+    const withdrawalDate = body.withdrawal_date || todayMYT();
+    if (!isValidDate(withdrawalDate) || withdrawalDate > todayMYT()) {
+      return jsonResponse({ error: "INVALID_WITHDRAWAL_DATE" }, 400);
+    }
+    const updated = await service.withdrawRosterEntry(course.course_id, rosterId, reason, withdrawalDate);
     if (!updated) {
       return jsonResponse({ error: "Roster entry not found" }, 404);
     }

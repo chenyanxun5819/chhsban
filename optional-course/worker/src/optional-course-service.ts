@@ -174,6 +174,7 @@ export class OptionalCourseService {
     courseId: string,
     rosterId: string,
     withdrawalReason: string,
+    withdrawalDate: string,
   ): Promise<OptionalCourseRoster | null> {
     const roster = await this.getRoster(courseId);
     const idx = roster.findIndex((r) => r.roster_id === rosterId);
@@ -181,7 +182,7 @@ export class OptionalCourseService {
 
     const updated: OptionalCourseRoster = {
       ...roster[idx],
-      withdrawal_date: new Date().toISOString().split("T")[0],
+      withdrawal_date: withdrawalDate,
       withdrawal_reason: withdrawalReason,
       is_active: false,
       updated_at: Date.now(),

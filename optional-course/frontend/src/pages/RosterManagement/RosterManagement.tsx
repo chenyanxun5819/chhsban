@@ -4,7 +4,13 @@ import { Layout } from "@/components/common/Layout";
 import { getCourse } from "@/services/courseService";
 import { listRoster, lookupStudent, addRosterEntry, withdrawRosterEntry } from "@/services/rosterService";
 import type { OptionalCourse, OptionalCourseRoster, StudentRecord } from "@/types";
+import { todayMYT } from "@/utils/calendar";
 import RosterBatchImport from "./RosterBatchImport";
+
+const WITHDRAW_ERROR_LABEL: Record<string, string> = {
+  MISSING_WITHDRAWAL_REASON: "請輸入退出原因",
+  INVALID_WITHDRAWAL_DATE: "退出日期不正確（不能晚於今天）",
+};
 
 const RosterManagement: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +23,9 @@ const RosterManagement: React.FC = () => {
   const [foundStudent, setFoundStudent] = useState<StudentRecord | null>(null);
   const [searching, setSearching] = useState(false);
   const [adding, setAdding] = useState(false);
+  // 正在填寫退出資料的那一列；退出日期可事後補登，預設今天
+  const [withdrawing, setWithdrawing] = useState<{ rosterId: string; date: string; reason: string } | null>(null);
+  const [withdrawSaving, setWithdrawSaving] = useState(false);
 
   const load = async () => {
     if (!id) return;
@@ -78,15 +87,29 @@ const RosterManagement: React.FC = () => {
     }
   };
 
-  const handleWithdraw = async (rosterId: string) => {
-    if (!id) return;
-    const reason = window.prompt("請輸入退出原因（可留空）") || "";
+  const handleWithdraw = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id || !withdrawing) return;
+    const reason = withdrawing.reason.trim();
+    if (!reason) {
+      setError("請輸入退出原因");
+      return;
+    }
+    if (!withdrawing.date || withdrawing.date > todayMYT()) {
+      setError("退出日期不正確（不能晚於今天）");
+      return;
+    }
     try {
+      setWithdrawSaving(true);
       setError(null);
-      const updated = await withdrawRosterEntry(id, rosterId, reason);
-      setRoster((prev) => prev.map((r) => (r.roster_id === rosterId ? updated : r)));
+      const updated = await withdrawRosterEntry(id, withdrawing.rosterId, reason, withdrawing.date);
+      setRoster((prev) => prev.map((r) => (r.roster_id === updated.roster_id ? updated : r)));
+      setWithdrawing(null);
     } catch (err: any) {
-      setError(err.response?.data?.error || "退出名冊失敗");
+      const code = err.response?.data?.error;
+      setError(WITHDRAW_ERROR_LABEL[code] || code || "退出名冊失敗");
+    } finally {
+      setWithdrawSaving(false);
     }
   };
 
@@ -155,19 +178,56 @@ const RosterManagement: React.FC = () => {
                 </thead>
                 <tbody>
                   {activeRoster.map((r) => (
-                    <tr key={r.roster_id}>
-                      <td>{r.student_no || r.student_id}</td>
-                      <td>{r.student_name_cn}</td>
-                      <td>{r.student_class}</td>
-                      <td>{r.enrollment_date}</td>
-                      {!readOnly && (
-                        <td>
-                          <button className="btn btn--danger" onClick={() => handleWithdraw(r.roster_id)}>
-                            退出
-                          </button>
-                        </td>
+                    <React.Fragment key={r.roster_id}>
+                      <tr>
+                        <td>{r.student_no || r.student_id}</td>
+                        <td>{r.student_name_cn}</td>
+                        <td>{r.student_class}</td>
+                        <td>{r.enrollment_date}</td>
+                        {!readOnly && (
+                          <td>
+                            {withdrawing?.rosterId !== r.roster_id && (
+                              <button
+                                className="btn btn--danger"
+                                onClick={() => setWithdrawing({ rosterId: r.roster_id, date: todayMYT(), reason: "" })}
+                              >
+                                退出
+                              </button>
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                      {withdrawing?.rosterId === r.roster_id && (
+                        <tr>
+                          <td colSpan={5} style={{ background: "#fef2f2" }}>
+                            <form onSubmit={handleWithdraw} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                              <label>退出日期</label>
+                              <input
+                                type="date"
+                                value={withdrawing.date}
+                                max={todayMYT()}
+                                onChange={(e) => setWithdrawing({ ...withdrawing, date: e.target.value })}
+                                required
+                              />
+                              <label>原因</label>
+                              <input
+                                value={withdrawing.reason}
+                                onChange={(e) => setWithdrawing({ ...withdrawing, reason: e.target.value })}
+                                placeholder="必填"
+                                style={{ flex: 1, minWidth: 160 }}
+                                required
+                              />
+                              <button type="submit" className="btn btn--danger" disabled={withdrawSaving}>
+                                {withdrawSaving ? "處理中..." : "確認退出"}
+                              </button>
+                              <button type="button" className="btn" onClick={() => setWithdrawing(null)}>
+                                取消
+                              </button>
+                            </form>
+                          </td>
+                        </tr>
                       )}
-                    </tr>
+                    </React.Fragment>
                   ))}
                 </tbody>
               </table>
