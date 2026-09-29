@@ -39,7 +39,7 @@ const Login: React.FC = () => {
   const handleIdentify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
-      setError("请输入 Email");
+      setError("请输入 Email / Please enter your email");
       return;
     }
     try {
@@ -52,7 +52,7 @@ const Login: React.FC = () => {
         setStep({ kind: "password_login", pendingToken: result.pendingToken, teacherName: result.teacherName });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "验证失败，请稍后再试");
+      setError(err instanceof Error ? err.message : "验证失败，请稍后再试 / Verification failed, please try again later");
     } finally {
       setLoading(false);
     }
@@ -67,7 +67,7 @@ const Login: React.FC = () => {
       setPasswordInput(generated);
       setPassword2(generated);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "产生密码失败");
+      setError(err instanceof Error ? err.message : "产生密码失败 / Failed to generate password");
     } finally {
       setLoading(false);
     }
@@ -77,7 +77,7 @@ const Login: React.FC = () => {
     e.preventDefault();
     if (step.kind !== "password_setup") return;
     if (password !== password2) {
-      setError("两次输入的密码不一致");
+      setError("两次输入的密码不一致 / Passwords do not match");
       return;
     }
     try {
@@ -86,7 +86,7 @@ const Login: React.FC = () => {
       const authData = await setPassword(step.pendingToken, password);
       handleAuthDone(authData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "设定密码失败");
+      setError(err instanceof Error ? err.message : "设定密码失败 / Failed to set password");
     } finally {
       setLoading(false);
     }
@@ -101,7 +101,7 @@ const Login: React.FC = () => {
       const authData = await loginWithPassword(step.pendingToken, password);
       handleAuthDone(authData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "登入失败");
+      setError(err instanceof Error ? err.message : "登入失败 / Login failed");
     } finally {
       setLoading(false);
     }
@@ -112,9 +112,9 @@ const Login: React.FC = () => {
       <div className="login-card">
         <h1>
           {step.kind === "password_setup"
-            ? "首次登入，设定密码"
+            ? "首次登入，设定密码 / First Login: Set Password"
             : step.kind === "password_login"
-              ? "输入密码"
+              ? "输入密码 / Enter Password"
               : "选修课点名系统"}
         </h1>
         <p className="subtitle">CHHSBAN Optional Course</p>
@@ -135,16 +135,20 @@ const Login: React.FC = () => {
               />
             </div>
             <button type="submit" className="btn btn--primary" disabled={loading} style={{ width: "100%" }}>
-              {loading ? "验证中..." : "验证并登入"}
+              {loading ? "验证中... / Verifying..." : "验证并登入 / Continue"}
             </button>
           </form>
         )}
 
         {step.kind === "password_setup" && (
           <form onSubmit={handleSetPassword}>
-            <p>{step.teacherName}，您好，这是您第一次登入，请设定密码。</p>
+            <p>
+              {step.teacherName}，您好，这是您第一次登入，请设定密码。
+              <br />
+              Hello {step.teacherName}, this is your first login. Please set a password.
+            </p>
             <div className="form-row">
-              <label htmlFor="password">密码（至少 10 码，含大小写字母、数字、符号）</label>
+              <label htmlFor="password">密码 / Password（至少 10 码，含大小写字母、数字、符号 / at least 10 characters with upper and lower case letters, numbers and symbols）</label>
               <input
                 id="password"
                 type="text"
@@ -154,7 +158,7 @@ const Login: React.FC = () => {
               />
             </div>
             <div className="form-row">
-              <label htmlFor="password2">再次输入密码</label>
+              <label htmlFor="password2">再次输入密码 / Confirm Password</label>
               <input
                 id="password2"
                 type="text"
@@ -164,19 +168,23 @@ const Login: React.FC = () => {
               />
             </div>
             <button type="button" className="btn" onClick={handleGeneratePassword} disabled={loading}>
-              帮我产生一组密码
+              帮我产生一组密码 / Generate a password
             </button>{" "}
             <button type="submit" className="btn btn--primary" disabled={loading}>
-              {loading ? "设定中..." : "设定密码并登入"}
+              {loading ? "设定中... / Saving..." : "设定密码并登入 / Set Password & Log in"}
             </button>
           </form>
         )}
 
         {step.kind === "password_login" && (
           <form onSubmit={handleLoginPassword}>
-            <p>{step.teacherName}，您好，请输入密码。</p>
+            <p>
+              {step.teacherName}，您好，请输入密码。
+              <br />
+              Hello {step.teacherName}, please enter your password.
+            </p>
             <div className="form-row">
-              <label htmlFor="password">密码</label>
+              <label htmlFor="password">密码 / Password</label>
               <div className="password-input-wrapper">
                 <input
                   id="password"
@@ -191,15 +199,15 @@ const Login: React.FC = () => {
                   onClick={() => setShowPassword((v) => !v)}
                   disabled={loading}
                   tabIndex={-1}
-                  aria-label={showPassword ? "隐藏密码" : "显示密码"}
-                  title={showPassword ? "隐藏密码" : "显示密码"}
+                  aria-label={showPassword ? "隐藏密码 / Hide password" : "显示密码 / Show password"}
+                  title={showPassword ? "隐藏密码 / Hide password" : "显示密码 / Show password"}
                 >
                   <img src={showPassword ? eyeClosedIcon : eyeIcon} alt="" />
                 </button>
               </div>
             </div>
             <button type="submit" className="btn btn--primary" disabled={loading} style={{ width: "100%" }}>
-              {loading ? "登入中..." : "登入"}
+              {loading ? "登入中... / Logging in..." : "登入 / Log in"}
             </button>
           </form>
         )}
@@ -207,7 +215,7 @@ const Login: React.FC = () => {
         {step.kind !== "identify" && (
           <p style={{ marginTop: 16 }}>
             <button type="button" className="btn btn--ghost" onClick={() => setStep({ kind: "identify" })}>
-              返回
+              返回 / Back
             </button>
           </p>
         )}

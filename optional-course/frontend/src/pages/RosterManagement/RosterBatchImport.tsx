@@ -16,11 +16,11 @@ interface PreviewRow extends SheetRow {
 }
 
 const STATUS_LABEL: Record<RosterBatchStatus, string> = {
-  ok: "可加入",
-  added: "已加入",
-  already_in_roster: "已在名册中",
-  not_found: "查无此学号",
-  duplicate_in_file: "档案内重复",
+  ok: "可加入 / Ready",
+  added: "已加入 / Added",
+  already_in_roster: "已在名册中 / Already in roster",
+  not_found: "查无此学号 / ID not found",
+  duplicate_in_file: "档案内重复 / Duplicate in file",
 };
 
 const cellText = (v: unknown): string => (v === null || v === undefined ? "" : String(v).trim());
@@ -82,17 +82,17 @@ const RosterBatchImport: React.FC<Props> = ({ courseId, onAdded }) => {
       setBusy(true);
       const rows = await parseSheet(file);
       if (rows.length === 0) {
-        setError("档案里没有读到任何学号，请确认使用的是范本格式");
+        setError("档案里没有读到任何学号，请确认使用的是范本格式 / No student IDs found, please use the template format");
         return;
       }
       if (rows.length > BATCH_MAX) {
-        setError(`一次最多汇入 ${BATCH_MAX} 位学生，这个档案有 ${rows.length} 位`);
+        setError(`一次最多汇入 ${BATCH_MAX} 位学生，这个档案有 ${rows.length} 位 / At most ${BATCH_MAX} students per import; this file has ${rows.length}`);
         return;
       }
       const results = await addRosterBatch(courseId, rows.map((r) => r.student_no), true);
       setPreview(rows.map((r, i) => ({ ...r, result: results[i] })));
     } catch (err: any) {
-      setError(err.response?.data?.error || "读取档案失败，请确认是 .xlsx 格式");
+      setError(err.response?.data?.error || "读取档案失败，请确认是 .xlsx 格式 / Failed to read file, please make sure it is .xlsx");
     } finally {
       setBusy(false);
     }
@@ -108,10 +108,10 @@ const RosterBatchImport: React.FC<Props> = ({ courseId, onAdded }) => {
       const results = await addRosterBatch(courseId, okRows.map((r) => r.student_no), false);
       const entries = results.filter((r) => r.status === "added" && r.entry).map((r) => r.entry!);
       onAdded(entries);
-      setMessage(`已加入 ${entries.length} 位学生`);
+      setMessage(`已加入 ${entries.length} 位学生 / ${entries.length} student(s) added`);
       reset();
     } catch (err: any) {
-      setError(err.response?.data?.error || "批量加入失败");
+      setError(err.response?.data?.error || "批量加入失败 / Batch import failed");
     } finally {
       setBusy(false);
     }
@@ -122,16 +122,18 @@ const RosterBatchImport: React.FC<Props> = ({ courseId, onAdded }) => {
 
   return (
     <div className="card">
-      <h3>批量加入（Excel）</h3>
+      <h3>批量加入 / Batch Import（Excel）</h3>
       <p style={{ margin: "4px 0 12px", color: "#666" }}>
         先下载范本，填好学号（姓名、班级可一并填写，方便核对）后上传。上传后会先显示核对结果，确认无误才会加入名册。
+        <br />
+        Download the template, fill in student IDs (names and classes optional, for checking) and upload it. Results are shown for review before anything is added.
       </p>
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
         <a className="btn" href="/roster-template.xlsx" download="选修课名册范本.xlsx">
-          下载范本
+          下载范本 / Template
         </a>
         <input ref={fileRef} type="file" accept=".xlsx" onChange={handleFile} disabled={busy} />
-        {busy && <span>处理中...</span>}
+        {busy && <span>处理中... / Processing...</span>}
       </div>
 
       {error && <p className="error-text">{error}</p>}
@@ -140,21 +142,21 @@ const RosterBatchImport: React.FC<Props> = ({ courseId, onAdded }) => {
       {preview && (
         <div style={{ marginTop: 12 }}>
           <p>
-            共 {preview.length} 笔，可加入 {okRows.length} 笔
+            共 {preview.length} 笔，可加入 {okRows.length} 笔 / {preview.length} rows, {okRows.length} ready to add
             {preview.some(nameMismatch) && (
-              <span style={{ color: "#c62828" }}>；有姓名与系统不符的资料（红字），请确认学号是否填错</span>
+              <span style={{ color: "#c62828" }}>；有姓名与系统不符的资料（红字），请确认学号是否填错 / Names in red do not match the system, please check the IDs</span>
             )}
           </p>
           <div style={{ overflowX: "auto" }}>
             <table className="table">
               <thead>
                 <tr>
-                  <th>学号</th>
-                  <th>填写姓名</th>
-                  <th>填写班级</th>
-                  <th>系统姓名</th>
-                  <th>系统班级</th>
-                  <th>状态</th>
+                  <th>学号/Student ID</th>
+                  <th>填写姓名/Name (File)</th>
+                  <th>填写班级/Class (File)</th>
+                  <th>系统姓名/Name (System)</th>
+                  <th>系统班级/Class (System)</th>
+                  <th>状态/Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -175,10 +177,10 @@ const RosterBatchImport: React.FC<Props> = ({ courseId, onAdded }) => {
           </div>
           <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
             <button className="btn btn--primary" disabled={busy || okRows.length === 0} onClick={handleConfirm}>
-              确认加入 {okRows.length} 位
+              确认加入 {okRows.length} 位 / Add {okRows.length}
             </button>
             <button className="btn" disabled={busy} onClick={reset}>
-              取消
+              取消 / Cancel
             </button>
           </div>
         </div>

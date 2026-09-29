@@ -17,12 +17,12 @@ export const Layout: React.FC<LayoutProps> = ({ title, children }) => {
   return (
     <div className="app-layout">
       <header className="app-header">
-        <span className="app-header__title">{title || "选修课点名系统"}</span>
+        <span className="app-header__title">{title || "选修课点名系统 / Optional Course"}</span>
         <div className="app-header__right">
-          <button className="app-header__icon-btn" onClick={() => navigate("/")} aria-label="回首页" title="回首页">
+          <button className="app-header__icon-btn" onClick={() => navigate("/")} aria-label="回首页 / Home" title="回首页 / Home">
             <img src={houseIcon} alt="" />
           </button>
-          <button className="app-header__icon-btn" onClick={logout} aria-label="登出" title="登出">
+          <button className="app-header__icon-btn" onClick={logout} aria-label="登出 / Log out" title="登出 / Log out">
             <img src={logOutIcon} alt="" />
           </button>
         </div>

@@ -22,7 +22,7 @@ const RedirectToAdminPortal: React.FC = () => {
   }, []);
   return (
     <div style={{ padding: 24 }}>
-      选修课行政管理已移到 <a href={ADMIN_PORTAL_URL}>行政管理站</a>，正在为您转址...
+      选修课行政管理已移到 <a href={ADMIN_PORTAL_URL}>行政管理站 / Admin Portal</a>，正在为您转址... / Redirecting...
     </div>
   );
 };
@@ -32,7 +32,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
   const location = useLocation();
 
   if (isLoading) {
-    return <div style={{ padding: 24 }}>载入中...</div>;
+    return <div style={{ padding: 24 }}>载入中... / Loading...</div>;
   }
 
   if (!isAuthenticated) {

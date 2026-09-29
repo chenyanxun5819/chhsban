@@ -18,10 +18,10 @@ import { courseSubtitle, formatDate, todayMYT } from "@/utils/calendar";
 import { AttendanceOverview, type OverviewCalendar } from "@/components/attendance/AttendanceOverview";
 
 const STATUS_OPTIONS: Array<{ value: CourseAttendanceStatus; label: string }> = [
-  { value: "present", label: "到课" },
-  { value: "absent", label: "缺课" },
-  { value: "late", label: "迟到" },
-  { value: "excuse", label: "有理由缺席" },
+  { value: "present", label: "到课 / Present" },
+  { value: "absent", label: "缺课 / Absent" },
+  { value: "late", label: "迟到 / Late" },
+  { value: "excuse", label: "有理由缺席 / Excused" },
 ];
 
 const STATUS_LABEL = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.label])) as Record<
@@ -30,8 +30,8 @@ const STATUS_LABEL = Object.fromEntries(STATUS_OPTIONS.map((o) => [o.value, o.la
 >;
 
 const ERROR_LABEL: Record<string, string> = {
-  NOT_A_SESSION_DATE: "这一天不是这门课的上课日，无法点名",
-  COURSE_NOT_OPEN: "课程窗口未开放，无法点名",
+  NOT_A_SESSION_DATE: "这一天不是这门课的上课日，无法点名 / This date is not a class day",
+  COURSE_NOT_OPEN: "课程窗口未开放，无法点名 / Course is not open for attendance",
 };
 
 /**
@@ -92,7 +92,7 @@ const AttendanceSheet: React.FC = () => {
         setClassDate(defaultDate(i));
       }
     } catch (err: any) {
-      setError(err.response?.data?.error || "载入失败");
+      setError(err.response?.data?.error || "载入失败 / Failed to load");
     } finally {
       setLoading(false);
     }
@@ -135,13 +135,13 @@ const AttendanceSheet: React.FC = () => {
         status: statusMap[entry.student_id] || "present",
       }));
       await recordAttendance(id, classDate, payload);
-      setSuccess(`已储存 ${formatDate(classDate)} 的点名纪录`);
+      setSuccess(`已储存 ${formatDate(classDate)} 的点名纪录 / Attendance saved for ${formatDate(classDate)}`);
       const [a, i] = await Promise.all([listAttendance(id), getCourseSessions(id)]);
       setRecords(a);
       setInfo(i);
     } catch (err: any) {
       const code = err.response?.data?.error;
-      setError(ERROR_LABEL[code] || code || "点名储存失败");
+      setError(ERROR_LABEL[code] || code || "点名储存失败 / Failed to save attendance");
     } finally {
       setSaving(false);
     }
@@ -154,14 +154,14 @@ const AttendanceSheet: React.FC = () => {
 
 
   return (
-    <Layout title={readOnly ? "查看点名" : "点名"}>
+    <Layout title={readOnly ? "查看点名 / View Attendance" : "点名 / Attendance"}>
       {course && (
         <CoursePageHeader
           subject={course.subject}
           subtitle={courseSubtitle(course)}
           actions={
             <button type="button" className="btn" onClick={() => setShowOverview((v) => !v)}>
-              {showOverview ? "返回点名" : "查看总览"}
+              {showOverview ? "返回点名 / Back" : "查看总览 / Overview"}
             </button>
           }
         />
@@ -171,33 +171,35 @@ const AttendanceSheet: React.FC = () => {
       {readOnly && (
         <p className="card" style={{ color: "#92400e", background: "#fffbeb" }}>
           此课程窗口已关闭，资料仅供查看，无法修改。如需修改请联络行政人员重新开放。
+          <br />
+          This course is closed and view-only. Please contact the administrator to reopen it if changes are needed.
         </p>
       )}
       {loading || !info ? (
-        <p>载入中...</p>
+        <p>载入中... / Loading...</p>
       ) : showOverview ? (
         <AttendanceOverview info={info} roster={fullRoster} records={records} calendar={calendar} course={course} schedules={schedules} />
       ) : roster.length === 0 ? (
-        <p>{readOnly ? "名册里没有学生。" : "名册里没有学生，请先到名册管理加入学生。"}</p>
+        <p>{readOnly ? "名册里没有学生。 / No students in the roster." : "名册里没有学生，请先到名册管理加入学生。 / No students in the roster, please add students first."}</p>
       ) : (
         <form onSubmit={handleSubmit} className="card">
           {!readOnly && missingCount > 0 && (
-            <p style={{ color: "#b91c1c", marginTop: 0 }}>尚有 {missingCount} 堂课未点名，请尽快补上。</p>
+            <p style={{ color: "#b91c1c", marginTop: 0 }}>尚有 {missingCount} 堂课未点名，请尽快补上。 / {missingCount} session(s) not yet marked, please complete them soon.</p>
           )}
           <div className="form-row">
-            <label>上课日期</label>
+            <label>上课日期 / Class Date</label>
             {restricted ? (
               sessionOptions.length === 0 ? (
-                <p style={{ color: "#888", margin: 0 }}>目前还没有到上课日。</p>
+                <p style={{ color: "#888", margin: 0 }}>目前还没有到上课日。 / No class days yet.</p>
               ) : (
                 <select value={classDate} onChange={(e) => setClassDate(e.target.value)} required>
-                  {!sessionOptions.some((s) => s.date === classDate) && <option value="">选择上课日...</option>}
+                  {!sessionOptions.some((s) => s.date === classDate) && <option value="">选择上课日 / Select date...</option>}
                   {[...sessionOptions].reverse().map((s) => (
                     <option key={s.date} value={s.date}>
                       {formatDate(s.date)}
-                      {s.date === info.today ? "（今天）" : ""}
-                      {s.rescheduled_from ? `（由 ${formatDate(s.rescheduled_from)} 调课）` : ""}
-                      {s.recorded ? " ✓ 已点名" : s.missing ? " ⚠ 未点名" : ""}
+                      {s.date === info.today ? "（今天/Today）" : ""}
+                      {s.rescheduled_from ? `（由 ${formatDate(s.rescheduled_from)} 调课/Moved）` : ""}
+                      {s.recorded ? " ✓ 已点名/Marked" : s.missing ? " ⚠ 未点名/Not marked" : ""}
                     </option>
                   ))}
                 </select>
@@ -206,14 +208,14 @@ const AttendanceSheet: React.FC = () => {
               <>
                 <input type="date" value={classDate} onChange={(e) => setClassDate(e.target.value)} required />
                 <small style={{ color: "#b45309" }}>
-                  {!info.calendar_ready ? "学校行事历尚未建立，" : "这门课尚未设定上课星期，"}暂时可自由选择日期。
+                  {!info.calendar_ready ? "学校行事历尚未建立，" : "这门课尚未设定上课星期，"}暂时可自由选择日期。 / Any date can be selected for now.
                 </small>
               </>
             )}
           </div>
           {!restricted && recordedDates.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, alignItems: "center", marginBottom: 12 }}>
-              <span style={{ color: "#666", fontSize: 13 }}>已点名的日期：</span>
+              <span style={{ color: "#666", fontSize: 13 }}>已点名的日期 / Marked dates：</span>
               {recordedDates.map((d) => (
                 <button
                   key={d}
@@ -230,18 +232,18 @@ const AttendanceSheet: React.FC = () => {
           <p style={{ color: "#888", fontSize: 13 }}>
             {alreadyRecorded
               ? readOnly
-                ? "以下是这一天的点名纪录。"
-                : "这一天已经点过名，以下是目前的纪录；修改后再次储存即可更新。"
+                ? "以下是这一天的点名纪录。 / Attendance record for this date."
+                : "这一天已经点过名，以下是目前的纪录；修改后再次储存即可更新。 / Already marked; edit and save again to update."
               : readOnly
-                ? "这个日期没有点名纪录。"
-                : "这个日期尚未点名，预设全部「到课」。"}
+                ? "这个日期没有点名纪录。 / No attendance record for this date."
+                : "这个日期尚未点名，预设全部「到课」。 / Not marked yet; everyone defaults to Present."}
           </p>
           <table className="table">
             <thead>
               <tr>
-                <th>学号</th>
-                <th>姓名</th>
-                <th>出勤状态</th>
+                <th>学号/Student ID</th>
+                <th>姓名/Name</th>
+                <th>出勤状态/Status</th>
               </tr>
             </thead>
             <tbody>
@@ -281,7 +283,7 @@ const AttendanceSheet: React.FC = () => {
               disabled={saving || !classDate || (restricted && sessionOptions.length === 0)}
               style={{ marginTop: 12 }}
             >
-              {saving ? "储存中..." : alreadyRecorded ? "更新点名纪录" : "储存点名纪录"}
+              {saving ? "储存中... / Saving..." : alreadyRecorded ? "更新点名纪录 / Update" : "储存点名纪录 / Save"}
             </button>
           )}
         </form>
