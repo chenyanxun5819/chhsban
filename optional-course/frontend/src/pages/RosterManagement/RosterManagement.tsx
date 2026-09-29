@@ -113,7 +113,13 @@ const RosterManagement: React.FC = () => {
     }
   };
 
-  const activeRoster = roster.filter((r) => r.is_active);
+  const activeRoster = roster
+    .filter((r) => r.is_active)
+    .sort(
+      (a, b) =>
+        (a.student_class || "").localeCompare(b.student_class || "", "zh-Hant", { numeric: true }) ||
+        String(a.student_no || a.student_id).localeCompare(String(b.student_no || b.student_id), "zh-Hant", { numeric: true })
+    );
   // 窗口未開放（已關閉）時只能查看，後端也會拒絕任何修改
   const readOnly = course?.window_status !== "open";
 
