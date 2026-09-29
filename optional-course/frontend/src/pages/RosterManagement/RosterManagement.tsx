@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Layout } from "@/components/common/Layout";
+import { CoursePageHeader, Layout } from "@/components/common/Layout";
 import { getCourse } from "@/services/courseService";
 import { listRoster, lookupStudent, addRosterEntry, withdrawRosterEntry } from "@/services/rosterService";
 import type { OptionalCourse, OptionalCourseRoster, StudentRecord } from "@/types";
-import { todayMYT } from "@/utils/calendar";
+import { courseSubtitle, todayMYT } from "@/utils/calendar";
 import RosterBatchImport from "./RosterBatchImport";
 
 const WITHDRAW_ERROR_LABEL: Record<string, string> = {
@@ -125,7 +125,8 @@ const RosterManagement: React.FC = () => {
   const readOnly = course?.window_status !== "open";
 
   return (
-    <Layout title={course ? `名冊管理 - ${course.subject}` : "名冊管理"}>
+    <Layout title={course && readOnly ? "查看名冊" : "名冊管理"}>
+      {course && <CoursePageHeader subject={course.subject} subtitle={courseSubtitle(course)} />}
       {error && <p className="error-text">{error}</p>}
       {loading ? (
         <p>載入中...</p>

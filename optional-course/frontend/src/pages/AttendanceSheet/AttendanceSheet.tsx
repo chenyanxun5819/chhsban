@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Layout } from "@/components/common/Layout";
+import { CoursePageHeader, Layout } from "@/components/common/Layout";
 import { getCourse } from "@/services/courseService";
 import { listRoster } from "@/services/rosterService";
 import { recordAttendance, listAttendance } from "@/services/attendanceService";
@@ -14,7 +14,7 @@ import type {
   OptionalCourseAttendance,
   CourseAttendanceStatus,
 } from "@/types";
-import { WEEKDAY_LABEL, formatDate, todayMYT } from "@/utils/calendar";
+import { courseSubtitle, formatDate, todayMYT } from "@/utils/calendar";
 import { AttendanceOverview, type OverviewCalendar } from "@/components/attendance/AttendanceOverview";
 
 const STATUS_OPTIONS: Array<{ value: CourseAttendanceStatus; label: string }> = [
@@ -152,32 +152,19 @@ const AttendanceSheet: React.FC = () => {
   const missingCount = sessionOptions.filter((s) => s.missing).length;
   const alreadyRecorded = recordsForDate.length > 0;
 
-  const subtitle = course
-    ? [
-        course.course_no,
-        course.teacher_name_cn && `授課老師：${course.teacher_name_cn}`,
-        course.day_of_week &&
-          `每${WEEKDAY_LABEL[course.day_of_week]}${
-            course.time_start ? ` ${course.time_start}${course.time_end ? `-${course.time_end}` : ""}` : ""
-          }`,
-        course.venue,
-      ]
-        .filter(Boolean)
-        .join(" ・ ")
-    : "";
 
   return (
-    <Layout title="點名">
+    <Layout title={readOnly ? "查看點名" : "點名"}>
       {course && (
-        <div className="attendance-page-header">
-          <div>
-            <h2>{course.subject}</h2>
-            <p className="attendance-subtitle">{subtitle}</p>
-          </div>
-          <button type="button" className="btn" onClick={() => setShowOverview((v) => !v)}>
-            {showOverview ? "返回點名" : "查看總覽"}
-          </button>
-        </div>
+        <CoursePageHeader
+          subject={course.subject}
+          subtitle={courseSubtitle(course)}
+          actions={
+            <button type="button" className="btn" onClick={() => setShowOverview((v) => !v)}>
+              {showOverview ? "返回點名" : "查看總覽"}
+            </button>
+          }
+        />
       )}
       {error && <p className="error-text">{error}</p>}
       {success && !showOverview && <p style={{ color: "#166534" }}>{success}</p>}

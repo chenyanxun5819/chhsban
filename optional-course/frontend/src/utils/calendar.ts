@@ -25,3 +25,24 @@ export const formatDate = (date: string): string => {
   const [, m, d] = date.split("-").map(Number);
   return `${m}/${d}（${WEEKDAY_LABEL[weekdayOf(date)].slice(-1)}）`;
 };
+
+// 各頁上半部的課程資訊：編號・授課老師・每週X 時間・地點
+export const courseSubtitle = (course: {
+  course_no?: string;
+  teacher_name_cn?: string;
+  day_of_week?: Weekday;
+  time_start?: string;
+  time_end?: string;
+  venue?: string;
+}): string =>
+  [
+    course.course_no,
+    course.teacher_name_cn && `授課老師：${course.teacher_name_cn}`,
+    course.day_of_week &&
+      `每${WEEKDAY_LABEL[course.day_of_week]}${
+        course.time_start ? ` ${course.time_start}${course.time_end ? `-${course.time_end}` : ""}` : ""
+      }`,
+    course.venue,
+  ]
+    .filter(Boolean)
+    .join(" ・ ");

@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Layout } from "@/components/common/Layout";
+import { CoursePageHeader, Layout } from "@/components/common/Layout";
 import { getCourse } from "@/services/courseService";
 import { listSchedules } from "@/services/scheduleService";
 import { getCourseSessions } from "@/services/calendarService";
 import type { CourseSessionsInfo, OptionalCourse, OptionalCourseSchedule } from "@/types";
-import { WEEKDAY_LABEL, formatDate } from "@/utils/calendar";
+import { WEEKDAY_LABEL, courseSubtitle, formatDate } from "@/utils/calendar";
 
 /**
  * 上課日期表（老師端唯讀）：應點名日期由學校行事曆＋課程上課星期推算。
@@ -34,7 +34,8 @@ const ScheduleManagement: React.FC = () => {
   }, [id]);
 
   return (
-    <Layout title={course ? `上課日期 - ${course.subject}` : "上課日期"}>
+    <Layout title="上課日期">
+      {course && <CoursePageHeader subject={course.subject} subtitle={courseSubtitle(course)} />}
       {error && <p className="error-text">{error}</p>}
 
       {loading || !info ? (

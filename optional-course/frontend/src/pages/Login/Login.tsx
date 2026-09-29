@@ -8,6 +8,8 @@ import {
   loginWithPassword,
   type AuthVerifyResponse,
 } from "@/services/authService";
+import eyeIcon from "@/assets/eye.svg";
+import eyeClosedIcon from "@/assets/eye-closed.svg";
 
 type LoginStep =
   | { kind: "identify" }
@@ -20,6 +22,7 @@ const Login: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPasswordInput] = useState("");
   const [password2, setPassword2] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<LoginStep>({ kind: "identify" });
@@ -174,13 +177,26 @@ const Login: React.FC = () => {
             <p>{step.teacherName}，您好，請輸入密碼。</p>
             <div className="form-row">
               <label htmlFor="password">密碼</label>
-              <input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPasswordInput(e.target.value)}
-                disabled={loading}
-              />
+              <div className="password-input-wrapper">
+                <input
+                  id="password"
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPasswordInput(e.target.value)}
+                  disabled={loading}
+                />
+                <button
+                  type="button"
+                  className="password-toggle-btn"
+                  onClick={() => setShowPassword((v) => !v)}
+                  disabled={loading}
+                  tabIndex={-1}
+                  aria-label={showPassword ? "隱藏密碼" : "顯示密碼"}
+                  title={showPassword ? "隱藏密碼" : "顯示密碼"}
+                >
+                  <img src={showPassword ? eyeClosedIcon : eyeIcon} alt="" />
+                </button>
+              </div>
             </div>
             <button type="submit" className="btn btn--primary" disabled={loading} style={{ width: "100%" }}>
               {loading ? "登入中..." : "登入"}
