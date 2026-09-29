@@ -172,7 +172,6 @@ const RosterManagement: React.FC = () => {
                     <th>學號</th>
                     <th>姓名</th>
                     <th>班級</th>
-                    <th>報名日期</th>
                     {!readOnly && <th></th>}
                   </tr>
                 </thead>
@@ -183,7 +182,6 @@ const RosterManagement: React.FC = () => {
                         <td>{r.student_no || r.student_id}</td>
                         <td>{r.student_name_cn}</td>
                         <td>{r.student_class}</td>
-                        <td>{r.enrollment_date}</td>
                         {!readOnly && (
                           <td>
                             {withdrawing?.rosterId !== r.roster_id && (
@@ -199,7 +197,7 @@ const RosterManagement: React.FC = () => {
                       </tr>
                       {withdrawing?.rosterId === r.roster_id && (
                         <tr>
-                          <td colSpan={5} style={{ background: "#fef2f2" }}>
+                          <td colSpan={4} style={{ background: "#fef2f2" }}>
                             <form onSubmit={handleWithdraw} style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                               <label>退出日期</label>
                               <input
