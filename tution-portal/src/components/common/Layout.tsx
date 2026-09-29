@@ -62,7 +62,8 @@ interface SidebarProps {
   onClose?: () => void;
 }
 
-type NavItem = { path: string; icon: string; label: string };
+// href：站外連結（在新分頁開啟），例如已搬到行政管理站（admin-portal）的選修課管理
+type NavItem = { path: string; icon: string; label: string; href?: string };
 
 // 側邊欄只保留給 super_admin / admin（督察員）/ classroom_manager（教室管理員）使用。
 // 補習班與選修課是兩個獨立系統（各自的 Worker 與資料），側邊欄分組顯示、頁面也各自獨立；
@@ -80,7 +81,14 @@ const ADMIN_NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
   },
   {
     title: "選修課",
-    items: [{ path: "/optional/courses", icon: "🎯", label: "選修課總覽" }],
+    items: [
+      {
+        path: "/optional/courses",
+        icon: "🎯",
+        label: "選修課管理 ↗",
+        href: "https://chhsban-admin.pages.dev/optional/courses",
+      },
+    ],
   },
   {
     title: "共用設定",
@@ -114,8 +122,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
   const { user } = useAuth();
   const visibleNavGroups = getVisibleNavGroups(user?.permission);
 
-  const handleNavClick = (path: string) => {
-    navigate(path);
+  const handleNavClick = (item: NavItem) => {
+    if (item.href) {
+      window.open(item.href, "_blank", "noopener,noreferrer");
+    } else {
+      navigate(item.path);
+    }
     onClose?.();
   };
 
@@ -134,7 +146,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ onClose }) => {
                 <li key={item.path}>
                   <button
                     className={`nav-item ${location.pathname === item.path ? "nav-item--active" : ""}`}
-                    onClick={() => handleNavClick(item.path)}
+                    onClick={() => handleNavClick(item)}
                   >
                     <span className="nav-item__icon">{item.icon}</span>
                     <span className="nav-item__label">{item.label}</span>

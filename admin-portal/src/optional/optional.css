@@ -1,0 +1,175 @@
+/* 選修課管理專屬樣式：一律 oc- 前綴，避免與其他系統的頁面互相影響 */
+
+/* ===== 學校行事曆 ===== */
+
+.oc-cal-layout {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.oc-cal-year {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  user-select: none;
+}
+
+.oc-cal-side {
+  width: 300px;
+  flex-shrink: 0;
+  position: sticky;
+  top: 16px;
+}
+
+.oc-cal-side h4 {
+  margin: 0 0 8px;
+}
+
+.oc-cal-month {
+  background: #fff;
+  border: 1px solid #e2e4e8;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.oc-cal-month__title {
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+
+.oc-cal-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.oc-cal-weekhead {
+  text-align: center;
+  font-size: 11px;
+  color: #888;
+}
+
+.oc-cal-day {
+  text-align: center;
+  font-size: 12px;
+  line-height: 26px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.oc-cal-day--blank {
+  cursor: default;
+}
+
+.oc-cal-day--normal {
+  background: #fff;
+  border-color: #eef0f3;
+}
+
+.oc-cal-day--public {
+  background: #fecaca;
+  color: #7f1d1d;
+}
+
+.oc-cal-day--school_break {
+  background: #fed7aa;
+  color: #7c2d12;
+}
+
+.oc-cal-day--event {
+  background: #ddd6fe;
+  color: #4c1d95;
+}
+
+.oc-cal-day--makeup {
+  background: #bbf7d0;
+  color: #14532d;
+  font-weight: 600;
+}
+
+.oc-cal-day--weekend {
+  background: #e5e7eb;
+  color: #6b7280;
+}
+
+.oc-cal-day--out {
+  color: #c4c7cc;
+  background: #f9fafb;
+}
+
+.oc-cal-day--weekend.oc-cal-day--out {
+  background: #f3f4f6;
+}
+
+.oc-cal-day--today {
+  border-color: #2563eb;
+  font-weight: 700;
+}
+
+.oc-cal-day--selected {
+  outline: 2px solid #2563eb;
+  outline-offset: -1px;
+}
+
+.oc-cal-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 13px;
+  margin: 8px 0 12px;
+  align-items: center;
+}
+
+.oc-cal-legend i {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  margin-right: 4px;
+  vertical-align: -2px;
+  border: 1px solid #e2e4e8;
+}
+
+.oc-cal-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid #eee;
+}
+
+.oc-cal-item small {
+  display: block;
+  color: #888;
+}
+
+@media (max-width: 900px) {
+  .oc-cal-layout {
+    flex-direction: column;
+  }
+
+  .oc-cal-side {
+    width: 100%;
+    position: static;
+  }
+}
+
+.oc-badge--public {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.oc-badge--school_break {
+  background: #ffedd5;
+  color: #9a3412;
+}
+
+.oc-badge--event {
+  background: #ede9fe;
+  color: #5b21b6;
+}

@@ -12,7 +12,6 @@ import AttendanceSheet from "@/pages/AttendanceSheet/AttendanceSheet";
 import RosterManagementPage from "@/pages/RosterManagement/RosterManagement";
 import AttendanceStatsPage from "@/pages/AttendanceStats/AttendanceStats";
 import ClassroomManagement from "@/pages/ClassroomManagement/ClassroomManagement";
-import OptionalCourseAdmin from "@/pages/OptionalCourseAdmin/OptionalCourseAdmin";
 import { useEffect, useState } from "react";
 import { TutionClass } from "@/types";
 import apiClient from "@/utils/api";
@@ -98,8 +97,22 @@ const Dashboard = () => {
 // 督察員（admin）、教室管理員（classroom_manager）是窄範圍角色：無論嘗試進入哪個路由，
 // 一律導回各自唯一有權限的頁面（可能不只一個）；其餘身份（teacher/viewer/super_admin）不受此限制。
 const RESTRICTED_ALLOWED_PATHS: Record<string, string[]> = {
-  admin: ["/admin/course-report", "/admin/course-attendance", "/optional/courses"],
+  admin: ["/admin/course-report", "/admin/course-attendance"],
   classroom_manager: ["/admin/usage"],
+};
+
+// 選修課管理已搬到行政管理站（admin-portal），舊網址 /optional/courses 一律轉過去，避免書籤失效
+const ADMIN_PORTAL_OPTIONAL_URL = "https://chhsban-admin.pages.dev/optional/courses";
+
+const RedirectToAdminPortal: React.FC = () => {
+  useEffect(() => {
+    window.location.replace(ADMIN_PORTAL_OPTIONAL_URL);
+  }, []);
+  return (
+    <div style={{ padding: 24 }}>
+      選修課管理已移到 <a href={ADMIN_PORTAL_OPTIONAL_URL}>行政管理站</a>，正在為您轉址...
+    </div>
+  );
 };
 
 // 受保護的路由組件
@@ -213,15 +226,8 @@ const AppRoutes = () => {
           </ProtectedRoute>
         }
       />
-      {/* 選修課（獨立的 optional-course-system Worker），與補習班的 /admin/:tab 分開 */}
-      <Route
-        path="/optional/courses"
-        element={
-          <ProtectedRoute>
-            <OptionalCourseAdmin />
-          </ProtectedRoute>
-        }
-      />
+      {/* 選修課管理已搬到行政管理站（admin-portal） */}
+      <Route path="/optional/courses" element={<RedirectToAdminPortal />} />
       <Route
         path="/classrooms"
         element={
