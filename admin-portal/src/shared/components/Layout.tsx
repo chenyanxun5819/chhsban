@@ -16,6 +16,8 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
       { label: "各課程開課報表", path: "/tution/course-report" },
       { label: "各課程出席狀況", path: "/tution/course-attendance" },
       { label: "每日教室使用", path: "/tution/usage" },
+      { label: "住宿生點名控管", path: "/tution/boarding-attendance" },
+      { label: "學號出席查詢", path: "/tution/student-attendance" },
     ],
   },
   {
@@ -40,6 +42,7 @@ const PERMISSION_LABEL: Partial<Record<Permission, string>> = {
   super_admin: "（超級管理員）",
   admin: "（督察員，僅可查看）",
   classroom_manager: "（教室管理員）",
+  dorm_supervisor: "（舍監）",
 };
 
 interface LayoutProps {

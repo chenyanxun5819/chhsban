@@ -1,5 +1,5 @@
 // 登入身分：與 tution-portal、optional-course 前端一致（三站共用同一套登入，AUTH_KV）
-export type Permission = "teacher" | "viewer" | "admin" | "super_admin" | "classroom_manager";
+export type Permission = "teacher" | "viewer" | "admin" | "super_admin" | "classroom_manager" | "dorm_supervisor";
 
 export interface AuthUser {
   teacherId: string;
@@ -17,7 +17,8 @@ export interface AuthState {
 }
 
 /**
- * 可以進入管理站的身分：super_admin（全部）、admin（督察員，只能查看）、classroom_manager（教室管理員）。
+ * 可以進入管理站的身分：super_admin（全部）、admin（督察員，只能查看）、classroom_manager（教室管理員）、
+ * dorm_supervisor（舍監：住宿生點名控管、學號出席查詢）。
  * 各自能進哪些頁面見 shared/access.ts。
  */
-export const ADMIN_PERMISSIONS: Permission[] = ["super_admin", "admin", "classroom_manager"];
+export const ADMIN_PERMISSIONS: Permission[] = ["super_admin", "admin", "classroom_manager", "dorm_supervisor"];

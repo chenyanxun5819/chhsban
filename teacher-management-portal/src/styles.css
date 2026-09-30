@@ -405,6 +405,11 @@ html, body {
   color: #22543d;
 }
 
+.permission-badge.dorm_supervisor {
+  background: #e9d8fd;
+  color: #44337a;
+}
+
 .table-actions {
   display: flex;
   gap: 8px;

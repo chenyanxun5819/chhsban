@@ -30,6 +30,13 @@ import { getSemesterInfo } from "./semester";
 import { buildReceiptKey, getReceiptResponse, isAllowedReceiptContentType, isSemesterHalf, type ReceiptRecord } from "./receipt";
 import { ocrReceiptImage } from "./google-vision";
 import { computeCourseReport } from "./course-report";
+import {
+  BOARDING_VIEW_PERMISSIONS,
+  computeBoardingAttendance,
+  computeStudentAttendance,
+  isValidDateString,
+  resolveRosterStudentInfo,
+} from "./boarding-attendance";
 import { logAudit } from "./audit";
 
 interface Env {
@@ -557,6 +564,13 @@ export default {
         return handleAttendance(request, env, session);
       }
 
+      if (
+        pathname.startsWith("/api/v1/boarding-attendance") ||
+        pathname.startsWith("/api/v1/student-attendance")
+      ) {
+        return handleBoardingAttendance(request, env, session);
+      }
+
       if (pathname.startsWith("/api/v1/classrooms") || pathname.startsWith("/api/classrooms")) {
         return handleClassrooms(request, env, session);
       }
@@ -1034,42 +1048,14 @@ async function handleClasses(
       const entries = await kvService.listRosterByClass(classId);
       const studentManager = createStudentKVManager(env.STUDENT_KV);
 
-      // STUDENT_KV 對同一位學生存在兩種 key 慣例：
-      // - student:{student_no} 是原始完整資料（含 gender_boarding / real_class_name）
-      // - student:{student_id} 是後來另一批只含核心欄位的精簡資料（沒有 gender_boarding）
-      // 用 student_id 直接查通常只會查到精簡版。申請當下驗證名單時是用 student_no
-      // 查到完整版並存進 class 的 initial_roster 快照，這裡優先拿那份快照當資料來源。
-      const initialRosterMap = new Map<string, any>(
-        (Array.isArray((tutionClass as any).initial_roster) ? (tutionClass as any).initial_roster : []).map(
-          (s: any) => [s.student_id, s],
-        ),
-      );
-
+      // 學號／真實班級／住宿代碼的來源優先順序見 resolveRosterStudentInfo（STUDENT_KV 有兩種 key 慣例）
       const hydrated = await Promise.all(
         entries.map(async (entry) => {
-          const snapshot = initialRosterMap.get(entry.student_id);
-          const storedGenderBoarding = (entry as any).gender_boarding;
-
-          let genderBoarding = storedGenderBoarding || snapshot?.gender_boarding;
-          let studentNo = (entry as any).student_no || snapshot?.student_no;
-          let realClassName = snapshot?.real_class_name || entry.student_class;
-
-          if (!genderBoarding) {
-            const student: any = await studentManager.getStudent(entry.student_id);
-            genderBoarding = student?.gender_boarding;
-            studentNo = studentNo || student?.student_no;
-            realClassName = student?.real_class_name || realClassName;
-          }
-
+          const info = await resolveRosterStudentInfo(entry, tutionClass, studentManager);
           return {
             roster_id: entry.roster_id,
             class_id: entry.class_id,
-            student_id: entry.student_id,
-            student_no: studentNo || entry.student_id,
-            name_cn: entry.student_name_cn,
-            name_en: entry.student_name_en,
-            real_class_name: realClassName,
-            gender_boarding: genderBoarding || "-",
+            ...info,
             enrollment_date: entry.enrollment_date,
             withdrawal_date: entry.withdrawal_date || null,
             withdrawal_reason: entry.withdrawal_reason || null,
@@ -1758,6 +1744,62 @@ async function handleAttendance(
     return jsonResponse({ error: "Not found" }, 404);
   } catch (error) {
     console.error("Attendance handler error:", error);
+    return jsonResponse({ error: String(error) }, 500);
+  }
+}
+
+/**
+ * 住宿生點名控管、學號出席查詢（唯讀；督察員、超級管理員、舍監可用），計算邏輯見 boarding-attendance.ts
+ *
+ * GET /api/v1/boarding-attendance?date=YYYY-MM-DD - 某日有課的補習班裡住宿生（LH/PH）的點名狀態
+ * GET /api/v1/student-attendance?student_no=XXXXX - 以學號查詢該生所有補習班的出席狀況（不限住宿生）
+ */
+async function handleBoardingAttendance(
+  request: Request,
+  env: Env,
+  session: any,
+): Promise<Response> {
+  if (request.method !== "GET") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+  if (!BOARDING_VIEW_PERMISSIONS.includes(session.permission)) {
+    return jsonResponse({ error: "Forbidden" }, 403);
+  }
+
+  const url = new URL(request.url);
+  const kvService = new TutionKVService(
+    env.TUTION_CLASS_KV,
+    env.TUTION_ROSTER_KV,
+    env.TUTION_ATTENDANCE_KV,
+    env.TUTION_SCHEDULE_KV,
+  );
+  const studentManager = createStudentKVManager(env.STUDENT_KV);
+
+  try {
+    if (url.pathname === "/api/v1/boarding-attendance") {
+      const date = url.searchParams.get("date");
+      if (!isValidDateString(date)) {
+        return jsonResponse({ error: "Invalid or missing query param: date (YYYY-MM-DD)" }, 400);
+      }
+      const result = await computeBoardingAttendance(kvService, studentManager, date);
+      return jsonResponse({ data: result }, 200);
+    }
+
+    if (url.pathname === "/api/v1/student-attendance") {
+      const studentNo = (url.searchParams.get("student_no") || "").trim();
+      if (!studentNo) {
+        return jsonResponse({ error: "Missing required query param: student_no" }, 400);
+      }
+      const result = await computeStudentAttendance(kvService, studentManager, env.STUDENT_KV, studentNo);
+      if (!result.student && result.classes.length === 0) {
+        return jsonResponse({ error: "Student not found" }, 404);
+      }
+      return jsonResponse({ data: result }, 200);
+    }
+
+    return jsonResponse({ error: "Not found" }, 404);
+  } catch (error) {
+    console.error("Boarding attendance handler error:", error);
     return jsonResponse({ error: String(error) }, 500);
   }
 }

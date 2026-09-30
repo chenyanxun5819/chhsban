@@ -109,8 +109,8 @@ const ADMIN_TAB_TO_PORTAL_PATH: Record<string, string> = {
   classrooms: "/settings/classrooms",
 };
 
-// 督察員、教室管理員在本站沒有可用的頁面，進任何頁面都直接轉到管理站
-const ADMIN_ONLY_PERMISSIONS = ["admin", "classroom_manager"];
+// 督察員、教室管理員、舍監在本站沒有可用的頁面，進任何頁面都直接轉到管理站
+const ADMIN_ONLY_PERMISSIONS = ["admin", "classroom_manager", "dorm_supervisor"];
 
 const RedirectToAdminPortal: React.FC<{ path?: string }> = ({ path = "/" }) => {
   const url = `${ADMIN_PORTAL_URL}${path}`;
@@ -143,7 +143,7 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/login" replace />;
   }
 
-  // 督察員、教室管理員一律轉到管理站；超級管理員只有首頁轉過去，
+  // 督察員、教室管理員、舍監一律轉到管理站；超級管理員只有首頁轉過去，
   // 從管理站「已開課管理」點過來的名冊／排課／出席頁仍在本站開啟
   if (user && (ADMIN_ONLY_PERMISSIONS.includes(user.permission) || (user.permission === "super_admin" && location.pathname === "/"))) {
     return <RedirectToAdminPortal />;

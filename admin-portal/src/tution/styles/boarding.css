@@ -1,0 +1,155 @@
+/* 住宿生點名控管、學號出席查詢（pages/BoardingAttendance.tsx、pages/StudentAttendance.tsx） */
+
+.tu-scope .ba-weekday {
+  color: #555;
+  font-size: 14px;
+}
+
+.tu-scope .ba-input {
+  padding: 6px 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 14px;
+  width: 140px;
+}
+
+.tu-scope .ba-hint {
+  margin: 4px 0 12px;
+  color: #666;
+  font-size: 13px;
+}
+
+.tu-scope .ba-empty {
+  padding: 24px 0;
+  color: #666;
+}
+
+.tu-scope .ba-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 8px 0 14px;
+  font-size: 14px;
+}
+
+.tu-scope .ba-summary__item {
+  padding: 2px 10px;
+  border-radius: 12px;
+  background: #f1f3f5;
+}
+
+.tu-scope .ba-summary__item--present { color: #1e7e34; }
+.tu-scope .ba-summary__item--late { color: #c05f00; }
+.tu-scope .ba-summary__item--absent { color: #c82333; }
+.tu-scope .ba-summary__item--excuse { color: #5a32a3; }
+.tu-scope .ba-summary__item--unmarked { color: #856404; background: #fff3cd; font-weight: 600; }
+
+.tu-scope .ba-student {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 14px;
+  margin: 12px 0 16px;
+  padding: 12px 16px;
+  border-radius: 6px;
+  background: #f8f9fa;
+  font-size: 15px;
+}
+
+.tu-scope .ba-group {
+  margin-bottom: 20px;
+  border: 1px solid #e3e6ea;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.tu-scope .ba-group__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 12px;
+  padding: 10px 14px;
+  background: #f8f9fa;
+  border-bottom: 1px solid #e3e6ea;
+}
+
+.tu-scope .ba-group__title {
+  margin: 0;
+  font-size: 16px;
+}
+
+.tu-scope .ba-group__meta {
+  color: #666;
+  font-size: 13px;
+}
+
+.tu-scope .ba-group .ba-summary {
+  margin: 10px 14px 4px;
+}
+
+.tu-scope .ba-badge {
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+}
+
+.tu-scope .ba-badge--info { background: #d1ecf1; color: #0c5460; }
+.tu-scope .ba-badge--muted { background: #e9ecef; color: #495057; }
+
+.tu-scope .ba-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.tu-scope .ba-table th,
+.tu-scope .ba-table td {
+  padding: 7px 14px;
+  text-align: left;
+  border-bottom: 1px solid #f0f0f0;
+  white-space: nowrap;
+}
+
+.tu-scope .ba-table th {
+  color: #555;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.tu-scope .ba-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.tu-scope .ba-row--muted td {
+  color: #999;
+}
+
+.tu-scope .ba-tag {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 13px;
+}
+
+.tu-scope .ba-tag--unmarked { background: #fff3cd; color: #856404; font-weight: 600; }
+.tu-scope .ba-tag--cancelled,
+.tu-scope .ba-tag--rescheduled,
+.tu-scope .ba-tag--upcoming,
+.tu-scope .ba-tag--off_roster { background: #e9ecef; color: #6c757d; }
+
+/* 手機：表格可橫向捲動，英文姓名欄隱藏以免太寬 */
+@media (max-width: 767px) {
+  .tu-scope .ba-group {
+    overflow-x: auto;
+  }
+
+  .tu-scope .ba-table th,
+  .tu-scope .ba-table td {
+    padding: 6px 8px;
+  }
+
+  .tu-scope .ba-col-en {
+    display: none;
+  }
+}

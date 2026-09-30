@@ -1,6 +1,6 @@
 // 補習班管理的型別：取自 tution-portal/src/types/index.ts（2026-09-29 搬入管理站）
 
-export type Permission = "teacher" | "viewer" | "admin" | "super_admin" | "classroom_manager";
+export type Permission = "teacher" | "viewer" | "admin" | "super_admin" | "classroom_manager" | "dorm_supervisor";
 
 export interface AuthUser {
   teacherId: string;

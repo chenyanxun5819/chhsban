@@ -2,7 +2,8 @@ import type { Permission } from "@/shared/types";
 
 /**
  * 各頁面可進入的身分（路由守衛與側邊欄共用同一份，避免兩邊不一致）。
- * 與原 tution-portal 規則一致：督察員只能看報表、出席與選修課；教室管理員只能看每日教室使用。
+ * 與原 tution-portal 規則一致：督察員只能看報表、出席與選修課；教室管理員只能看每日教室使用；
+ * 舍監只能看住宿生點名控管與學號出席查詢。
  * 能不能「修改」由各 Worker 把關，前端只負責隱藏按鈕。
  */
 export const PAGE_ACCESS: Record<string, Permission[]> = {
@@ -11,6 +12,8 @@ export const PAGE_ACCESS: Record<string, Permission[]> = {
   "/tution/course-report": ["super_admin", "admin"],
   "/tution/course-attendance": ["super_admin", "admin"],
   "/tution/usage": ["super_admin", "classroom_manager"],
+  "/tution/boarding-attendance": ["super_admin", "admin", "dorm_supervisor"],
+  "/tution/student-attendance": ["super_admin", "admin", "dorm_supervisor"],
   "/optional/courses": ["super_admin", "admin"],
   "/optional/calendar": ["super_admin", "admin"],
   "/optional/attendance": ["super_admin", "admin"],
@@ -24,6 +27,7 @@ export const HOME_BY_PERMISSION: Partial<Record<Permission, string>> = {
   super_admin: "/tution/approvals",
   admin: "/optional/courses",
   classroom_manager: "/tution/usage",
+  dorm_supervisor: "/tution/boarding-attendance",
 };
 
 export function canAccess(path: string, permission: Permission | undefined): boolean {

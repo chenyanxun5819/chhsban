@@ -278,6 +278,7 @@ export class UIManager {
     const labels: Record<string, string> = {
       teacher: "教師",
       classroom_manager: "教室管理員",
+      dorm_supervisor: "舍監",
       admin: "督察員",
       super_admin: "超級管理員",
     };

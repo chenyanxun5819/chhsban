@@ -9,6 +9,8 @@ import Courses from "@/tution/pages/Courses";
 import CourseReport from "@/tution/pages/CourseReport";
 import CourseAttendance from "@/tution/pages/CourseAttendance";
 import Usage from "@/tution/pages/Usage";
+import BoardingAttendance from "@/tution/pages/BoardingAttendance";
+import StudentAttendance from "@/tution/pages/StudentAttendance";
 import CourseList from "@/optional/pages/CourseList";
 import Calendar from "@/optional/pages/Calendar";
 import AttendanceTracking from "@/optional/pages/AttendanceTracking";
@@ -18,7 +20,7 @@ import Teachers from "@/settings/pages/Teachers";
 import PasswordReset from "@/settings/pages/PasswordReset";
 import Classrooms from "@/settings/pages/Classrooms";
 
-// 行政管理站：super_admin（全部）、admin（督察員，只能查看）、classroom_manager（教室管理員）。
+// 行政管理站：super_admin（全部）、admin（督察員，只能查看）、classroom_manager（教室管理員）、dorm_supervisor（舍監）。
 // 路由依系統分前綴：/tution/*（補習班）、/optional/*（選修課）、/settings/*（共用設定）；
 // 每頁可進入的身分見 shared/access.ts。
 
@@ -87,6 +89,8 @@ const AppRoutes = () => (
     <Route path="/tution/course-report" element={page(<CourseReport />)} />
     <Route path="/tution/course-attendance" element={page(<CourseAttendance />)} />
     <Route path="/tution/usage" element={page(<Usage />)} />
+    <Route path="/tution/boarding-attendance" element={page(<BoardingAttendance />)} />
+    <Route path="/tution/student-attendance" element={page(<StudentAttendance />)} />
 
     {/* 選修課（optional-course-system Worker） */}
     <Route path="/optional/courses" element={page(<CourseList />)} />

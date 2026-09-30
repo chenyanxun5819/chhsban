@@ -25,7 +25,7 @@ const DAY_NAME_TO_INDEX: Record<string, number> = {
   saturday: 6,
 };
 
-interface GeneratedScheduleRow {
+export interface GeneratedScheduleRow {
   scheduled_date: string;
   actual_date: string;
   status: "held" | "cancelled" | "rescheduled";
@@ -48,8 +48,11 @@ function toDateString(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-/** 依 day_of_week + start_date 產生完整的上課日清單，並套用例外記錄（見 scheduleGenerator.ts 同名函式）。 */
-function generateScheduleRows(params: {
+/**
+ * 依 day_of_week + start_date 產生完整的上課日清單，並套用例外記錄（見 scheduleGenerator.ts 同名函式）。
+ * 住宿生點名控管、學號查詢（boarding-attendance.ts）也共用這個函式。
+ */
+export function generateScheduleRows(params: {
   dayOfWeek: string;
   startDate: string;
   endDate?: string;

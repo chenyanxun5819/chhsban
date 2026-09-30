@@ -43,6 +43,34 @@ export function dedupeToLatestAttendance(records: TutionAttendance[]): TutionAtt
   return Array.from(latestByGroup.values());
 }
 
+/** 出勤紀錄寫進 KV metadata 的摘要欄位（見 recordAttendance / listAllAttendanceSummaries） */
+interface AttendanceKeyMetadata {
+  class_id: string;
+  student_id: string;
+  class_date: string;
+  status: string;
+  recorded_at: number;
+  absence_reason?: string;
+}
+
+// KV metadata 上限 1024 bytes（序列化後）；中文一字 3 bytes，保守以字元數 300 為限，超過就不寫 metadata
+const ATTENDANCE_METADATA_MAX_LENGTH = 300;
+
+/** 以 cursor 分頁列出某前綴的所有 key（KV list 單次最多 1000 筆） */
+async function listAllKeys<M = unknown>(
+  kv: KVNamespace,
+  prefix: string,
+): Promise<Array<{ name: string; metadata?: M }>> {
+  const keys: Array<{ name: string; metadata?: M }> = [];
+  let cursor: string | undefined;
+  do {
+    const result: any = await kv.list<M>({ prefix, cursor });
+    keys.push(...result.keys);
+    cursor = result.list_complete ? undefined : result.cursor;
+  } while (cursor);
+  return keys;
+}
+
 // 系統設定用的保留 key，不會被 "class_" 前綴的清單掃描掃到
 const LAST_TEACHING_DATE_KEY = "system:last_teaching_date";
 // 「各課程開課報表」快取，每日凌晨由 Cron Trigger 重新計算並整批存入，前端一律讀這份快照，
@@ -161,8 +189,9 @@ export class TutionKVService implements TutionKVManager {
   }
 
   async listAllRoster(): Promise<TutionRoster[]> {
-    const result = await this.rosterKV.list({ prefix: "roster_" });
-    const roster = await Promise.all(result.keys.map((item: any) => this.getRosterEntry(item.name)));
+    // 名單每學期都會累積，KV list 單次最多 1000 筆，用 cursor 掃到底
+    const keys = await listAllKeys(this.rosterKV, "roster_");
+    const roster = await Promise.all(keys.map((item) => this.getRosterEntry(item.name)));
     return roster.filter((r: any): r is TutionRoster => r !== null);
   }
 
@@ -242,7 +271,23 @@ export class TutionKVService implements TutionKVManager {
       attendance_id: attendanceId,
     };
 
-    await this.attendanceKV.put(attendanceId, JSON.stringify(attendance));
+    // 同時把查詢用得到的欄位寫進 KV metadata（同一次 PUT，不額外耗額度），
+    // listAllAttendanceSummaries 只要 list 就拿得到，不必逐筆 get
+    const metadata: AttendanceKeyMetadata = {
+      class_id: attendance.class_id,
+      student_id: attendance.student_id,
+      class_date: attendance.class_date,
+      status: attendance.status,
+      recorded_at: attendance.recorded_at,
+      ...(attendance.absence_reason ? { absence_reason: attendance.absence_reason } : {}),
+    };
+    const fitsMetadata = JSON.stringify(metadata).length <= ATTENDANCE_METADATA_MAX_LENGTH;
+
+    await this.attendanceKV.put(
+      attendanceId,
+      JSON.stringify(attendance),
+      fitsMetadata ? { metadata } : undefined,
+    );
     return attendance;
   }
 
@@ -308,6 +353,26 @@ export class TutionKVService implements TutionKVManager {
     } while (cursor);
 
     return records;
+  }
+
+  /**
+   * 列出全系統出勤紀錄（不含 recorded_by），供住宿生點名控管、學號查詢使用。
+   * 有 KV metadata 的紀錄直接從 list 結果組出來，只有舊紀錄（加 metadata 之前寫入的）
+   * 或理由太長沒寫進 metadata 的才逐筆 get——出勤是資料量最大的表，逐筆讀很快會碰到
+   * Worker 單次請求的 KV 操作上限。
+   */
+  async listAllAttendanceSummaries(): Promise<TutionAttendance[]> {
+    const keys = await listAllKeys<AttendanceKeyMetadata>(this.attendanceKV, "attendance_");
+    const records = await Promise.all(
+      keys.map(async (item): Promise<TutionAttendance | null> => {
+        const meta = item.metadata;
+        if (meta && meta.class_id && meta.student_id && meta.class_date && meta.status) {
+          return { attendance_id: item.name, ...meta } as TutionAttendance;
+        }
+        return this.getAttendanceRecord(item.name);
+      }),
+    );
+    return records.filter((r): r is TutionAttendance => r !== null);
   }
 
   // 不再用於 bulk 點名流程（該流程已改為新增制，見 index.ts 的 handleAttendance）；
