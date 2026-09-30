@@ -728,12 +728,15 @@ async function handleRoster(
       const roster = await service.getRoster(course.course_id);
       // 附上學生名錄的在校狀態（active／left／excluded），讓老師知道名冊裡有學生已離校；
       // 名冊本身的姓名、班級是加入當時的快照，不改
-      const statuses = await Promise.all(
-        roster.map(async (r) => studentStatus(await findStudentByNo(env.STUDENT_KV, r.student_no))),
-      );
+      // gender_boarding（L／LH／P／PH）也取自學生名錄，給行政端學生總覽統計用
+      const students = await Promise.all(roster.map((r) => findStudentByNo(env.STUDENT_KV, r.student_no)));
       return jsonResponse({
         success: true,
-        data: roster.map((r, i) => ({ ...r, student_status: statuses[i] })),
+        data: roster.map((r, i) => ({
+          ...r,
+          student_status: studentStatus(students[i]),
+          gender_boarding: students[i]?.gender_boarding || "-",
+        })),
       });
     }
 

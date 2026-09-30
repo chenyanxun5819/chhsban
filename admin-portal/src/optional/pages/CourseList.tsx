@@ -463,6 +463,11 @@ const CourseList: React.FC = () => {
                           </button>
                         )}
                         {course.window_status !== "pending" && (
+                          <Link className="btn btn--small" to={`/optional/courses/${course.course_id}/roster`}>
+                            學生總覽
+                          </Link>
+                        )}
+                        {course.window_status !== "pending" && (
                           <Link className="btn btn--small" to={`/optional/courses/${course.course_id}/attendance`}>
                             點名總覽
                           </Link>

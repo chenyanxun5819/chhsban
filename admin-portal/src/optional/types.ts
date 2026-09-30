@@ -66,6 +66,9 @@ export interface OptionalCourseRoster {
   withdrawal_date?: string;
   withdrawal_reason?: string;
   is_active: boolean;
+  /** 以下兩欄由 worker 讀名冊時從學生名錄帶入 */
+  student_status?: "active" | "left" | "excluded" | null;
+  gender_boarding?: string; // L／LH／P／PH
 }
 
 export type CourseAttendanceStatus = "present" | "absent" | "late" | "excuse";

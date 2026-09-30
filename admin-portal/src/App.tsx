@@ -20,6 +20,7 @@ import AttendanceTracking from "@/optional/pages/AttendanceTracking";
 import CourseSchedule from "@/optional/pages/CourseSchedule";
 import OptionalCourseAttendance from "@/optional/pages/CourseAttendance";
 import OptionalCourseReport from "@/optional/pages/CourseReport";
+import OptionalCourseRoster from "@/optional/pages/CourseRoster";
 import Teachers from "@/settings/pages/Teachers";
 import PasswordReset from "@/settings/pages/PasswordReset";
 import Classrooms from "@/settings/pages/Classrooms";
@@ -110,6 +111,7 @@ const AppRoutes = () => (
 
     {/* 選修課（optional-course-system Worker） */}
     <Route path="/optional/courses" element={page(<CourseList />)} />
+    <Route path="/optional/courses/:id/roster" element={page(<OptionalCourseRoster />, "/optional/courses")} />
     <Route path="/optional/courses/:id/schedule" element={page(<CourseSchedule />, "/optional/courses")} />
     <Route path="/optional/courses/:id/attendance" element={page(<OptionalCourseAttendance />, "/optional/courses")} />
     <Route path="/optional/calendar" element={page(<Calendar />)} />
