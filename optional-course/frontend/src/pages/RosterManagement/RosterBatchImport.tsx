@@ -105,7 +105,12 @@ const RosterBatchImport: React.FC<Props> = ({ courseId, onAdded }) => {
       setMessage(t("batch.added", { count: entries.length }));
       reset();
     } catch (err: any) {
-      setError(err.response?.data?.error || t("batch.failed"));
+      const data = err.response?.data;
+      setError(
+        data?.error === "COURSE_FULL"
+          ? t("roster.courseFull", { max: data.max_students })
+          : data?.error || t("batch.failed"),
+      );
     } finally {
       setBusy(false);
     }

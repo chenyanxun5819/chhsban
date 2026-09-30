@@ -11,6 +11,7 @@ import RosterBatchImport from "./RosterBatchImport";
 const WITHDRAW_ERROR_KEY: Record<string, string> = {
   MISSING_WITHDRAWAL_REASON: "roster.reasonRequired",
   INVALID_WITHDRAWAL_DATE: "roster.invalidWithdrawDate",
+  WITHDRAWAL_BEFORE_ENROLLMENT: "roster.withdrawBeforeEnroll",
 };
 
 const RosterManagement: React.FC = () => {
@@ -90,6 +91,8 @@ const RosterManagement: React.FC = () => {
         setError(t("roster.alreadyInRoster"));
       } else if (code === "STUDENT_LEFT_SCHOOL") {
         setError(t("roster.studentLeftSchool"));
+      } else if (code === "COURSE_FULL") {
+        setError(t("roster.courseFull", { max: err.response?.data?.max_students }));
       } else {
         setError(code || t("roster.addFailed"));
       }

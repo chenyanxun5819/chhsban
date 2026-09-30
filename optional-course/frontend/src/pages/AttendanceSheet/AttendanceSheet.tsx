@@ -23,6 +23,8 @@ const STATUS_OPTIONS: CourseAttendanceStatus[] = ["present", "absent", "late", "
 const ERROR_KEY: Record<string, string> = {
   NOT_A_SESSION_DATE: "attendance.notSessionDate",
   COURSE_NOT_OPEN: "attendance.courseNotOpen",
+  FUTURE_DATE: "attendance.futureDate",
+  STUDENT_NOT_ON_ROSTER: "attendance.notOnRoster",
 };
 
 /**

@@ -29,6 +29,7 @@ import {
   CourseScheduleStatus,
   CourseAttendanceStatus,
   type OptionalCourse,
+  type OptionalCourseRoster,
   type SchoolCalendar,
   type SchoolHoliday,
   type SchoolMakeupDay,
@@ -114,21 +115,9 @@ async function handleAuthVerify(request: Request, env: Env): Promise<Response> {
     }
 
     const email = String(body.email).trim().toLowerCase();
-    const emailKey = `email:${email}`;
-    const teacherIdFromIndex = await env.TEACHER_KV.get(emailKey);
 
-    const teacherManager = createTeacherKVManager(env.TEACHER_KV);
-    let teacher: TeacherRecord | null = null;
-
-    if (teacherIdFromIndex) {
-      teacher = await teacherManager.getTeacher(teacherIdFromIndex);
-    } else {
-      const allTeachers = await teacherManager.getAllTeachers();
-      teacher = allTeachers.find((t) => t.email.toLowerCase() === email) || null;
-      if (teacher) {
-        await env.TEACHER_KV.put(emailKey, teacher.teacher_id);
-      }
-    }
+    // 讀整份 email 對照表（1 次 KV 讀取），不掃描全部教師，見 kv-utils 的 findTeacherByEmail
+    const teacher = await createTeacherKVManager(env.TEACHER_KV).findTeacherByEmail(email);
 
     if (!teacher) {
       return jsonResponse({ error: "Email not registered in system" }, 401);
@@ -606,12 +595,24 @@ type RosterBatchStatus = "ok" | "added" | "already_in_roster" | "not_found" | "l
  * dry_run=true 只核對學號、回報每筆結果（前端預覽用）；false 才實際把狀態為 ok 的學生寫入名冊。
  * 同一份清單內的重複學號只算第一次，後面的標記為 duplicate_in_file。
  */
+/** 課程有設定人數上限時，加入 adding 人後不能超過上限；超過回傳錯誤 Response */
+function checkCapacity(course: OptionalCourse, roster: OptionalCourseRoster[], adding: number): Response | null {
+  const max = Number(course.max_students);
+  if (!Number.isFinite(max) || max <= 0 || adding === 0) return null;
+  const active = roster.filter((r) => r.is_active).length;
+  if (active + adding > max) {
+    return jsonResponse({ error: "COURSE_FULL", max_students: max, active_count: active, adding }, 409);
+  }
+  return null;
+}
+
 async function handleRosterBatch(
   request: Request,
   env: Env,
   service: OptionalCourseService,
-  courseId: string,
+  course: OptionalCourse,
 ): Promise<Response> {
+  const courseId = course.course_id;
   const body = (await request.json().catch(() => ({}))) as {
     student_nos?: unknown;
     dry_run?: boolean;
@@ -687,6 +688,9 @@ async function handleRosterBatch(
     results.push({ ...info, status: "added" });
   }
 
+  const capacityError = checkCapacity(course, existingRoster, toAdd.length);
+  if (capacityError) return capacityError;
+
   if (toAdd.length > 0) {
     const entries = await service.addRosterEntries(courseId, toAdd.map((t) => t.item));
     toAdd.forEach((t, i) => {
@@ -717,7 +721,7 @@ async function handleRoster(
     if (course.window_status !== CourseWindowStatus.OPEN) {
       return jsonResponse({ error: "COURSE_NOT_OPEN" }, 409);
     }
-    return handleRosterBatch(request, env, service, course.course_id);
+    return handleRosterBatch(request, env, service, course);
   }
 
   if (!rosterId) {
@@ -769,6 +773,8 @@ async function handleRoster(
       if (alreadyEnrolled) {
         return jsonResponse({ error: "STUDENT_ALREADY_IN_ROSTER" }, 409);
       }
+      const capacityError = checkCapacity(course, existingRoster, 1);
+      if (capacityError) return capacityError;
 
       const [entry] = await service.addRosterEntries(course.course_id, [
         {
@@ -799,6 +805,10 @@ async function handleRoster(
     const withdrawalDate = body.withdrawal_date || todayMYT();
     if (!isValidDate(withdrawalDate) || withdrawalDate > todayMYT()) {
       return jsonResponse({ error: "INVALID_WITHDRAWAL_DATE" }, 400);
+    }
+    const entry = (await service.getRoster(course.course_id)).find((r) => r.roster_id === rosterId);
+    if (entry?.enrollment_date && withdrawalDate < entry.enrollment_date) {
+      return jsonResponse({ error: "WITHDRAWAL_BEFORE_ENROLLMENT" }, 400);
     }
     const updated = await service.withdrawRosterEntry(course.course_id, rosterId, reason, withdrawalDate);
     if (!updated) {
@@ -925,6 +935,31 @@ async function handleAttendance(
     };
     if (!isValidDate(body.class_date) || !Array.isArray(body.records) || body.records.length === 0) {
       return jsonResponse({ error: "Missing class_date or records field" }, 400);
+    }
+    const classDate = body.class_date as string;
+    if (classDate > todayMYT()) {
+      return jsonResponse({ error: "FUTURE_DATE" }, 400);
+    }
+
+    // 狀態值必須合法；學生當天必須在名冊上（加入日 ≤ 上課日，且未退出或退出日晚於上課日）
+    const validStatuses = new Set<string>(Object.values(CourseAttendanceStatus));
+    const invalid = body.records.filter((r) => !r?.student_id || !validStatuses.has(r.status));
+    if (invalid.length > 0) {
+      return jsonResponse({ error: "INVALID_RECORD", records: invalid }, 400);
+    }
+    const roster = await service.getRoster(course.course_id);
+    const enrolled = new Set(
+      roster
+        .filter(
+          (r) =>
+            (!r.enrollment_date || r.enrollment_date <= classDate) &&
+            (!r.withdrawal_date || r.withdrawal_date > classDate),
+        )
+        .map((r) => r.student_id),
+    );
+    const notEnrolled = body.records.filter((r) => !enrolled.has(r.student_id)).map((r) => r.student_id);
+    if (notEnrolled.length > 0) {
+      return jsonResponse({ error: "STUDENT_NOT_ON_ROSTER", student_ids: notEnrolled }, 400);
     }
 
     // 只能點「應點名日期」；行事曆尚未建立或課程未設定上課星期時不擋，避免上線初期卡住老師
