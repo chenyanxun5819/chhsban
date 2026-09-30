@@ -231,13 +231,20 @@
   background: white;
   text-align: left !important;
   font-weight: 600;
-  width: 110px;
+  width: 150px;
   padding: 0.3rem 0.4rem;
+}
+
+.oc-att-matrix-student-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .oc-att-matrix-student-name {
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .oc-att-matrix-student-name--withdrawn {
@@ -254,7 +261,7 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  margin-top: 0.15rem;
+  flex-shrink: 0;
   font-weight: 400;
 }
 

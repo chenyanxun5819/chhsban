@@ -331,12 +331,18 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
             {roster.map((student, rowIndex) => (
               <tr key={student.student_id}>
                 <td className="attendance-matrix-student-col" style={studentColStyle}>
-                  <div
-                    className={`attendance-matrix-student-name${
-                      student.is_active ? "" : " attendance-matrix-student-name--withdrawn"
-                    }`}
-                  >
-                    {student.name_cn}
+                  <div className="attendance-matrix-student-line">
+                    <div
+                      className={`attendance-matrix-student-name${
+                        student.is_active ? "" : " attendance-matrix-student-name--withdrawn"
+                      }`}
+                    >
+                      {student.name_cn}
+                    </div>
+                    <div className="attendance-matrix-student-meta">
+                      <span className="attendance-matrix-student-no">{student.student_no}</span>
+                      <span className="attendance-matrix-student-class">{student.real_class_name}</span>
+                    </div>
                   </div>
                   {!student.is_active && (
                     <div className="attendance-matrix-withdrawn">
@@ -345,10 +351,6 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
                         : t("roster.statusWithdrawn")}
                     </div>
                   )}
-                  <div className="attendance-matrix-student-meta">
-                    <span className="attendance-matrix-student-no">{student.student_no}</span>
-                    <span className="attendance-matrix-student-class">{student.real_class_name}</span>
-                  </div>
                 </td>
                 {visibleColumns.map((col) => {
                   const date = col.date;

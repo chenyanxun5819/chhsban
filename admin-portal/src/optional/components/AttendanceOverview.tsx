@@ -303,22 +303,24 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
             {students.map((student, rowIndex) => (
               <tr key={student.roster_id}>
                 <td className="oc-att-matrix-student-col" style={studentColStyle}>
-                  <div
-                    className={`oc-att-matrix-student-name${student.is_active ? "" : " oc-att-matrix-student-name--withdrawn"}`}
-                  >
-                    {student.student_name_cn || student.student_name_en}
+                  <div className="oc-att-matrix-student-line">
+                    <div
+                      className={`oc-att-matrix-student-name${student.is_active ? "" : " oc-att-matrix-student-name--withdrawn"}`}
+                    >
+                      {student.student_name_cn || student.student_name_en}
+                    </div>
+                    <div className="oc-att-matrix-student-meta">
+                      <span className="oc-att-matrix-student-no">{student.student_no}</span>
+                      {student.student_class && (
+                        <span className="oc-att-matrix-student-class">{student.student_class}</span>
+                      )}
+                    </div>
                   </div>
                   {!student.is_active && (
                     <div className="oc-att-matrix-withdrawn">
                       {student.withdrawal_date ? `${formatDate(student.withdrawal_date)} 退出` : "已退出"}
                     </div>
                   )}
-                  <div className="oc-att-matrix-student-meta">
-                    <span className="oc-att-matrix-student-no">{student.student_no}</span>
-                    {student.student_class && (
-                      <span className="oc-att-matrix-student-class">{student.student_class}</span>
-                    )}
-                  </div>
                 </td>
                 {visibleDates.map((d) => {
                   const special = specialDays.get(d);

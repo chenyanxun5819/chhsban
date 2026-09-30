@@ -219,13 +219,20 @@
   font-weight: 600;
   /* 桌機預設寬度；手機模式改由 inline style 覆寫成百分比（見 studentColStyle）。
      table-layout:fixed 只認 width，故意不設 min/max-width，避免夾住 inline 覆寫的值。 */
-  width: 76px;
+  width: 150px;
   padding: 0.3rem 0.4rem;
+}
+
+.tu-scope .attendance-matrix-student-line {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
 }
 
 .tu-scope .attendance-matrix-student-name {
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
 
 .tu-scope .attendance-matrix-student-name--withdrawn {
@@ -242,7 +249,7 @@
   display: flex;
   align-items: center;
   gap: 0.25rem;
-  margin-top: 0.15rem;
+  flex-shrink: 0;
   font-weight: 400;
 }
 
