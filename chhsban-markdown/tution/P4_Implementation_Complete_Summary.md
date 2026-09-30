@@ -406,7 +406,7 @@ d:\chhsban\
 # 1. 設置 Secret
 cd d:\chhsban\chhsban-tution
 wrangler secret put GOOGLE_SHEETS_API_KEY --env production
-# 輸入：AIzaSyBin2EW-i294Q7GvzZimZYddx3Y33yR7_A
+# 輸入：<已移除，改用 wrangler secret>
 
 # 2. 部署
 wrangler deploy --env production

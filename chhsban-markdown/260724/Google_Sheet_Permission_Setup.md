@@ -62,7 +62,7 @@ wrangler secret list
 ```bash
 # 設置 API 密鑰（部署時需要）
 wrangler secret put GOOGLE_SHEETS_API_KEY --env production
-# 輸入: AIzaSyBin2EW-i294Q7GvzZimZYddx3Y33yR7_A
+# 輸入: <已移除，改用 wrangler secret>
 ```
 
 ---

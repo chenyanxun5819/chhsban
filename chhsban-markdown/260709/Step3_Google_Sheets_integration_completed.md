@@ -123,7 +123,7 @@ wrangler secret put GOOGLE_SHEETS_API_KEY --env production
 
 出現提示時，貼上你的 API Key：
 ```
-AIzaSyBin2EW-i294Q7GvzZimZYddx3Y33yR7_A
+<已移除，改用 wrangler secret>
 ```
 
 ---

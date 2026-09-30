@@ -30,7 +30,7 @@ cd d:\chhsban\chhsban-tution
 wrangler secret put GOOGLE_SHEETS_API_KEY --env production
 
 # 系統會提示輸入，複製以下內容：
-AIzaSyBin2EW-i294Q7GvzZimZYddx3Y33yR7_A
+<已移除，改用 wrangler secret>
 ```
 
 ### Step 2: 部署到 Cloudflare Workers
