@@ -240,8 +240,11 @@
   text-overflow: ellipsis;
 }
 
+.oc-att-matrix-student-name--withdrawn {
+  color: #aaa;
+}
+
 .oc-att-matrix-withdrawn {
-  margin-left: 4px;
   font-size: 0.65rem;
   font-weight: 400;
   color: #b45309;

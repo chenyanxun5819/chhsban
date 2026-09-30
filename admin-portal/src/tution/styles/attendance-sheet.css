@@ -228,6 +228,16 @@
   text-overflow: ellipsis;
 }
 
+.tu-scope .attendance-matrix-student-name--withdrawn {
+  color: #aaa;
+}
+
+.tu-scope .attendance-matrix-withdrawn {
+  font-size: 0.65rem;
+  font-weight: 400;
+  color: #b45309;
+}
+
 .tu-scope .attendance-matrix-student-meta {
   display: flex;
   align-items: center;

@@ -331,7 +331,20 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
             {roster.map((student, rowIndex) => (
               <tr key={student.student_id}>
                 <td className="attendance-matrix-student-col" style={studentColStyle}>
-                  <div className="attendance-matrix-student-name">{student.name_cn}</div>
+                  <div
+                    className={`attendance-matrix-student-name${
+                      student.is_active ? "" : " attendance-matrix-student-name--withdrawn"
+                    }`}
+                  >
+                    {student.name_cn}
+                  </div>
+                  {!student.is_active && (
+                    <div className="attendance-matrix-withdrawn">
+                      {student.withdrawal_date
+                        ? `${formatDisplayDate(student.withdrawal_date)} 退出`
+                        : t("roster.statusWithdrawn")}
+                    </div>
+                  )}
                   <div className="attendance-matrix-student-meta">
                     <span className="attendance-matrix-student-no">{student.student_no}</span>
                     <span className="attendance-matrix-student-class">{student.real_class_name}</span>
@@ -371,6 +384,21 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
                   }
 
                   const record = recordsByKey.get(`${student.student_id}|${date}`);
+                  // 退出日期（含）之後沒有紀錄：反灰，不算未點名
+                  if (!record && !student.is_active && student.withdrawal_date && student.withdrawal_date <= date) {
+                    return (
+                      <td
+                        key={date}
+                        className={`attendance-matrix-cell attendance-matrix-cell-not-joined ${monthToneClass(date)}`}
+                        title={`${formatDisplayDate(date)} 已退出（${formatDisplayDate(student.withdrawal_date)} 退出${
+                          student.withdrawal_reason ? `：${student.withdrawal_reason}` : ""
+                        }）`}
+                        style={dateColStyle}
+                      >
+                        -
+                      </td>
+                    );
+                  }
                   const meta = record ? ATTENDANCE_STATUS_META[record.status] : null;
                   if (!meta) {
                     return (

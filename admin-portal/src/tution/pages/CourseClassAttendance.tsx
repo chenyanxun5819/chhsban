@@ -18,7 +18,18 @@ const CourseClassAttendance: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const { classInfo, roster, rows, attendanceRecords, loading, error } = useClassDetail(id);
 
-  const activeRoster = useMemo(() => roster.filter((r) => r.is_active), [roster]);
+  // 在讀學生，加上有點名紀錄的已退出學生（比照選修課點名總覽）；在讀在前、已退出放最下方，各自依班級、學號排序
+  const displayRoster = useMemo(() => {
+    const withRecords = new Set(attendanceRecords.map((r) => r.student_id));
+    return roster
+      .filter((r) => r.is_active || withRecords.has(r.student_id))
+      .sort(
+        (a, b) =>
+          Number(b.is_active) - Number(a.is_active) ||
+          (a.real_class_name || "").localeCompare(b.real_class_name || "", "zh-Hant", { numeric: true }) ||
+          a.student_no.localeCompare(b.student_no, undefined, { numeric: true }),
+      );
+  }, [roster, attendanceRecords]);
   // 只有「有開課」（非停課）且已到期的日期才需要點名
   const markableRows = useMemo(() => {
     const today = todayStr();
@@ -35,7 +46,7 @@ const CourseClassAttendance: React.FC = () => {
       {markableRows.length === 0 ? (
         <div className="empty-state">尚無可顯示的出席紀錄</div>
       ) : (
-        <AttendanceOverview rows={markableRows} allRows={rows} roster={activeRoster} recordsByKey={recordsByKey} />
+        <AttendanceOverview rows={markableRows} allRows={rows} roster={displayRoster} recordsByKey={recordsByKey} />
       )}
     </ClassDetailPage>
   );

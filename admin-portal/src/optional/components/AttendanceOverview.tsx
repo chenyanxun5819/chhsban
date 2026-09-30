@@ -172,7 +172,15 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
 
   const students = useMemo(() => {
     const withRecords = new Set(records.map((r) => r.student_id));
-    return roster.filter((s) => s.is_active || withRecords.has(s.student_id));
+    // 在讀在前、已退出放最下方；各自依班級、學號排序
+    return roster
+      .filter((s) => s.is_active || withRecords.has(s.student_id))
+      .sort(
+        (a, b) =>
+          Number(b.is_active) - Number(a.is_active) ||
+          (a.student_class || "").localeCompare(b.student_class || "", "zh-Hant", { numeric: true }) ||
+          a.student_no.localeCompare(b.student_no, undefined, { numeric: true }),
+      );
   }, [roster, records]);
 
   const monthGroups = useMemo(() => {
@@ -295,10 +303,16 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
             {students.map((student, rowIndex) => (
               <tr key={student.roster_id}>
                 <td className="oc-att-matrix-student-col" style={studentColStyle}>
-                  <div className="oc-att-matrix-student-name">
+                  <div
+                    className={`oc-att-matrix-student-name${student.is_active ? "" : " oc-att-matrix-student-name--withdrawn"}`}
+                  >
                     {student.student_name_cn || student.student_name_en}
-                    {!student.is_active && <span className="oc-att-matrix-withdrawn">已退出</span>}
                   </div>
+                  {!student.is_active && (
+                    <div className="oc-att-matrix-withdrawn">
+                      {student.withdrawal_date ? `${formatDate(student.withdrawal_date)} 退出` : "已退出"}
+                    </div>
+                  )}
                   <div className="oc-att-matrix-student-meta">
                     <span className="oc-att-matrix-student-no">{student.student_no}</span>
                     {student.student_class && (
