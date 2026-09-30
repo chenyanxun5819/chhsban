@@ -4,7 +4,7 @@ import tutionApi from "@/tution/api";
 import "@/data/styles/student-sync.css";
 
 /**
- * 資料更新 → 學生名單同步（只限 super_admin）。
+ * 學生資料 → 學生名單同步（只限 super_admin）。
  * 同步本身由 student-sync Worker 執行（每週定時 + 這裡手動），寫入 students_KV；
  * 這頁透過 tution-system 讀取 sync_status 顯示工作狀態，並可手動觸發同步。
  */

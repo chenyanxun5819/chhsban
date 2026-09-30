@@ -1,5 +1,5 @@
 /**
- * 行政管理站「學生名單同步」：查看 student-sync Worker 的同步狀態、手動觸發同步。只限 super_admin。
+ * 行政管理站「學生資料」：查看 student-sync Worker 的同步狀態、手動觸發同步、匯出全校學生資料。只限 super_admin。
  *
  * - 狀態：直接讀 STUDENT_KV 的 sync_status（student-sync 每次同步都會寫入，含最近 20 次記錄）
  * - 手動同步：經 Service Binding（wrangler.toml 的 STUDENT_SYNC，entrypoint = SyncService）
@@ -38,6 +38,15 @@ export async function handleStudentSync(
       env.STUDENT_KV.get("metadata", "json"),
     ]);
     return json({ data: { status: status || null, metadata: metadata || null } }, 200, corsHeaders);
+  }
+
+  // GET /api/admin/student-sync/students：全校學生（含離校）完整資料，供管理站匯出 Excel（1 次 KV 讀取）
+  if (request.method === "GET" && pathname === "/api/admin/student-sync/students") {
+    const [students, metadata] = await Promise.all([
+      env.STUDENT_KV.get("students_by_no", "json"),
+      env.STUDENT_KV.get("metadata", "json"),
+    ]);
+    return json({ data: { students: students || {}, metadata: metadata || null } }, 200, corsHeaders);
   }
 
   // POST /api/admin/student-sync/run：手動同步，body { force?: boolean }

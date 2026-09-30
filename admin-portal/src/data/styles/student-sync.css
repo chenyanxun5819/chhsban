@@ -108,3 +108,12 @@
 .ss-expanded {
   background: #fafbfc;
 }
+
+.ss-list {
+  margin: 6px 0 16px;
+  padding-left: 20px;
+}
+
+.ss-result {
+  margin: 12px 0 0;
+}
