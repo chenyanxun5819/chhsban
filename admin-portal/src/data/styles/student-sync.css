@@ -117,3 +117,30 @@
 .ss-result {
   margin: 12px 0 0;
 }
+
+.ss-official {
+  margin-top: 12px;
+}
+
+.ss-changes-wrap {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.ss-upload {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.ss-warning {
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #9a3412;
+  border-radius: 6px;
+  padding: 10px 12px;
+  font-size: 14px;
+  margin-top: 12px;
+}

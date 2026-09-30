@@ -9,6 +9,7 @@ import type { Permission } from "@/shared/types";
 export const PAGE_ACCESS: Record<string, Permission[]> = {
   "/data/student-sync": ["super_admin"],
   "/data/student-export": ["super_admin"],
+  "/data/official-roster": ["super_admin"],
   "/tution/approvals": ["super_admin"],
   "/tution/courses": ["super_admin", "admin"],
   "/tution/course-report": ["super_admin", "admin"],

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Layout } from "@/shared/components/Layout";
 import tutionApi from "@/tution/api";
+import { ChangeList, countChanges, errorMessage, formatTime, type SyncChanges } from "@/data/components/ChangeList";
 import "@/data/styles/student-sync.css";
 
 /**
@@ -9,25 +10,11 @@ import "@/data/styles/student-sync.css";
  * 這頁透過 tution-system 讀取 sync_status 顯示工作狀態，並可手動觸發同步。
  */
 
-interface StudentBrief {
-  student_no: string;
-  name_cn: string;
-  name_en: string;
-}
-
-interface SyncChanges {
-  joined: Array<StudentBrief & { class: string }>;
-  left: Array<StudentBrief & { class: string; reason: "leave_class" | "removed"; left_class?: string }>;
-  rejoined: Array<StudentBrief & { class: string }>;
-  transferred: Array<StudentBrief & { from: string; to: string }>;
-  boarding: Array<StudentBrief & { from: string | null; to: string | null }>;
-}
-
 interface SyncRun {
   started_at: string;
   finished_at: string;
   duration_ms: number;
-  trigger: "cron" | "manual";
+  trigger: "cron" | "manual" | "official_roster";
   triggered_by: string;
   forced: boolean;
   result: "success" | "failed" | "blocked";
@@ -35,6 +22,7 @@ interface SyncRun {
   total_fetched: number;
   active_students: number;
   left_students: number;
+  excluded_students?: number;
   total_classes: number;
   changes: SyncChanges;
   log?: string[];
@@ -42,7 +30,21 @@ interface SyncRun {
 
 interface SyncStatusResponse {
   status: { last_run: SyncRun; last_success_at: string | null; runs: SyncRun[] } | null;
-  metadata: { total_students: number; left_students?: number; total_classes: number; updated_at: string } | null;
+  metadata: {
+    total_students: number;
+    left_students?: number;
+    excluded_students?: number;
+    total_classes: number;
+    updated_at: string;
+  } | null;
+  official_roster: {
+    file_name: string;
+    sheet_name: string;
+    uploaded_at: string;
+    uploaded_by: string;
+    total: number;
+    absent_count: number;
+  } | null;
 }
 
 const RESULT_LABEL: Record<SyncRun["result"], { text: string; className: string }> = {
@@ -51,83 +53,11 @@ const RESULT_LABEL: Record<SyncRun["result"], { text: string; className: string 
   blocked: { text: "已攔下（未寫入）", className: "badge badge--pending" },
 };
 
-const LEFT_REASON_LABEL: Record<string, string> = {
-  leave_class: "SMS 移到離校班",
-  removed: "已從 SMS 刪除",
-};
-
-function formatTime(iso: string | null | undefined): string {
-  if (!iso) return "-";
-  return new Date(iso).toLocaleString("zh-TW", { hour12: false });
+function triggerLabel(run: SyncRun): string {
+  if (run.trigger === "cron") return "自動同步";
+  if (run.trigger === "official_roster") return `核對官方名單（${run.triggered_by || "-"}）`;
+  return `手動同步（${run.triggered_by || "-"}）${run.forced ? "・強制" : ""}`;
 }
-
-function countChanges(c: SyncChanges | undefined): number {
-  if (!c) return 0;
-  return c.joined.length + c.left.length + c.rejoined.length + c.transferred.length + c.boarding.length;
-}
-
-function errorMessage(err: any, fallback: string): string {
-  return err?.response?.data?.error || err?.message || fallback;
-}
-
-const studentLabel = (s: StudentBrief) => `${s.student_no} ${s.name_cn || s.name_en}`;
-
-const ChangeList: React.FC<{ changes: SyncChanges }> = ({ changes }) => {
-  if (countChanges(changes) === 0) {
-    return <p className="ss-muted">本次沒有學生變動。</p>;
-  }
-  return (
-    <table className="table ss-changes">
-      <thead>
-        <tr>
-          <th>類型</th>
-          <th>學生</th>
-          <th>內容</th>
-        </tr>
-      </thead>
-      <tbody>
-        {changes.left.map((s) => (
-          <tr key={`left-${s.student_no}`}>
-            <td><span className="badge badge--missing">離校</span></td>
-            <td>{studentLabel(s)}</td>
-            <td>
-              {s.class}・{LEFT_REASON_LABEL[s.reason] || s.reason}
-              {s.left_class ? `（${s.left_class}）` : ""}
-            </td>
-          </tr>
-        ))}
-        {changes.transferred.map((s) => (
-          <tr key={`tr-${s.student_no}`}>
-            <td><span className="badge badge--pending">調班</span></td>
-            <td>{studentLabel(s)}</td>
-            <td>{s.from} → {s.to}</td>
-          </tr>
-        ))}
-        {changes.boarding.map((s) => (
-          <tr key={`bd-${s.student_no}`}>
-            <td><span className="badge badge--pending">住宿變動</span></td>
-            <td>{studentLabel(s)}</td>
-            <td>{s.from ?? "（無）"} → {s.to ?? "（無）"}</td>
-          </tr>
-        ))}
-        {changes.joined.map((s) => (
-          <tr key={`join-${s.student_no}`}>
-            <td><span className="badge badge--open">新增</span></td>
-            <td>{studentLabel(s)}</td>
-            <td>{s.class}</td>
-          </tr>
-        ))}
-        {changes.rejoined.map((s) => (
-          <tr key={`rej-${s.student_no}`}>
-            <td><span className="badge badge--open">復學</span></td>
-            <td>{studentLabel(s)}</td>
-            <td>{s.class}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-};
 
 const StudentSync: React.FC = () => {
   const [data, setData] = useState<SyncStatusResponse | null>(null);
@@ -183,7 +113,8 @@ const StudentSync: React.FC = () => {
             <h2>學生名單同步</h2>
             <p className="ss-muted">
               從 SMS 同步全校學生到 students_KV。每週日、週二凌晨 00:00（馬來西亞時間）自動執行；
-              學生調班、離校會記錄在學生資料中，不會刪除。
+              學生調班、離校會記錄在學生資料中，不會刪除。STAR 班不計入在校生；
+              核對過官方名單後，名單外的學生維持離校，直到下一份名單再列入。
             </p>
           </div>
           <div className="ss-actions">
@@ -216,14 +147,14 @@ const StudentSync: React.FC = () => {
               <h3 className="ss-card-title">工作狀態</h3>
               <div className="ss-stats">
                 <div className="ss-stat">
-                  <div className="ss-stat__label">最近一次同步</div>
+                  <div className="ss-stat__label">最近一次（{triggerLabel(lastRun)}）</div>
                   <div className="ss-stat__value">
                     <span className={RESULT_LABEL[lastRun.result].className}>{RESULT_LABEL[lastRun.result].text}</span>
                   </div>
                   <div className="ss-stat__sub">{formatTime(lastRun.finished_at)}</div>
                 </div>
                 <div className="ss-stat">
-                  <div className="ss-stat__label">上次成功</div>
+                  <div className="ss-stat__label">上次 SMS 同步成功</div>
                   <div className="ss-stat__value ss-stat__value--text">{formatTime(data?.status?.last_success_at)}</div>
                 </div>
                 <div className="ss-stat">
@@ -235,7 +166,19 @@ const StudentSync: React.FC = () => {
                   <div className="ss-stat__label">已離校（保留記錄）</div>
                   <div className="ss-stat__value">{data?.metadata?.left_students ?? "-"}</div>
                 </div>
+                <div className="ss-stat">
+                  <div className="ss-stat__label">不計入（STAR 班）</div>
+                  <div className="ss-stat__value">{data?.metadata?.excluded_students ?? "-"}</div>
+                </div>
               </div>
+
+              <p className="ss-muted ss-official">
+                {data?.official_roster
+                  ? `官方名單：${data.official_roster.file_name}（${data.official_roster.total} 人），` +
+                    `${formatTime(data.official_roster.uploaded_at)} 由 ${data.official_roster.uploaded_by || "-"} 核對，` +
+                    `名單外 ${data.official_roster.absent_count} 人標記為離校。`
+                  : "尚未核對官方名單（可到「核對官方名單」上傳 Excel）。"}
+              </p>
 
               {lastRun.result !== "success" && lastRun.error && (
                 <div className="notice error-text ss-error">{lastRun.error}</div>
@@ -268,7 +211,7 @@ const StudentSync: React.FC = () => {
                       <th>時間</th>
                       <th>觸發</th>
                       <th>結果</th>
-                      <th>在校 / 離校</th>
+                      <th>在校 / 離校 / 不計入</th>
                       <th>變動</th>
                       <th>耗時</th>
                     </tr>
@@ -282,13 +225,14 @@ const StudentSync: React.FC = () => {
                           <tr>
                             <td>{formatTime(run.started_at)}</td>
                             <td>
-                              {run.trigger === "cron" ? "自動" : `手動（${run.triggered_by || "-"}）`}
-                              {run.forced && "・強制"}
+                              {triggerLabel(run)}
                             </td>
                             <td>
                               <span className={RESULT_LABEL[run.result].className}>{RESULT_LABEL[run.result].text}</span>
                             </td>
-                            <td>{run.result === "success" ? `${run.active_students} / ${run.left_students}` : "-"}</td>
+                            <td>{run.result === "success"
+                                ? `${run.active_students} / ${run.left_students} / ${run.excluded_students ?? "-"}`
+                                : "-"}</td>
                             <td>
                               {changes > 0 ? (
                                 <button className="btn btn--small" onClick={() => setExpanded(isOpen ? null : run.started_at)}>

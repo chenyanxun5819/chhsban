@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import * as XLSX from "xlsx";
 import { Layout } from "@/shared/components/Layout";
 import tutionApi from "@/tution/api";
+import { EXCLUDED_REASON_LABEL, LEFT_REASON_LABEL } from "@/data/components/ChangeList";
 import "@/data/styles/student-sync.css";
 
 /**
@@ -24,9 +25,11 @@ interface StudentRecord {
   real_class_name?: string;
   sms_class_name?: string;
   gender_boarding?: string | null;
-  status?: "active" | "left";
+  status?: "active" | "left" | "excluded";
   left_at?: string;
-  left_reason?: "leave_class" | "removed";
+  left_reason?: "leave_class" | "removed" | "not_in_official_list";
+  excluded_reason?: string;
+  excluded_at?: string;
   left_class?: string;
   joined_at?: string;
   rejoined_at?: string;
@@ -34,11 +37,6 @@ interface StudentRecord {
   class_history?: HistoryEntry[];
   boarding_history?: HistoryEntry[];
 }
-
-const LEFT_REASON_LABEL: Record<string, string> = {
-  leave_class: "SMS 移到離校班",
-  removed: "已從 SMS 刪除",
-};
 
 const formatHistory = (history?: HistoryEntry[]) =>
   (history || []).map((h) => `${h.date} ${h.from ?? "（無）"}→${h.to ?? "（無）"}`).join("；");
@@ -49,6 +47,7 @@ const byClassThenNo = (a: StudentRecord, b: StudentRecord) =>
 function buildWorkbook(students: StudentRecord[]): XLSX.WorkBook {
   const active = students.filter((s) => (s.status || "active") === "active").sort(byClassThenNo);
   const left = students.filter((s) => s.status === "left").sort(byClassThenNo);
+  const excluded = students.filter((s) => s.status === "excluded").sort(byClassThenNo);
 
   const activeRows = active.map((s) => ({
     學號: s.student_no,
@@ -75,6 +74,17 @@ function buildWorkbook(students: StudentRecord[]): XLSX.WorkBook {
     離校原因: s.left_reason ? LEFT_REASON_LABEL[s.left_reason] || s.left_reason : "",
     SMS離校班: s.left_class || "",
     調班記錄: formatHistory(s.class_history),
+    最後同步日: s.last_seen_at || "",
+  }));
+
+  const excludedRows = excluded.map((s) => ({
+    學號: s.student_no,
+    內部編號: s.student_id,
+    中文姓名: (s.name_cn || "").trim(),
+    英文姓名: (s.name_en || "").trim(),
+    班級: s.real_class_name || "",
+    住宿代碼: s.gender_boarding || "",
+    原因: s.excluded_reason ? EXCLUDED_REASON_LABEL[s.excluded_reason] || s.excluded_reason : "",
     最後同步日: s.last_seen_at || "",
   }));
 
@@ -105,6 +115,7 @@ function buildWorkbook(students: StudentRecord[]): XLSX.WorkBook {
   };
   addSheet(activeRows, "在校學生", [8, 8, 12, 28, 10, 8, 30, 30, 11, 11, 11]);
   addSheet(leftRows, "已離校學生", [8, 8, 12, 28, 10, 8, 11, 14, 11, 30, 11]);
+  addSheet(excludedRows, "不計入（STAR班）", [8, 8, 12, 28, 10, 8, 10, 11]);
   addSheet(classRows, "各班人數", [12, 10, 8, 10]);
   return workbook;
 }
@@ -129,8 +140,10 @@ const StudentExport: React.FC = () => {
       const stamp = (updatedAt ? new Date(updatedAt) : new Date()).toLocaleDateString("sv-SE");
       XLSX.writeFile(buildWorkbook(students), `學生資料-${stamp}.xlsx`);
 
-      const activeCount = students.filter((s) => (s.status || "active") === "active").length;
-      setSummary(`已下載：在校 ${activeCount} 人、已離校 ${students.length - activeCount} 人（資料同步於 ${stamp}）`);
+      const count = (status: string) => students.filter((s) => (s.status || "active") === status).length;
+      setSummary(
+        `已下載：在校 ${count("active")} 人、已離校 ${count("left")} 人、不計入 ${count("excluded")} 人（資料更新於 ${stamp}）`,
+      );
     } catch (err: any) {
       setError(err?.response?.data?.error || err?.message || "下載失敗");
     } finally {
@@ -144,11 +157,12 @@ const StudentExport: React.FC = () => {
         <div className="card">
           <h2 className="ss-card-title">學生資料匯出</h2>
           <p className="ss-muted">
-            匯出最近一次同步的全校學生資料（Excel），共三個工作表：
+            匯出目前 students_KV 的全校學生資料（Excel），共四個工作表：
           </p>
           <ul className="ss-muted ss-list">
             <li>在校學生：學號、姓名、班級、住宿代碼、調班與住宿變動記錄</li>
-            <li>已離校學生：離校前班級、離校日期與原因</li>
+            <li>已離校學生：離校前班級、離校日期與原因（含官方名單沒有的學生）</li>
+            <li>不計入（STAR 班）：不算在校生的學生</li>
             <li>各班人數：在校人數、住宿生人數、沒有住宿代碼的人數</li>
           </ul>
           <button className="btn btn--primary" onClick={download} disabled={loading}>

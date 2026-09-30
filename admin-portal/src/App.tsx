@@ -24,6 +24,7 @@ import PasswordReset from "@/settings/pages/PasswordReset";
 import Classrooms from "@/settings/pages/Classrooms";
 import StudentSync from "@/data/pages/StudentSync";
 import StudentExport from "@/data/pages/StudentExport";
+import OfficialRoster from "@/data/pages/OfficialRoster";
 
 // 行政管理站：super_admin（全部）、admin（督察員，只能查看）、classroom_manager（教室管理員）、dorm_supervisor（舍監）。
 // 路由依系統分前綴：/data/*（學生資料）、/tution/*（補習班）、/optional/*（選修課）、/settings/*（共用設定）；
@@ -88,8 +89,9 @@ const AppRoutes = () => (
     <Route path="/login" element={<Login />} />
     <Route path="/" element={<HomeRedirect />} />
 
-    {/* 學生資料（學生名單同步、匯出，經 tution-system Worker 讀寫 students_KV） */}
+    {/* 學生資料（學生名單同步、核對官方名單、匯出，經 tution-system Worker 讀寫 students_KV） */}
     <Route path="/data/student-sync" element={page(<StudentSync />)} />
+    <Route path="/data/official-roster" element={page(<OfficialRoster />)} />
     <Route path="/data/student-export" element={page(<StudentExport />)} />
 
     {/* 補習班（tution-system Worker） */}

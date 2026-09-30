@@ -14,12 +14,19 @@
  *     （RPC 只能经由 Service Binding 调用，不对外公开；公开网址不再提供触发同步）
  *
  * 学生状态（写在 students_by_no 每位学生身上，离校学生永久保留、不删除）：
- *   status: "active" | "left"
+ *   status: "active"（在校）| "left"（离校）| "excluded"（不计入在校生，例如 *_STAR 班）
  *   left_reason: "leave_class"（SMS 移到 *_LEAVE 班）| "removed"（从 SMS 名单消失）
+ *              | "not_in_official_list"（行政人员上传的官方名单里没有）
+ *   excluded_reason: "star_class"
+ *   sms_status: 只看 SMS 的状态（"active" | "leave_class" | "removed"），status 由它加上
+ *              STAR 班规则、官方名单推导（见 deriveStatuses），两者分开存才不会每次同步来回翻转
  *   class_history / boarding_history：每次调班、住宿代码变动追加一笔 { from, to, date }
  *
- * 每次同步的 KV 用量：读 2（excel_gender_boarding_map、上一版 students_by_no）+ 1（sync_status），
- * 写 4（students_by_no、classes、metadata、sync_status）。
+ * 官方名单（official_roster）：行政管理站上传 Excel 核对时写入，记下「当时 KV 里有、名单里没有」的学号（absent）。
+ * 之后的 SMS 同步会维持这些学生为离校，直到下一份官方名单再列入；住宿代码以官方名单为准。
+ *
+ * 每次同步的 KV 用量：读 3（excel_gender_boarding_map、official_roster、上一版 students_by_no）
+ * + 1（sync_status），写 4（students_by_no、classes、metadata、sync_status）。
  *
  * 必需的密钥（用 `wrangler secret put` 设置，不要写在代码或 wrangler.toml 里）：
  *   wrangler secret put SMS_USER
@@ -35,6 +42,7 @@ const MAX_PAGES = 10; // 全校学生分页安全上限（实测约 3 页 = 2893
 const MAX_DROP_RATIO = 0.03; // 本次抓到的人数比上次在 SMS 上的人数少超过 3% 就视为异常、不写入
 const MAX_RUNS_KEPT = 20; // sync_status 保留最近几次同步记录
 const LEAVE_CLASS_PATTERN = /_LEAVE$/i; // SMS 把离校学生移到 S2_LEAVE、J2_LEAVE 这类班
+const EXCLUDED_CLASS_PATTERN = /_STAR$/i; // STAR 班不计入在校生
 
 export default {
   async fetch(request, env, ctx) {
@@ -99,6 +107,16 @@ export class SyncService extends WorkerEntrypoint {
       triggered_by: options.triggered_by || '',
       force: Boolean(options.force),
     });
+  }
+
+  /**
+   * 核对官方名单（行政人员上传的 Excel，例如 combineToAccess.xlsx）。
+   * @param {{ file_name: string, sheet_name?: string, rows: Array<{ student_no: string, class?: string,
+   *   name_cn?: string, name_en?: string, gender?: string }>, triggered_by?: string, dry_run?: boolean }} input
+   *   dry_run：只回传比对结果与预计变动，不写入
+   */
+  async checkOfficialRoster(input) {
+    return checkOfficialRoster(this.env, input);
   }
 }
 
@@ -247,6 +265,7 @@ async function runSync(env, { trigger, triggered_by = '', force = false }) {
     total_fetched: 0,
     active_students: 0,
     left_students: 0,
+    excluded_students: 0,
     total_classes: 0,
     changes: emptyChanges(),
     log,
@@ -271,7 +290,7 @@ async function runSync(env, { trigger, triggered_by = '', force = false }) {
 
     log.push('\n4️⃣ 与上一版比对学生状态...');
     const previous = (await env.STUDENT_KV.get('students_by_no', 'json')) || {};
-    const prevInSms = Object.values(previous).filter(s => s.left_reason !== 'removed').length;
+    const prevInSms = Object.values(previous).filter(s => smsStatusOf(s) !== 'removed').length;
     log.push(`   上一版: ${Object.keys(previous).length} 笔（上次仍在 SMS 上 ${prevInSms} 人）`);
 
     if (!force && prevInSms > 0 && fetched.length < prevInSms * (1 - MAX_DROP_RATIO)) {
@@ -284,17 +303,19 @@ async function runSync(env, { trigger, triggered_by = '', force = false }) {
     }
 
     const today = localDateString();
-    const { studentsByNo, changes } = computeStudentStatuses(previous, fetched, excelData, today);
+    const official = await env.STUDENT_KV.get('official_roster', 'json');
+    if (official) {
+      log.push(`   官方名单：${official.file_name}（${official.total} 人，${official.uploaded_at.slice(0, 10)} 上传）`);
+    }
+    const merged = mergeSmsData(previous, fetched, excelData, today);
+    const { studentsByNo, changes } = deriveStatuses(previous, merged, official, today);
     run.changes = changes;
-    log.push(`   新增 ${changes.joined.length}、离校 ${changes.left.length}、复学 ${changes.rejoined.length}、`
-      + `调班 ${changes.transferred.length}、住宿变动 ${changes.boarding.length}`);
+    log.push(`   ${describeChanges(changes)}`);
 
     log.push('\n5️⃣ 写入 Cloudflare KV...');
     const summary = await writeToKV(env, studentsByNo, run.started_at);
-    run.active_students = summary.active;
-    run.left_students = summary.left;
-    run.total_classes = summary.classes;
-    log.push(`   ✅ 在校 ${summary.active} 人、离校 ${summary.left} 人、${summary.classes} 个班`);
+    Object.assign(run, summaryFields(summary));
+    log.push(`   ✅ 在校 ${summary.active} 人、离校 ${summary.left} 人、不计入 ${summary.excluded} 人、${summary.classes} 个班`);
 
     run.result = 'success';
     log.push('\n✅ 同步完成！');
@@ -313,15 +334,7 @@ async function finishRun(env, run, startTime) {
   run.log.push(`   耗时: ${Math.round(run.duration_ms / 1000)} 秒`);
 
   try {
-    const status = (await env.STUDENT_KV.get('sync_status', 'json')) || { runs: [] };
-    // 只有最新一笔保留完整日志，旧记录去掉日志以控制大小
-    const olderRuns = (status.runs || []).map(({ log, ...rest }) => rest);
-    const runs = [run, ...olderRuns].slice(0, MAX_RUNS_KEPT);
-    await env.STUDENT_KV.put('sync_status', JSON.stringify({
-      last_run: run,
-      last_success_at: run.result === 'success' ? run.finished_at : (status.last_success_at || null),
-      runs,
-    }));
+    await appendRun(env, run);
   } catch (error) {
     run.log.push(`⚠️ 写入 sync_status 失败: ${error.message}`);
   }
@@ -330,7 +343,34 @@ async function finishRun(env, run, startTime) {
 }
 
 function emptyChanges() {
-  return { joined: [], left: [], rejoined: [], transferred: [], boarding: [] };
+  return { joined: [], left: [], rejoined: [], excluded: [], transferred: [], boarding: [] };
+}
+
+function describeChanges(c) {
+  return `新增 ${c.joined.length}、离校 ${c.left.length}、复学 ${c.rejoined.length}、不计入 ${c.excluded.length}、`
+    + `调班 ${c.transferred.length}、住宿变动 ${c.boarding.length}`;
+}
+
+function summaryFields(summary) {
+  return {
+    active_students: summary.active,
+    left_students: summary.left,
+    excluded_students: summary.excluded,
+    total_classes: summary.classes,
+  };
+}
+
+async function appendRun(env, run) {
+  const status = (await env.STUDENT_KV.get('sync_status', 'json')) || { runs: [] };
+  // 只有最新一笔保留完整日志，旧记录去掉日志以控制大小
+  const olderRuns = (status.runs || []).map(({ log, ...rest }) => rest);
+  const runs = [run, ...olderRuns].slice(0, MAX_RUNS_KEPT);
+  const isSmsSuccess = run.result === 'success' && run.trigger !== 'official_roster';
+  await env.STUDENT_KV.put('sync_status', JSON.stringify({
+    last_run: run,
+    last_success_at: isSmsSuccess ? run.finished_at : (status.last_success_at || null),
+    runs,
+  }));
 }
 
 /** 学校在 UTC+8，Worker 时钟是 UTC；凌晨同步时要用当地日期 */
@@ -531,25 +571,33 @@ async function loadExcelMap(env, log) {
   return excelData;
 }
 
+/** 旧资料没有 sms_status：由 status/left_reason 推回（第一次跑新版逻辑时用） */
+function smsStatusOf(record) {
+  if (record.sms_status) return record.sms_status;
+  if (record.status === 'left' && (record.left_reason === 'leave_class' || record.left_reason === 'removed')) {
+    return record.left_reason;
+  }
+  return 'active';
+}
+
 /**
- * 与上一版 students_by_no 比对，算出本次每位学生的完整记录与变动清单（纯内存计算，不碰 KV）。
- *
- * - 在 SMS 上、班级不是 *_LEAVE：status "active"；班级不同 → class_history 追加一笔
- * - 班级是 *_LEAVE：status "left"、left_reason "leave_class"，real_class_name 保留离校前的班级
- * - 上一版有、这次 SMS 上找不到：status "left"、left_reason "removed"，其余资料原样保留
- * - 上一版是 left、这次又以一般班级出现：改回 active，记录 rejoined_at
- * - 住宿代码（Excel 对照）不同 → boarding_history 追加一笔
+ * 第一步：把这次从 SMS 抓到的名单并进上一版（纯内存计算，不碰 KV），只处理「SMS 看到的事实」：
+ * - sms_status：active / leave_class（在 *_LEAVE 班）/ removed（SMS 上找不到）
+ * - real_class_name：在一般班级就用 SMS 班级；进了 LEAVE 班则保留离校前的班级
+ * - class_history：一般班级之间的变动
+ * - hostel_gender：住宿对照表（hostel Excel）的值；对照表不存在时沿用上一版
+ * 最终 status、官方名单与住宿代码覆盖由 deriveStatuses 处理。
  */
-function computeStudentStatuses(previous, fetched, excelData, today) {
-  const changes = emptyChanges();
-  const studentsByNo = {};
-  const brief = (s) => ({ student_no: s.student_no, name_cn: s.name_cn, name_en: s.name_en });
+function mergeSmsData(previous, fetched, excelData, today) {
+  const merged = {};
 
   for (const raw of fetched) {
     const no = String(raw.student_no);
     const prev = previous[no];
     const smsClass = raw.real_class_name;
     const inLeaveClass = LEAVE_CLASS_PATTERN.test(smsClass);
+    const prevClass = prev?.real_class_name;
+    const prevClassIsLeave = prevClass ? LEAVE_CLASS_PATTERN.test(prevClass) : false;
 
     const record = {
       ...(prev || {}),
@@ -560,102 +608,273 @@ function computeStudentStatuses(previous, fetched, excelData, today) {
       input_class_id: raw.input_class_id,
       input_class_name: raw.input_class_name,
       sms_class_name: smsClass,
+      sms_status: inLeaveClass ? 'leave_class' : 'active',
       class_history: prev?.class_history || [],
       boarding_history: prev?.boarding_history || [],
       joined_at: prev?.joined_at || today,
       last_seen_at: today,
+      hostel_gender: excelData ? (excelData[no] ?? null) : (prev?.hostel_gender ?? prev?.gender_boarding ?? null),
     };
-
-    // 上一版没有 status 的旧资料（第一次跑新版同步）一律视为 active
-    const prevStatus = prev ? (prev.status || 'active') : null;
-    const prevClass = prev?.real_class_name;
-    const prevClassIsLeave = prevClass ? LEAVE_CLASS_PATTERN.test(prevClass) : false;
 
     if (inLeaveClass) {
       // 离校：班级保留离校前的真实班级（若上一版本身就是 LEAVE 班，也只能沿用）
       record.real_class_name = prevClass && !prevClassIsLeave ? prevClass : (prevClass || smsClass);
-      record.status = 'left';
-      if (prevStatus !== 'left') {
-        record.left_at = today;
-        record.left_reason = 'leave_class';
-        record.left_class = smsClass;
-        changes.left.push({ ...brief(record), class: record.real_class_name, reason: 'leave_class', left_class: smsClass });
-      } else if (record.left_reason === 'removed') {
-        // 之前从名单消失，现在出现在 LEAVE 班：离校日不变，原因更新为 LEAVE 班
-        record.left_reason = 'leave_class';
-        record.left_class = smsClass;
-      }
+      record.left_class = smsClass;
     } else {
       record.real_class_name = smsClass;
-      record.status = 'active';
-      delete record.left_at;
-      delete record.left_reason;
-      delete record.left_class;
-
-      if (!prev) {
-        changes.joined.push({ ...brief(record), class: smsClass });
-      } else if (prevStatus === 'left') {
-        record.rejoined_at = today;
-        changes.rejoined.push({ ...brief(record), class: smsClass });
-      }
-
       if (prev && prevClass && !prevClassIsLeave && prevClass !== smsClass) {
         record.class_history = [...record.class_history, { from: prevClass, to: smsClass, date: today }];
-        changes.transferred.push({ ...brief(record), from: prevClass, to: smsClass });
       }
     }
 
-    // 住宿代码：Excel 对照表不存在时沿用上一版
+    merged[no] = record;
+  }
+
+  // 上一版有、这次 SMS 上找不到的学生：永久保留
+  for (const [no, prev] of Object.entries(previous)) {
+    if (merged[no]) continue;
+    merged[no] = {
+      ...prev,
+      sms_status: 'removed',
+      class_history: prev.class_history || [],
+      boarding_history: prev.boarding_history || [],
+      hostel_gender: prev.hostel_gender ?? prev.gender_boarding ?? null,
+    };
+  }
+
+  return merged;
+}
+
+/**
+ * 第二步：由 SMS 状态 + STAR 班规则 + 官方名单推导最终 status 与住宿代码，并与上一版比对产生变动清单。
+ * SMS 同步与上传官方名单共用这一段，规则只维护一份：
+ *   1. SMS 在 LEAVE 班／已删除 → left（left_reason = leave_class / removed）
+ *   2. *_STAR 班 → excluded（excluded_reason = star_class）
+ *   3. 官方名单核对时「KV 有、名单没有」（official.absent）→ left（left_reason = not_in_official_list）
+ *   4. 其他 → active
+ * 住宿代码：官方名单有列的以官方为准，否则用住宿对照表。
+ */
+function deriveStatuses(previous, merged, official, today) {
+  const changes = emptyChanges();
+  const studentsByNo = {};
+  const absent = new Set(official?.absent || []);
+  const officialStudents = official?.students || {};
+  const brief = (s) => ({ student_no: s.student_no, name_cn: s.name_cn, name_en: s.name_en });
+
+  for (const [no, base] of Object.entries(merged)) {
+    const prev = previous[no];
+    const record = { ...base };
+    const smsStatus = smsStatusOf(record);
+
+    let status = 'active';
+    let leftReason = null;
+    if (smsStatus === 'leave_class' || smsStatus === 'removed') {
+      status = 'left';
+      leftReason = smsStatus;
+    } else if (EXCLUDED_CLASS_PATTERN.test(record.real_class_name || '')) {
+      status = 'excluded';
+    } else if (absent.has(no)) {
+      status = 'left';
+      leftReason = 'not_in_official_list';
+    }
+
+    // 上一版没有 status 的旧资料一律视为 active；新学生 prevStatus 为 null
+    const prevStatus = prev ? (prev.status || 'active') : null;
+    const prevReason = prev?.left_reason || null;
+    record.sms_status = smsStatus;
+    record.status = status;
+
+    if (status === 'left') {
+      delete record.excluded_at;
+      delete record.excluded_reason;
+      record.left_reason = leftReason;
+      if (leftReason !== 'leave_class') delete record.left_class;
+      if (prevStatus !== 'left') {
+        record.left_at = today;
+        changes.left.push({ ...brief(record), class: record.real_class_name, reason: leftReason, left_class: record.left_class });
+      } else {
+        record.left_at = prev.left_at || today;
+        if (prevReason !== leftReason) {
+          changes.left.push({ ...brief(record), class: record.real_class_name, reason: leftReason, left_class: record.left_class });
+        }
+      }
+    } else if (status === 'excluded') {
+      delete record.left_at;
+      delete record.left_reason;
+      delete record.left_class;
+      record.excluded_reason = 'star_class';
+      record.excluded_at = prevStatus === 'excluded' ? (prev.excluded_at || today) : today;
+      if (prevStatus !== 'excluded') {
+        changes.excluded.push({ ...brief(record), class: record.real_class_name, reason: 'star_class' });
+      }
+    } else {
+      delete record.left_at;
+      delete record.left_reason;
+      delete record.left_class;
+      delete record.excluded_at;
+      delete record.excluded_reason;
+      if (!prev) {
+        changes.joined.push({ ...brief(record), class: record.real_class_name });
+      } else if (prevStatus !== 'active') {
+        record.rejoined_at = today;
+        changes.rejoined.push({ ...brief(record), class: record.real_class_name });
+      }
+    }
+
+    // 调班：mergeSmsData 本次新增的那一笔
+    const prevHistoryLen = prev?.class_history?.length || 0;
+    for (const h of (record.class_history || []).slice(prevHistoryLen)) {
+      changes.transferred.push({ ...brief(record), from: h.from, to: h.to });
+    }
+
+    // 住宿代码：官方名单优先；旧资料没有 hostel_gender 时沿用原本的值
+    const officialGender = officialStudents[no]?.gender;
+    const hostelGender = record.hostel_gender !== undefined ? record.hostel_gender : (record.gender_boarding ?? null);
+    record.hostel_gender = hostelGender;
+    const newBoarding = officialGender || hostelGender || null;
     const prevBoarding = prev ? (prev.gender_boarding ?? null) : null;
-    const newBoarding = excelData ? (excelData[no] ?? null) : prevBoarding;
     record.gender_boarding = newBoarding;
     if (prev && prevBoarding !== newBoarding) {
-      record.boarding_history = [...record.boarding_history, { from: prevBoarding, to: newBoarding, date: today }];
+      record.boarding_history = [...(record.boarding_history || []), { from: prevBoarding, to: newBoarding, date: today }];
       changes.boarding.push({ ...brief(record), from: prevBoarding, to: newBoarding });
     }
 
     studentsByNo[no] = record;
   }
 
-  // 上一版有、这次 SMS 上找不到的学生：永久保留，标记离校
-  for (const [no, prev] of Object.entries(previous)) {
-    if (studentsByNo[no]) continue;
-    const record = { ...prev, class_history: prev.class_history || [], boarding_history: prev.boarding_history || [] };
-    if ((prev.status || 'active') !== 'left') {
-      record.status = 'left';
-      record.left_at = today;
-      record.left_reason = 'removed';
-      changes.left.push({ ...brief(record), class: record.real_class_name, reason: 'removed' });
-    } else if (prev.left_reason !== 'removed') {
-      // 之前在 LEAVE 班，现在连 LEAVE 班都没有了：离校日不变
-      record.left_reason = 'removed';
-    }
-    studentsByNo[no] = record;
+  return { studentsByNo, changes };
+}
+
+/** 官方名单与 SMS 的班级名称差异：SMS 的 UEC 班多了 "-UEC" 后缀（J2K-UEC ↔ J2K） */
+function normalizeClassName(name) {
+  return String(name || '').trim().toUpperCase().replace(/-UEC$/, '');
+}
+
+/**
+ * 上传官方名单核对：
+ *   - 名单里有的学生：住宿代码以名单为准；班级不同只列出，不覆盖（班级仍以 SMS 为准）
+ *   - KV 里在 SMS 一般班级（不含 STAR 班、SMS 已离校者）但名单里没有 → 记入 absent，标记离校
+ *   - 名单里有、KV 找不到 → 只列出（没有 SMS 内部编号，无法建立资料）
+ * dry_run 时只回传结果；正式执行写入 official_roster、students_by_no、classes、metadata、sync_status。
+ */
+async function checkOfficialRoster(env, input) {
+  const startTime = Date.now();
+  const today = localDateString();
+  const rows = Array.isArray(input?.rows) ? input.rows : [];
+  if (rows.length === 0) {
+    throw new Error('名单是空的，请确认 Excel 内容');
   }
 
-  return { studentsByNo, changes };
+  const previous = (await env.STUDENT_KV.get('students_by_no', 'json')) || {};
+  if (Object.keys(previous).length === 0) {
+    throw new Error('students_KV 目前没有学生资料，请先执行一次 SMS 同步');
+  }
+
+  const students = {};
+  for (const row of rows) {
+    const no = String(row.student_no ?? '').trim();
+    if (!no) continue;
+    students[no] = {
+      class: String(row.class ?? '').trim(),
+      gender: String(row.gender ?? '').trim() || null,
+      name_cn: String(row.name_cn ?? '').trim(),
+    };
+  }
+
+  const absent = [];
+  const notInKv = [];
+  const classMismatch = [];
+  for (const [no, record] of Object.entries(previous)) {
+    if (smsStatusOf(record) !== 'active' || EXCLUDED_CLASS_PATTERN.test(record.real_class_name || '')) continue;
+    if (!students[no]) absent.push(no);
+  }
+  for (const [no, s] of Object.entries(students)) {
+    const record = previous[no];
+    if (!record) {
+      notInKv.push({ student_no: no, name_cn: s.name_cn, class: s.class });
+    } else if (s.class && normalizeClassName(s.class) !== normalizeClassName(record.real_class_name)) {
+      classMismatch.push({ student_no: no, name_cn: record.name_cn, official_class: s.class, kv_class: record.real_class_name });
+    }
+  }
+
+  const official = {
+    file_name: String(input.file_name || ''),
+    sheet_name: String(input.sheet_name || ''),
+    uploaded_at: new Date().toISOString(),
+    uploaded_by: String(input.triggered_by || ''),
+    total: Object.keys(students).length,
+    students,
+    absent,
+  };
+
+  // 以目前 KV 资料为基底（不重抓 SMS），套用新的官方名单重新推导状态
+  const { studentsByNo, changes } = deriveStatuses(previous, previous, official, today);
+  const after = { active: 0, left: 0, excluded: 0 };
+  for (const s of Object.values(studentsByNo)) after[s.status] = (after[s.status] || 0) + 1;
+
+  const result = {
+    file_name: official.file_name,
+    sheet_name: official.sheet_name,
+    official_total: official.total,
+    absent_count: absent.length,
+    not_in_kv: notInKv,
+    class_mismatch: classMismatch,
+    changes,
+    after,
+    dry_run: Boolean(input.dry_run),
+  };
+  if (input.dry_run) return result;
+
+  const summary = await writeToKV(env, studentsByNo, official.uploaded_at);
+  await env.STUDENT_KV.put('official_roster', JSON.stringify(official));
+
+  const run = {
+    started_at: new Date(startTime).toISOString(),
+    finished_at: new Date().toISOString(),
+    duration_ms: Date.now() - startTime,
+    trigger: 'official_roster',
+    triggered_by: official.uploaded_by,
+    forced: false,
+    result: 'success',
+    error: null,
+    total_fetched: official.total,
+    ...summaryFields(summary),
+    changes,
+    log: [
+      `📄 核对官方名单：${official.file_name}${official.sheet_name ? `（${official.sheet_name}）` : ''}`,
+      `   名单 ${official.total} 人；KV 有、名单没有 ${absent.length} 人；名单有、KV 没有 ${notInKv.length} 人；班级不同 ${classMismatch.length} 人`,
+      `   ${describeChanges(changes)}`,
+      `✅ 在校 ${summary.active} 人、离校 ${summary.left} 人、不计入 ${summary.excluded} 人`,
+    ],
+  };
+  await appendRun(env, run);
+
+  return result;
 }
 
 /**
  * 写入 KV（共 3 次写入，sync_status 另外 1 次）：
- *   students_by_no：全校学生（含离校）按学号索引的大物件
+ *   students_by_no：全校学生（含离校、不计入）按学号索引的大物件
  *   classes：在校学生的班级清单
- *   metadata：人数摘要
+ *   metadata：人数摘要（total_students 只算在校）
  * 不再写 students:{班级}（没有任何系统读取），避免每次同步多写几十个 key。
  */
 async function writeToKV(env, studentsByNo, syncedAt) {
   const all = Object.values(studentsByNo);
   const active = all.filter(s => s.status === 'active');
+  const excluded = all.filter(s => s.status === 'excluded').length;
+  const left = all.length - active.length - excluded;
   const classNames = [...new Set(active.map(s => s.real_class_name || 'Unknown'))].sort();
 
   await env.STUDENT_KV.put('students_by_no', JSON.stringify(studentsByNo));
   await env.STUDENT_KV.put('classes', JSON.stringify(classNames));
   await env.STUDENT_KV.put('metadata', JSON.stringify({
     total_students: active.length,
-    left_students: all.length - active.length,
+    left_students: left,
+    excluded_students: excluded,
     total_classes: classNames.length,
     updated_at: syncedAt,
   }));
 
-  return { active: active.length, left: all.length - active.length, classes: classNames.length };
+  return { active: active.length, left, excluded, classes: classNames.length };
 }
