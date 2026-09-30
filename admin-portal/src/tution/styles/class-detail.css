@@ -1,0 +1,1429 @@
+/* 已開課管理的「學生總覽／排課狀態」唯讀頁：由 tution-portal 的 roster.css、schedule.css、schedule-management.css 搬入，
+ * 以 scripts/scope-css.py 加上 .tu-class-detail 作用域（其中有 .btn、.alert 等通用規則，只套在這兩頁，不影響其他管理頁） */
+
+/* ===== roster.css ===== */
+
+/* ==================== Roster Table Styles ==================== */
+
+.tu-class-detail .roster-table {
+  max-width: 1200px;
+  margin: 0 auto;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  padding: 24px;
+}
+
+/* ==================== Toolbar ==================== */
+
+.tu-class-detail .table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.tu-class-detail .toolbar-left,
+.tu-class-detail .toolbar-right {
+  display: flex;
+  gap: 8px;
+}
+
+.tu-class-detail .add-student-row input {
+  padding: 8px 12px;
+  font-size: 14px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  min-width: 200px;
+}
+
+.tu-class-detail .capacity-warning {
+  margin: -8px 0 16px;
+  padding: 8px 12px;
+  background: #fff3cd;
+  color: #856404;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.tu-class-detail .add-student-row input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.tu-class-detail .table-toolbar .btn {
+  padding: 8px 16px;
+  font-size: 14px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+}
+
+.tu-class-detail .btn-primary {
+  background: #007bff;
+  color: white;
+}
+
+.tu-class-detail .btn-primary:hover:not(:disabled) {
+  background: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 86, 179, 0.3);
+}
+
+.tu-class-detail .btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.tu-class-detail .btn-secondary:hover:not(:disabled) {
+  background: #545b62;
+}
+
+.tu-class-detail .btn-outline-secondary {
+  background: transparent;
+  border: 1px solid #6c757d;
+  color: #6c757d;
+}
+
+.tu-class-detail .btn-outline-secondary:hover:not(:disabled) {
+  background: #6c757d;
+  color: white;
+}
+
+.tu-class-detail .btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==================== Search Bar ==================== */
+
+.tu-class-detail .search-bar {
+  position: relative;
+  margin-bottom: 16px;
+}
+
+.tu-class-detail .search-input {
+  width: 100%;
+  padding: 12px 40px 12px 16px;
+  font-size: 14px;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.tu-class-detail .search-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.tu-class-detail .clear-btn {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #999;
+  cursor: pointer;
+  font-size: 18px;
+  padding: 4px 8px;
+  transition: color 0.2s;
+}
+
+.tu-class-detail .clear-btn:hover:not(:disabled) {
+  color: #333;
+}
+
+.tu-class-detail .clear-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==================== Filter Tags ==================== */
+
+.tu-class-detail .filter-tags {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.tu-class-detail .filter-tag {
+  padding: 8px 16px;
+  background: #f5f5f5;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.tu-class-detail .filter-tag:hover:not(:disabled) {
+  background: #e8e8e8;
+}
+
+.tu-class-detail .filter-tag.active {
+  background: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.tu-class-detail .filter-tag:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==================== Roster Container ==================== */
+
+.tu-class-detail .roster-container {
+  margin: 20px 0;
+  min-height: 200px;
+}
+
+.tu-class-detail .roster-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.tu-class-detail .empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  color: #999;
+  font-size: 16px;
+  text-align: center;
+}
+
+/* ==================== Roster Row ==================== */
+
+.tu-class-detail .roster-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: #f9f9f9;
+  border: 1px solid #e0e0e0;
+  border-left: 4px solid #007bff;
+  border-radius: 6px;
+  transition: all 0.3s ease;
+}
+
+.tu-class-detail .roster-row:hover {
+  background: #f5f5f5;
+  border-left-color: #0056b3;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+}
+
+.tu-class-detail .roster-row--withdrawn {
+  border-left-color: #dc3545;
+  opacity: 0.75;
+}
+
+.tu-class-detail .row-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.tu-class-detail .student-line-1 {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  font-size: 13px;
+  color: #333;
+  font-weight: 500;
+  word-break: break-word;
+}
+
+.tu-class-detail .separator-tab {
+  display: inline-block;
+  width: 2em;
+  height: 0;
+}
+
+.tu-class-detail .student-no {
+  font-size: 12px;
+  color: #666;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.tu-class-detail .name-cn {
+  font-size: 13px;
+  font-weight: 600;
+  color: #333;
+  flex-shrink: 0;
+}
+
+.tu-class-detail .name-en {
+  font-size: 12px;
+  color: #666;
+  flex-shrink: 0;
+}
+
+.tu-class-detail .student-line-2 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+}
+
+.tu-class-detail .btn-withdraw {
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 3px 8px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: normal;
+  border: 1px solid #dc3545 !important;
+  background: transparent !important;
+  color: #dc3545 !important;
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin-left: 6px;
+}
+
+.tu-class-detail .btn-withdraw:hover:not(:disabled) {
+  background: #dc3545 !important;
+  color: #fff !important;
+}
+
+.tu-class-detail .withdraw-form {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  padding: 8px;
+  background: #fef2f2;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+.tu-class-detail .withdraw-form label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #333;
+}
+
+.tu-class-detail .withdraw-form input {
+  padding: 3px 6px;
+  font-size: 12px;
+  border: 1px solid #d0d3d8;
+  border-radius: 4px;
+}
+
+.tu-class-detail .withdraw-form__reason {
+  flex: 1;
+  min-width: 160px;
+}
+
+.tu-class-detail .withdraw-form__reason input {
+  flex: 1;
+}
+
+.tu-class-detail .withdraw-form .btn-withdraw {
+  margin-left: 0;
+}
+
+.tu-class-detail .btn-withdraw-cancel {
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 3px 8px !important;
+  font-size: 12px !important;
+  line-height: normal;
+  white-space: nowrap;
+}
+
+.tu-class-detail .class-name {
+  font-size: 12px;
+  color: #666;
+  background: #e3f2fd;
+  padding: 3px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
+.tu-class-detail .gender-code {
+  font-size: 12px;
+  color: #666;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.tu-class-detail .student-line-3 {
+  display: flex;
+  align-items: center;
+}
+
+.tu-class-detail .date-info {
+  font-size: 12px;
+  color: #999;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.tu-class-detail .class-name {
+  font-size: 13px;
+  color: #666;
+  background: #e3f2fd;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.tu-class-detail .status-badge {
+  font-size: 12px !important;
+  padding: 4px 8px !important;
+  border-radius: 4px !important;
+  font-weight: 500 !important;
+  width: auto !important;
+  min-width: 0 !important;
+}
+
+.tu-class-detail .status-badge.success {
+  background: #d4edda;
+  color: #155724;
+}
+
+.tu-class-detail .status-badge.warning {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.tu-class-detail .status-badge.danger {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.tu-class-detail .status-badge.secondary {
+  background: #e2e3e5;
+  color: #383d41;
+}
+
+.tu-class-detail .row-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.tu-class-detail .btn-outline-primary,
+.tu-class-detail .btn-outline-danger {
+  padding: 6px 12px;
+  font-size: 13px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+  border: 1px solid;
+}
+
+.tu-class-detail .btn-outline-primary {
+  background: transparent;
+  border-color: #007bff;
+  color: #007bff;
+}
+
+.tu-class-detail .btn-outline-primary:hover:not(:disabled) {
+  background: #007bff;
+  color: white;
+}
+
+.tu-class-detail .btn-outline-danger {
+  background: transparent;
+  border-color: #dc3545;
+  color: #dc3545;
+}
+
+.tu-class-detail .btn-outline-danger:hover:not(:disabled) {
+  background: #dc3545;
+  color: white;
+}
+
+.tu-class-detail .btn-outline-primary:disabled,
+.tu-class-detail .btn-outline-danger:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==================== Pagination ==================== */
+
+.tu-class-detail .pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  margin: 24px 0;
+  padding: 16px;
+  background: #f9f9f9;
+  border-radius: 6px;
+}
+
+.tu-class-detail .page-info {
+  font-size: 14px;
+  color: #666;
+  font-weight: 500;
+}
+
+.tu-class-detail .pagination .btn {
+  padding: 8px 16px;
+}
+
+/* ==================== Table Footer ==================== */
+
+.tu-class-detail .table-footer {
+  padding-top: 16px;
+  border-top: 1px solid #e0e0e0;
+  color: #666;
+  font-size: 14px;
+}
+
+.tu-class-detail .table-footer strong {
+  color: #333;
+}
+
+/* ==================== Roster Stats ==================== */
+
+.tu-class-detail .roster-stats-container {
+  padding: 1.25rem 0.65rem;
+  border-radius: 12px;
+  box-shadow: rgba(33, 150, 243, 0.3) 0px 4px 12px;
+  color: rgb(255, 255, 255);
+  background: linear-gradient(135deg, rgb(33, 150, 243) 0%, rgb(25, 118, 210) 100%);
+  margin: 24px 0;
+}
+
+.tu-class-detail .roster-stats-row {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: nowrap;
+  margin-bottom: 1.5rem;
+}
+
+.tu-class-detail .roster-stats-row:first-child {
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.tu-class-detail .roster-stats-row:last-child {
+  margin-bottom: 0;
+}
+
+.tu-class-detail .stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 1 150px;
+  text-align: center;
+  gap: 0.25rem;
+}
+
+.tu-class-detail .stat-code {
+  font-size: 1.2rem;
+  font-weight: 600;
+  opacity: 1;
+}
+
+.tu-class-detail .stat-amount {
+  font-size: 0.9rem;
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.tu-class-detail .stat-separator {
+  width: 2px;
+  background-color: rgba(255, 255, 255, 0.5);
+  min-height: 60px;
+  flex-shrink: 0;
+  border: none;
+  display: block !important;
+}
+
+/* ==================== Alert Messages ==================== */
+
+.tu-class-detail .alert {
+  padding: 12px 16px;
+  border-radius: 6px;
+  margin-bottom: 16px;
+}
+
+.tu-class-detail .alert-danger {
+  background: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.tu-class-detail .alert-success {
+  background: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+/* ==================== Responsive Design ==================== */
+
+/* 平板版 (768px - 1023px) */
+@media (max-width: 1023px) {
+  .tu-class-detail .roster-table {
+    padding: 16px;
+  }
+
+  .tu-class-detail .table-toolbar {
+    gap: 8px;
+  }
+
+  .tu-class-detail .table-toolbar .btn {
+    padding: 6px 12px;
+    font-size: 13px;
+  }
+
+  .tu-class-detail .toolbar-right {
+    width: 100%;
+  }
+
+  .tu-class-detail .toolbar-right .btn {
+    flex: 1;
+  }
+
+  .tu-class-detail .row-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .tu-class-detail .student-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .tu-class-detail .roster-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .tu-class-detail .row-actions {
+    width: 100%;
+  }
+
+  .tu-class-detail .row-actions .btn-outline-primary,
+.tu-class-detail .row-actions .btn-outline-danger {
+    flex: 1;
+  }
+
+  .tu-class-detail .roster-stats-row {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .tu-class-detail .stat-item {
+    flex: 1 1 120px;
+  }
+
+  .tu-class-detail .stat-separator {
+    display: block !important;
+    width: 2px;
+    background-color: rgba(255, 255, 255, 0.4);
+    min-height: 40px;
+  }
+
+  .tu-class-detail .stat-item:not(:last-child)::after {
+    content: "";
+    display: block;
+    height: 1px;
+    background-color: rgba(255, 255, 255, 0.2);
+    margin-top: 0.5rem;
+  }
+
+  .tu-class-detail .filter-tags {
+    gap: 6px;
+  }
+
+  .tu-class-detail .filter-tag {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+
+  .tu-class-detail .pagination {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .tu-class-detail .pagination .btn {
+    width: 100%;
+  }
+}
+
+/* 手機版 (<768px) */
+@media (max-width: 767px) {
+  .tu-class-detail .roster-table {
+    padding: 12px;
+    border-radius: 0;
+  }
+
+  .tu-class-detail .table-toolbar {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .tu-class-detail .toolbar-left,
+.tu-class-detail .toolbar-right {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .tu-class-detail .toolbar-left .btn,
+.tu-class-detail .toolbar-right .btn {
+    width: 100%;
+  }
+
+  .tu-class-detail .search-input {
+    padding: 10px 36px 10px 12px;
+    font-size: 16px; /* 防止 iOS 自動縮放 */
+  }
+
+  .tu-class-detail .filter-tags {
+    gap: 4px;
+    overflow-x: auto;
+    padding-bottom: 4px;
+  }
+
+  .tu-class-detail .filter-tag {
+    flex-shrink: 0;
+    font-size: 11px;
+    padding: 4px 8px;
+  }
+
+  .tu-class-detail .roster-row {
+    flex-direction: column;
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .tu-class-detail .row-content {
+    width: 100%;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .tu-class-detail .student-line-1 {
+    width: 100%;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .tu-class-detail .student-line-2 {
+    width: 100%;
+    gap: 6px;
+  }
+
+  .tu-class-detail .student-line-3 {
+    width: 100%;
+  }
+
+  .tu-class-detail .name-en {
+    font-size: 11px;
+  }
+
+  .tu-class-detail .student-meta {
+    width: 100%;
+    gap: 8px;
+  }
+
+  .tu-class-detail .row-actions {
+    width: 100%;
+  }
+
+  .tu-class-detail .row-actions .btn-outline-primary,
+.tu-class-detail .row-actions .btn-outline-danger {
+    flex: 1;
+    font-size: 12px;
+    padding: 8px 8px;
+  }
+
+  .tu-class-detail .roster-stats-body {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .tu-class-detail .stat-item {
+    flex: 1 1 auto;
+  }
+
+  .tu-class-detail .stat-separator {
+    display: block !important;
+    width: 1px;
+    background-color: rgba(255, 255, 255, 0.3);
+    min-height: 30px;
+  }
+
+  .tu-class-detail .stat-amount {
+    font-size: 0.85rem;
+  }
+
+  .tu-class-detail .pagination {
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+  }
+
+  .tu-class-detail .pagination .btn {
+    width: 100%;
+    font-size: 13px;
+  }
+
+  .tu-class-detail .page-info {
+    font-size: 12px;
+  }
+}
+
+/* ==================== Print Styles ==================== */
+
+@media print {
+  .tu-class-detail .table-toolbar,
+.tu-class-detail .search-bar,
+.tu-class-detail .filter-tags,
+.tu-class-detail .row-actions,
+.tu-class-detail .pagination {
+    display: none;
+  }
+
+  .tu-class-detail .roster-row {
+    page-break-inside: avoid;
+  }
+}
+
+/* ===== schedule.css ===== */
+
+/* ========== Schedule Table (清單，非卡片，中間用隔線分隔) ========== */
+.tu-class-detail .schedule-table {
+  display: flex;
+  flex-direction: column;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 1.5rem;
+}
+
+.tu-class-detail .schedule-table-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 160px;
+  background: #f9f9f9;
+  border-radius: 8px;
+  color: #999;
+}
+
+.tu-class-detail .schedule-row {
+  padding: 0.75rem 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.tu-class-detail .schedule-row:last-child {
+  border-bottom: none;
+}
+
+.tu-class-detail .schedule-row.status-cancelled {
+  border-left: 4px solid #dc3545;
+}
+
+.tu-class-detail .schedule-row.status-rescheduled {
+  border-left: 4px solid #ffc107;
+}
+
+.tu-class-detail .schedule-row.status-held {
+  border-left: 4px solid #28a745;
+}
+
+/* 第一行：日期 + 點名情況 */
+.tu-class-detail .schedule-row-line1 {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.35rem;
+}
+
+.tu-class-detail .schedule-row-date {
+  font-weight: 600;
+  color: #333;
+}
+
+.tu-class-detail .schedule-row-attendance {
+  font-size: 0.85rem;
+}
+
+.tu-class-detail .attendance-ok {
+  color: #28a745;
+  font-weight: 600;
+}
+
+.tu-class-detail .attendance-warn {
+  color: #dc3545;
+  font-weight: 600;
+}
+
+/* 第二行：狀態徽章 + 調課資訊 + 原因 + 操作按鈕 */
+.tu-class-detail .schedule-row-line2 {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.tu-class-detail .schedule-row-detail {
+  font-size: 0.85rem;
+  color: #666;
+}
+
+/* 第三行（僅停課／調課才有）：原因另起一行，避免跟徽章、操作按鈕擠在同一行被截斷 */
+.tu-class-detail .schedule-row-line3 {
+  margin-top: 0.35rem;
+}
+
+.tu-class-detail .schedule-row-reason {
+  font-size: 0.9rem;
+  color: #666;
+  word-break: break-word;
+}
+
+.tu-class-detail .schedule-row-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-left: auto;
+}
+
+/* 明確覆寫寬度，避免其他頁面（如 pdf-download.css）未加範圍的全域 .btn
+   規則（@media max-width:1023px 時 min-width:200px）滲透進來把按鈕撐爆 */
+.tu-class-detail .schedule-row-actions .btn {
+  width: auto;
+  min-width: 0;
+}
+
+/* Status badge (沿用同一組色碼) */
+.tu-class-detail .schedule-badge {
+  display: inline-block;
+  padding: 0.35rem 0.7rem;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tu-class-detail .schedule-badge.status-held {
+  background: #d4edda;
+  color: #155724;
+}
+
+.tu-class-detail .schedule-badge.status-cancelled {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+.tu-class-detail .schedule-badge.status-rescheduled {
+  background: #fff3cd;
+  color: #856404;
+}
+
+/* ========== Form Styles (CancelModal / RescheduleModal 共用) ========== */
+.tu-class-detail .form-group {
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+}
+
+.tu-class-detail .form-label {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+  color: #333;
+  font-size: 0.95rem;
+}
+
+.tu-class-detail .required {
+  color: #dc3545;
+  margin-left: 0.25rem;
+}
+
+.tu-class-detail .form-control {
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 6px;
+  font-size: 1rem;
+  font-family: inherit;
+  transition: all 0.2s;
+}
+
+.tu-class-detail .form-control:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+}
+
+.tu-class-detail .form-control:disabled {
+  background-color: #e9ecef;
+  color: #6c757d;
+  cursor: not-allowed;
+}
+
+.tu-class-detail textarea.form-control {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* ========== Button Styles ========== */
+.tu-class-detail .btn {
+  padding: 0.6rem 1.2rem;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  text-decoration: none;
+}
+
+.tu-class-detail .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.tu-class-detail .btn-primary {
+  background: #007bff;
+  color: white;
+}
+
+.tu-class-detail .btn-primary:hover:not(:disabled) {
+  background: #0056b3;
+}
+
+.tu-class-detail .btn-secondary {
+  background: #6c757d;
+  color: white;
+}
+
+.tu-class-detail .btn-secondary:hover:not(:disabled) {
+  background: #545b62;
+}
+
+.tu-class-detail .btn-danger {
+  background: #dc3545;
+  color: white;
+}
+
+.tu-class-detail .btn-danger:hover:not(:disabled) {
+  background: #bd2130;
+}
+
+.tu-class-detail .btn-warning {
+  background: #ffc107;
+  color: #333;
+}
+
+.tu-class-detail .btn-warning:hover:not(:disabled) {
+  background: #e0a800;
+}
+
+.tu-class-detail .btn-sm {
+  padding: 0.4rem 0.8rem;
+  font-size: 0.85rem;
+  min-height: 44px;
+}
+
+/* ========== Modal Styles (CancelModal / RescheduleModal) ========== */
+.tu-class-detail .modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.tu-class-detail .modal-dialog {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+
+.tu-class-detail .modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e0e0e0;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.tu-class-detail .modal-title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: white;
+}
+
+.tu-class-detail .modal-close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  color: white;
+  cursor: pointer;
+  padding: 0;
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tu-class-detail .modal-close-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.tu-class-detail .modal-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.tu-class-detail .modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+  padding: 1.5rem;
+  border-top: 1px solid #e0e0e0;
+  background: #f9f9f9;
+}
+
+/* Alert Styles */
+.tu-class-detail .alert {
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+}
+
+.tu-class-detail .alert-danger {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+.tu-class-detail .alert-warning {
+  background: #fff3cd;
+  border: 1px solid #ffeaa7;
+  color: #856404;
+  font-weight: 600;
+}
+
+/* ========== 未點名警示區塊（獨立白底區塊，放在統計條上方） ========== */
+.tu-class-detail .schedule-unconfirmed-banner {
+  display: flex;
+  align-items: baseline;
+  gap: 1.5rem;
+  text-align: center;
+  
+  border-radius: 12px;
+  padding: 0.25rem 0.25rem;
+  margin-bottom: 1rem;
+}
+
+.tu-class-detail .schedule-unconfirmed-label {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #ff5252;
+}
+
+.tu-class-detail .schedule-unconfirmed-count {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #ff5252;
+}
+
+/* ========== Schedule Stats（沿用 RosterStats 的漸層條狀樣式，非卡片） ========== */
+.tu-class-detail .schedule-stats-container {
+  padding: 1.25rem 0.65rem;
+  border-radius: 12px;
+  box-shadow: rgba(33, 150, 243, 0.3) 0px 4px 12px;
+  color: rgb(255, 255, 255);
+  background: linear-gradient(135deg, rgb(33, 150, 243) 0%, rgb(25, 118, 210) 100%);
+  margin-bottom: 1.5rem;
+}
+
+.tu-class-detail .schedule-stats-row {
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start;
+  gap: 0.75rem;
+  flex-wrap: nowrap;
+}
+
+.tu-class-detail .stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1 1 150px;
+  text-align: center;
+  gap: 0.25rem;
+}
+
+.tu-class-detail .stat-code {
+  font-size: 1.2rem;
+  font-weight: 600;
+  opacity: 1;
+}
+
+.tu-class-detail .stat-amount {
+  font-size: 0.9rem;
+  font-weight: 500;
+  opacity: 0.9;
+}
+
+.tu-class-detail .stat-separator {
+  width: 2px;
+  background-color: rgba(255, 255, 255, 0.5);
+  min-height: 60px;
+  flex-shrink: 0;
+  border: none;
+  display: block !important;
+}
+
+/* 英文模式下標籤（Expected Sessions 等）較長，讓文字換成 2 行並縮小字體，
+   而不是把整個項目擠到下一行 */
+.tu-class-detail .schedule-stats-container .stat-code {
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.tu-class-detail .schedule-stats-container .stat-item {
+  min-width: 0;
+}
+
+/* ========== Responsive Design ========== */
+
+/* 平板 (768px - 1023px) */
+@media (max-width: 1023px) {
+  .tu-class-detail .schedule-stats-row {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .tu-class-detail .stat-item {
+    flex: 1 1 120px;
+  }
+
+  .tu-class-detail .stat-separator {
+    min-height: 40px;
+  }
+
+  .tu-class-detail .schedule-stats-container .schedule-stats-row {
+    flex-wrap: nowrap;
+  }
+
+  .tu-class-detail .schedule-stats-container .stat-item {
+    flex: 1 1 0;
+  }
+}
+
+/* 手機 (<768px) */
+@media (max-width: 767px) {
+  .tu-class-detail .schedule-row-line1 {
+    flex-wrap: wrap;
+  }
+
+  .tu-class-detail .schedule-row-line2 {
+    flex-wrap: nowrap;
+    gap: 0.4rem;
+  }
+
+  .tu-class-detail .schedule-row-detail {
+    flex-shrink: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tu-class-detail .schedule-row-actions {
+    margin-left: auto;
+    flex-shrink: 0;
+    gap: 0.35rem;
+  }
+
+  .tu-class-detail .schedule-row-actions .btn {
+    padding: 0.35rem 0.6rem;
+    font-size: 0.78rem;
+    min-height: 36px;
+    white-space: nowrap;
+  }
+
+  .tu-class-detail .schedule-stats-row {
+    flex-wrap: wrap;
+  }
+
+  .tu-class-detail .stat-item {
+    flex: 1 1 auto;
+  }
+
+  .tu-class-detail .stat-separator {
+    min-height: 30px;
+  }
+
+  .tu-class-detail .stat-amount {
+    font-size: 0.85rem;
+  }
+
+  .tu-class-detail .schedule-stats-container .schedule-stats-row {
+    flex-wrap: nowrap;
+  }
+
+  .tu-class-detail .schedule-stats-container .stat-item {
+    flex: 1 1 0;
+  }
+
+  .tu-class-detail .schedule-stats-container .stat-code {
+    font-size: 0.9rem;
+  }
+
+  .tu-class-detail .modal-dialog {
+    width: 95%;
+  }
+
+  .tu-class-detail .modal-header,
+.tu-class-detail .modal-body,
+.tu-class-detail .modal-footer {
+    padding: 1rem;
+  }
+
+  .tu-class-detail .modal-footer {
+    flex-direction: column;
+  }
+
+  .tu-class-detail .modal-footer .btn {
+    width: 100%;
+  }
+
+  .tu-class-detail .form-control {
+    font-size: 16px; /* 避免 iOS 自動縮放 */
+  }
+}
+
+/* ===== schedule-management.css ===== */
+
+/* Schedule Management Page Styles */
+
+.tu-class-detail .schedule-management {
+  padding: 20px;
+}
+
+/* Header */
+.tu-class-detail .schedule-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.tu-class-detail .header-title h2 {
+  margin: 0 0 4px 0;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+.tu-class-detail .header-title .subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+}
+
+/* Alert */
+.tu-class-detail .alert {
+  padding: 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.tu-class-detail .alert-danger {
+  background: #f8d7da;
+  border: 1px solid #f5c6cb;
+  color: #721c24;
+}
+
+.tu-class-detail .alert-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  cursor: pointer;
+  color: inherit;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.tu-class-detail .alert-close:hover {
+  opacity: 0.7;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .tu-class-detail .schedule-management {
+    padding: 12px;
+  }
+
+  .tu-class-detail .header-title h2 {
+    font-size: 18px;
+  }
+}
+
+/* ===== 外框（返回連結＋課程資訊），admin-portal 新增 ===== */
+
+.tu-class-detail .class-detail-header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin-bottom: 20px;
+}
+
+.tu-class-detail .class-detail-subtitle {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+}

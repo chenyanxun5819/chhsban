@@ -1,14 +1,13 @@
 import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import * as XLSX from "xlsx";
+import { useAuth } from "@/shared/auth/AuthContext";
 import { TutionPage } from "@/tution/components/TutionPage";
 import { courseYearOptions, filterByYear, filterCourses, useTutionAdminData } from "@/tution/hooks";
 import { adminService } from "@/tution/services/adminService";
 import { settingsService } from "@/tution/services/settingsService";
 import { getSemesterInfo } from "@/tution/utils/semester";
 import type { TutionClass } from "@/tution/types";
-
-// 「學生總覽／排課狀態／出席狀況」是補習班老師端的頁面，只維護一份，在新分頁開 tution-portal
-const TUTION_PORTAL_URL = "https://tution-portal.pages.dev";
 
 type CourseSortKey = "default" | "application_no" | "teacher" | "subject" | "day_of_week";
 
@@ -96,8 +95,15 @@ async function openBlobInNewTab(load: () => Promise<Blob>): Promise<void> {
   }
 }
 
-/** 已開課管理（原 tution-portal /admin/courses） */
+/**
+ * 已開課管理（原 tution-portal /admin/courses）。
+ * 督察員（admin）只能查看：審核收據、上傳簽核檔、刪除、設定最後上課日期只給 super_admin。
+ * 「學生總覽／排課狀態／出席狀況」兩種身分都只能看，資料由老師在 tution-portal 維護。
+ */
 const Courses: React.FC = () => {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const canEdit = user?.permission === "super_admin";
   const { allClasses, classesLoading, lastTeachingDate, setLastTeachingDate, error, fetchAllClasses } = useTutionAdminData();
 
   const [savingLastTeachingDate, setSavingLastTeachingDate] = useState(false);
@@ -188,8 +194,8 @@ const Courses: React.FC = () => {
     }
   };
 
-  const openTeacherPage = (classId: string, page: "roster" | "schedule" | "attendance") =>
-    window.open(`${TUTION_PORTAL_URL}/classes/${classId}/${page}`, "_blank", "noopener,noreferrer");
+  const openClassPage = (classId: string, page: "roster" | "schedule" | "attendance") =>
+    navigate(`/tution/courses/${classId}/${page}`);
 
   return (
     <TutionPage title="已開課管理" error={error}>
@@ -240,18 +246,24 @@ const Courses: React.FC = () => {
               />
               <span>只顯示未上傳收據</span>
             </label>
-            <label className="course-list-toolbar__sort">
-              <span>最後上課日期：</span>
-              <input
-                type="date"
-                value={lastTeachingDate}
-                onChange={(e) => setLastTeachingDate(e.target.value)}
-                disabled={savingLastTeachingDate}
-              />
-            </label>
-            <button type="button" className="btn btn-small" onClick={handleSaveLastTeachingDate} disabled={savingLastTeachingDate}>
-              {savingLastTeachingDate ? "儲存中..." : "儲存"}
-            </button>
+            {canEdit ? (
+              <>
+                <label className="course-list-toolbar__sort">
+                  <span>最後上課日期：</span>
+                  <input
+                    type="date"
+                    value={lastTeachingDate}
+                    onChange={(e) => setLastTeachingDate(e.target.value)}
+                    disabled={savingLastTeachingDate}
+                  />
+                </label>
+                <button type="button" className="btn btn-small" onClick={handleSaveLastTeachingDate} disabled={savingLastTeachingDate}>
+                  {savingLastTeachingDate ? "儲存中..." : "儲存"}
+                </button>
+              </>
+            ) : (
+              <span className="course-list-toolbar__sort">最後上課日期：{lastTeachingDate || "未設定"}</span>
+            )}
             <button type="button" className="btn btn-small" onClick={() => exportCoursesToXLSX(sortedCourses)}>
               📥 匯出 Excel
             </button>
@@ -299,7 +311,7 @@ const Courses: React.FC = () => {
                             >
                               📄 查看
                             </button>
-                            {record.status === "pending" && (
+                            {canEdit && record.status === "pending" && (
                               <>
                                 <button
                                   className="btn btn-small"
@@ -333,37 +345,41 @@ const Courses: React.FC = () => {
                   })}
                 </div>
                 <div className="course-row__actions">
-                  <button className="btn btn-small" onClick={() => openTeacherPage(course.class_id, "roster")}>
-                    👥 學生總覽 ↗
+                  <button className="btn btn-small" onClick={() => openClassPage(course.class_id, "roster")}>
+                    👥 學生總覽
                   </button>
-                  <button className="btn btn-small" onClick={() => openTeacherPage(course.class_id, "schedule")}>
-                    📅 排課狀態 ↗
+                  <button className="btn btn-small" onClick={() => openClassPage(course.class_id, "schedule")}>
+                    📅 排課狀態
                   </button>
-                  <button className="btn btn-small" onClick={() => openTeacherPage(course.class_id, "attendance")}>
-                    ✓ 出席狀況 ↗
+                  <button className="btn btn-small" onClick={() => openClassPage(course.class_id, "attendance")}>
+                    ✓ 出席狀況
                   </button>
-                  <input
-                    type="file"
-                    accept=".pdf,.jpg,.jpeg,.png"
-                    style={{ display: "none" }}
-                    id={`signed-form-input-${course.class_id}`}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleUploadSignedForm(course.class_id, file);
-                      e.target.value = "";
-                    }}
-                  />
-                  <button
-                    className="btn btn-small"
-                    disabled={uploadingSignedFormId === course.class_id}
-                    onClick={() => document.getElementById(`signed-form-input-${course.class_id}`)?.click()}
-                  >
-                    {uploadingSignedFormId === course.class_id
-                      ? "上傳中..."
-                      : course.signed_form_key
-                        ? "🔄 重新上傳簽核檔"
-                        : "📎 上傳簽核檔"}
-                  </button>
+                  {canEdit && (
+                    <>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        style={{ display: "none" }}
+                        id={`signed-form-input-${course.class_id}`}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleUploadSignedForm(course.class_id, file);
+                          e.target.value = "";
+                        }}
+                      />
+                      <button
+                        className="btn btn-small"
+                        disabled={uploadingSignedFormId === course.class_id}
+                        onClick={() => document.getElementById(`signed-form-input-${course.class_id}`)?.click()}
+                      >
+                        {uploadingSignedFormId === course.class_id
+                          ? "上傳中..."
+                          : course.signed_form_key
+                            ? "🔄 重新上傳簽核檔"
+                            : "📎 上傳簽核檔"}
+                      </button>
+                    </>
+                  )}
                   {course.signed_form_key && (
                     <button
                       className="btn btn-small"
@@ -372,9 +388,11 @@ const Courses: React.FC = () => {
                       📄 查看簽核檔
                     </button>
                   )}
-                  <button className="btn btn-small btn--danger" onClick={() => handleDeleteCourse(course.class_id)}>
-                    🗑️ 刪除
-                  </button>
+                  {canEdit && (
+                    <button className="btn btn-small btn--danger" onClick={() => handleDeleteCourse(course.class_id)}>
+                      🗑️ 刪除
+                    </button>
+                  )}
                 </div>
               </div>
             ))}

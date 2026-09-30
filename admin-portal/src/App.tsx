@@ -6,6 +6,9 @@ import { HOME_BY_PERMISSION, canAccess } from "@/shared/access";
 import Login from "@/shared/pages/Login";
 import Approvals from "@/tution/pages/Approvals";
 import Courses from "@/tution/pages/Courses";
+import CourseRoster from "@/tution/pages/CourseRoster";
+import CourseScheduleStatus from "@/tution/pages/CourseScheduleStatus";
+import CourseClassAttendance from "@/tution/pages/CourseClassAttendance";
 import CourseReport from "@/tution/pages/CourseReport";
 import CourseAttendance from "@/tution/pages/CourseAttendance";
 import Usage from "@/tution/pages/Usage";
@@ -86,6 +89,9 @@ const AppRoutes = () => (
     {/* 補習班（tution-system Worker） */}
     <Route path="/tution/approvals" element={page(<Approvals />)} />
     <Route path="/tution/courses" element={page(<Courses />)} />
+    <Route path="/tution/courses/:id/roster" element={page(<CourseRoster />, "/tution/courses")} />
+    <Route path="/tution/courses/:id/schedule" element={page(<CourseScheduleStatus />, "/tution/courses")} />
+    <Route path="/tution/courses/:id/attendance" element={page(<CourseClassAttendance />, "/tution/courses")} />
     <Route path="/tution/course-report" element={page(<CourseReport />)} />
     <Route path="/tution/course-attendance" element={page(<CourseAttendance />)} />
     <Route path="/tution/usage" element={page(<Usage />)} />
