@@ -54,6 +54,13 @@ id = "b04b855097f848cebbb8d71207f4159c"
 binding = "SIGNED_FORMS_BUCKET"
 bucket_name = "tution-signed-forms"
 
+# Service Binding：行政管理站「學生名單同步」手動觸發，經 RPC 呼叫 student-sync Worker 的 SyncService.runSync()
+# （student-sync 的程式在 chhsban-acadoc/chhsban-acadoc/workers/sms-sync.js，需先部署它才有 SyncService）
+[[services]]
+binding = "STUDENT_SYNC"
+service = "student-sync"
+entrypoint = "SyncService"
+
 # 環境變數（默認環境）
 [vars]
 GOOGLE_SHEETS_SPREADSHEET_ID = "18Fq3eWpf6Z1kx_-ihB0Hs38O3IomBzxJQne8QYHoYJI"

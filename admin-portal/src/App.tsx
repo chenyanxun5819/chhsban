@@ -22,9 +22,10 @@ import OptionalCourseAttendance from "@/optional/pages/CourseAttendance";
 import Teachers from "@/settings/pages/Teachers";
 import PasswordReset from "@/settings/pages/PasswordReset";
 import Classrooms from "@/settings/pages/Classrooms";
+import StudentSync from "@/data/pages/StudentSync";
 
 // 行政管理站：super_admin（全部）、admin（督察員，只能查看）、classroom_manager（教室管理員）、dorm_supervisor（舍監）。
-// 路由依系統分前綴：/tution/*（補習班）、/optional/*（選修課）、/settings/*（共用設定）；
+// 路由依系統分前綴：/data/*（資料更新）、/tution/*（補習班）、/optional/*（選修課）、/settings/*（共用設定）；
 // 每頁可進入的身分見 shared/access.ts。
 
 const NoAccess: React.FC = () => {
@@ -85,6 +86,9 @@ const AppRoutes = () => (
   <Routes>
     <Route path="/login" element={<Login />} />
     <Route path="/" element={<HomeRedirect />} />
+
+    {/* 資料更新（學生名單同步，經 tution-system Worker 呼叫 student-sync） */}
+    <Route path="/data/student-sync" element={page(<StudentSync />)} />
 
     {/* 補習班（tution-system Worker） */}
     <Route path="/tution/approvals" element={page(<Approvals />)} />

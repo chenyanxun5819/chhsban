@@ -7,6 +7,7 @@ import type { Permission } from "@/shared/types";
  * 能不能「修改」由各 Worker 把關，前端只負責隱藏按鈕。
  */
 export const PAGE_ACCESS: Record<string, Permission[]> = {
+  "/data/student-sync": ["super_admin"],
   "/tution/approvals": ["super_admin"],
   "/tution/courses": ["super_admin", "admin"],
   "/tution/course-report": ["super_admin", "admin"],

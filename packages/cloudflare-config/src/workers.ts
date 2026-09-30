@@ -14,7 +14,7 @@ export interface WorkerConfig {
 export const WORKERS = {
   acadoc: {
     name: "student-sync",
-    mainFile: "workers/sms-sync.js",
+    mainFile: "chhsban-acadoc/workers/sms-sync.js",
     kvNamespaces: ["STUDENT_KV", "TEACHER_KV", "AUTH_KV"] as string[],
     description: "公文系統 - SMS 學生同步 Worker",
     cronTriggers: ["0 16 * * 7", "0 16 * * 2"] as string[],

@@ -1,0 +1,110 @@
+/* 資料更新 → 學生名單同步 */
+.ss-page {
+  max-width: 1100px;
+}
+
+.ss-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.ss-header h2 {
+  margin: 0 0 6px;
+}
+
+.ss-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.ss-muted {
+  color: #6b7280;
+  font-size: 14px;
+  margin: 0;
+  line-height: 1.6;
+}
+
+.ss-card-title {
+  margin: 0 0 12px;
+  font-size: 16px;
+}
+
+.ss-subtitle {
+  margin: 20px 0 8px;
+  font-size: 15px;
+}
+
+.ss-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.ss-stat {
+  border: 1px solid #eef0f3;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: #fafbfc;
+}
+
+.ss-stat__label {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+.ss-stat__value {
+  font-size: 22px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.ss-stat__value--text {
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.ss-stat__sub {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 2px;
+}
+
+.ss-error {
+  margin-top: 12px;
+}
+
+.ss-force {
+  margin-top: 10px;
+}
+
+.ss-log {
+  margin-top: 16px;
+}
+
+.ss-log summary {
+  cursor: pointer;
+  color: #2563eb;
+  font-size: 14px;
+}
+
+.ss-log pre {
+  background: #f6f7f9;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 12px;
+  white-space: pre-wrap;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.ss-table-wrap {
+  overflow-x: auto;
+}
+
+.ss-expanded {
+  background: #fafbfc;
+}

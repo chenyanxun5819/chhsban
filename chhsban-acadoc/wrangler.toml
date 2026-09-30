@@ -1,32 +1,32 @@
 # Cloudflare Worker 配置 - 自動生成
 # 由 packages/cloudflare-config 管理
 # 勿直接編輯此文件！修改請見: packages/cloudflare-config/src/
+# 注意：此 Worker（student-sync）只跑 sms-sync.js（SMS 學生名單定期同步 + /api/student、/api/teacher 查詢）。
+# 2026-07 曾誤把 main 指向 workers/index.ts 部署，導致定期同步停擺近三個月。
 
 name = "student-sync"
 account_id = "82d225cda80f37208228877b32268b26"
 workers_dev = true
-main = "chhsban-acadoc/workers/index.ts"
+main = "chhsban-acadoc/workers/sms-sync.js"
 compatibility_date = "2026-06-30"
 
 # KV 綁定配置
 [[kv_namespaces]]
-binding = "students_KV"
+binding = "STUDENT_KV"
 id = "9d870e2344c84c74a1ed2f2851c93408"
 
 [[kv_namespaces]]
-binding = "teachers_KV"
+binding = "TEACHER_KV"
 id = "8892dc8c30984f4591850521a1b57ed8"
 
 [[kv_namespaces]]
-binding = "auth_KV"
+binding = "AUTH_KV"
 id = "8ddeccbeeae9440fafba384d35205a81"
 
-# 環境變數
 # 環境變數
 [vars]
 SMS_BASE_URL = "http://sms.chhsban.edu.my"
 
-# Cron 觸發器
 # Cron 觸發器
 [triggers]
 crons = ["0 16 * * 7", "0 16 * * 2"]

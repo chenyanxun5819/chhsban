@@ -6,8 +6,12 @@ import { canAccess } from "@/shared/access";
 
 type NavItem = { label: string; path: string };
 
-// 側邊欄依「系統」分組；每一組對應 src/ 底下的一個資料夾（tution/、optional/、settings/）
+// 側邊欄依「系統」分組；每一組對應 src/ 底下的一個資料夾（data/、tution/、optional/、settings/）
 const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
+  {
+    title: "資料更新",
+    items: [{ label: "學生名單同步", path: "/data/student-sync" }],
+  },
   {
     title: "補習班",
     items: [

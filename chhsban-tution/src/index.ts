@@ -38,6 +38,7 @@ import {
   resolveRosterStudentInfo,
 } from "./boarding-attendance";
 import { logAudit } from "./audit";
+import { handleStudentSync, type StudentSyncService } from "./student-sync";
 
 interface Env {
   STUDENT_KV: KVNamespace;
@@ -51,6 +52,7 @@ interface Env {
   ASSETS_KV: KVNamespace;
   AUDIT_LOG_KV: KVNamespace;
   SIGNED_FORMS_BUCKET: R2Bucket;
+  STUDENT_SYNC: StudentSyncService;
   GOOGLE_SHEETS_API_KEY?: string;
   GOOGLE_SHEETS_SPREADSHEET_ID: string;
   GOOGLE_SHEETS_SHEET_CLASSES: string;
@@ -577,6 +579,10 @@ export default {
 
       if (pathname.startsWith("/api/admin/teachers")) {
         return handleAdminTeachers(request, env, session, ctx);
+      }
+
+      if (pathname.startsWith("/api/admin/student-sync")) {
+        return handleStudentSync(request, env, session, getCorsHeaders());
       }
 
       return jsonResponse({ error: "Not found" }, 404);
