@@ -368,6 +368,22 @@
   white-space: nowrap;
 }
 
+/* 表格上方「顯示調課／停課／假期」勾選框 */
+.oc-att-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.oc-att-toggles label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
 .oc-att-legend {
   display: flex;
   flex-wrap: wrap;

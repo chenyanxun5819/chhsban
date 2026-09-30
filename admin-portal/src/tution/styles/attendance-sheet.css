@@ -333,6 +333,29 @@
   background: #edf2f8;
 }
 
+/* 假期（H）：落在學校行事曆假期、且沒有點名紀錄的上課日，整欄合併一格 */
+.tu-scope .attendance-matrix-cell-holiday {
+  background: #2aceff;
+  color: #fff;
+  font-weight: 700;
+}
+
+/* 表格上方「顯示調課／停課／假期」勾選框 */
+.tu-scope .attendance-overview-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.25rem;
+  margin-bottom: 0.75rem;
+  font-size: 0.9rem;
+}
+
+.tu-scope .attendance-overview-toggles label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+}
+
 /* 停課（C）／調課原訂日期（R）：整欄合併一格 */
 .tu-scope .attendance-matrix-cell-cancelled {
   background: #3c3c3c;

@@ -108,6 +108,11 @@ interface AttendanceOverviewProps {
 export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, roster, records, calendar, course, schedules }) => {
   const isMobile = useIsMobile();
 
+  // 表格上方的勾選框：預設都不勾，勾了才把調課原訂日期（R）、停課（C）、假期（H）顯示成整欄合併的一格
+  const [showRescheduled, setShowRescheduled] = useState(false);
+  const [showCancelled, setShowCancelled] = useState(false);
+  const [showHoliday, setShowHoliday] = useState(false);
+
   const recordsByKey = useMemo(() => {
     const map = new Map<string, OptionalCourseAttendance>();
     for (const r of records) map.set(`${r.student_id}|${r.class_date}`, r);
@@ -118,7 +123,7 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
   // 已有點名紀錄或仍是上課日的日期一律當一般上課日顯示（例如行事曆事後才改成假期）
   const specialDays = useMemo(() => {
     const map = new Map<string, SpecialDay>();
-    if (calendar && course) {
+    if (showHoliday && calendar && course) {
       listHolidaySessions(calendar, course, info.today).forEach((name, d) =>
         map.set(d, { code: "H", className: "oc-att-matrix-cell-holiday", title: `${formatDate(d)} 假期：${name}` }),
       );
@@ -126,6 +131,7 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
     for (const s of schedules ?? []) {
       const d = s.scheduled_date;
       if (d > info.today) continue;
+      if (s.status === "cancelled" ? !showCancelled : !showRescheduled) continue;
       if (s.status === "cancelled") {
         map.set(d, {
           code: "C",
@@ -148,7 +154,7 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
       if (recorded.has(d) || sessionDates.has(d)) map.delete(d);
     }
     return map;
-  }, [calendar, course, schedules, info, records]);
+  }, [calendar, course, schedules, info, records, showHoliday, showCancelled, showRescheduled]);
 
   // 調課後的新日期：表頭提示原訂日期
   const rescheduledFrom = useMemo(
@@ -197,12 +203,36 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
   if (students.length === 0) {
     return <p>名冊裡沒有學生。</p>;
   }
+
+  const toggles = (
+    <div className="oc-att-toggles">
+      <label>
+        <input type="checkbox" checked={showRescheduled} onChange={(e) => setShowRescheduled(e.target.checked)} />
+        顯示調課
+      </label>
+      <label>
+        <input type="checkbox" checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} />
+        顯示停課
+      </label>
+      <label>
+        <input type="checkbox" checked={showHoliday} onChange={(e) => setShowHoliday(e.target.checked)} />
+        顯示假期
+      </label>
+    </div>
+  );
+
   if (dates.length === 0) {
-    return <p style={{ color: "#888" }}>目前還沒有到上課日，也沒有任何點名紀錄。</p>;
+    return (
+      <>
+        {toggles}
+        <p style={{ color: "#888" }}>目前還沒有到上課日，也沒有任何點名紀錄。</p>
+      </>
+    );
   }
 
   return (
     <div className="oc-att-overview">
+      {toggles}
       {isMobile && totalPages > 1 && (
         <div className="oc-att-matrix-pagination">
           <button
@@ -353,18 +383,24 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({ info, ro
             {ATTENDANCE_STATUS_META[status].label}
           </span>
         ))}
-        <span className="oc-att-legend-item">
-          <span className="oc-att-legend-swatch oc-att-matrix-cell-holiday">H</span>
-          假期
-        </span>
-        <span className="oc-att-legend-item">
-          <span className="oc-att-legend-swatch oc-att-matrix-cell-cancelled">C</span>
-          停課
-        </span>
-        <span className="oc-att-legend-item">
-          <span className="oc-att-legend-swatch oc-att-matrix-cell-rescheduled">R</span>
-          調課（原訂日期）
-        </span>
+        {showHoliday && (
+          <span className="oc-att-legend-item">
+            <span className="oc-att-legend-swatch oc-att-matrix-cell-holiday">H</span>
+            假期
+          </span>
+        )}
+        {showCancelled && (
+          <span className="oc-att-legend-item">
+            <span className="oc-att-legend-swatch oc-att-matrix-cell-cancelled">C</span>
+            停課
+          </span>
+        )}
+        {showRescheduled && (
+          <span className="oc-att-legend-item">
+            <span className="oc-att-legend-swatch oc-att-matrix-cell-rescheduled">R</span>
+            調課（原訂日期）
+          </span>
+        )}
         <span className="oc-att-legend-item">
           <span className="oc-att-legend-swatch oc-att-matrix-cell-unmarked">·</span>
           未點名

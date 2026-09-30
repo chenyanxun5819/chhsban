@@ -424,6 +424,11 @@
     "cancelledCellTitle": "{{date}} 停課",
     "rescheduledCellTitle": "{{date}} 調課至 {{newDate}}",
     "legendCancelled": "停課",
+    "legendHoliday": "假期",
+    "holidayCellTitle": "{{date}} 假期：{{name}}",
+    "showRescheduled": "顯示調課",
+    "showCancelled": "顯示停課",
+    "showHoliday": "顯示假期",
     "legendRescheduled": "調課（原訂日期）",
     "legendUnmarked": "未點名",
     "legendNotJoined": "未加入"

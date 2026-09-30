@@ -5,6 +5,8 @@ import { ATTENDANCE_STATUS_META, type AttendanceQueryRecord } from "@/tution/ser
 import type { ClassRosterEntry } from "@/tution/types";
 import { useAttendanceStatusLabel, useExcuseReasonLabel } from "@/tution/i18n/labels";
 import { formatDisplayDate } from "@/tution/utils/validators";
+import { getCalendar } from "@/optional/services/calendarService";
+import type { SchoolCalendar } from "@/optional/types";
 
 /** 學生的加入日期若晚於指定上課日，代表當天該生尚未加入班級，不應被點名。 */
 export function isEnrolledByDate(student: ClassRosterEntry, dateStr: string): boolean {
@@ -116,15 +118,58 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
   };
   const isMobile = useIsMobile();
 
+  // 表格上方的勾選框：預設都不勾，勾了才把調課原訂日期（R）、停課（C）、假期（H）顯示成整欄合併的一格
+  const [showRescheduled, setShowRescheduled] = useState(false);
+  const [showCancelled, setShowCancelled] = useState(false);
+  const [showHoliday, setShowHoliday] = useState(false);
+
+  // 假期沿用學校行事曆（選修課行事曆），勾選「顯示假期」才去讀；讀不到的年份就不標
+  const [calendars, setCalendars] = useState<SchoolCalendar[]>([]);
+  const yearsKey = useMemo(
+    () => Array.from(new Set(rows.map((row) => row.actual_date.slice(0, 4)))).sort().join(","),
+    [rows]
+  );
+  useEffect(() => {
+    if (!showHoliday || !yearsKey) {
+      setCalendars([]);
+      return;
+    }
+    let cancelled = false;
+    Promise.all(yearsKey.split(",").map((y) => getCalendar(Number(y)).catch(() => null))).then((list) => {
+      if (!cancelled) setCalendars(list.filter((c): c is SchoolCalendar => !!c));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [showHoliday, yearsKey]);
+
   // 欄位：rows 的實際上課日，加上今天以前停課／調課的原訂日期（整欄合併顯示 C／R）；
   // 原訂日期若同時是某堂課的實際上課日（例如別堂調課過來），照一般上課日顯示。
+  // 假期：落在行事曆假期、且沒有任何點名紀錄的上課日，整欄改顯示 H。
   const columns = useMemo<MatrixColumn[]>(() => {
     const actualDates = new Set(rows.map((row) => row.actual_date));
+    const recordedDates = new Set(Array.from(recordsByKey.keys()).map((key) => key.split("|")[1]));
+    const holidays = calendars.flatMap((c) => c.holidays);
+    const makeupDays = new Set(calendars.flatMap((c) => c.makeup_days.map((m) => m.date)));
     const today = todayStr();
-    const list: MatrixColumn[] = Array.from(actualDates).map((date) => ({ date }));
+    const list: MatrixColumn[] = Array.from(actualDates).map((date) => {
+      if (!showHoliday || recordedDates.has(date) || makeupDays.has(date)) return { date };
+      const holiday = holidays.find((h) => date >= h.start_date && date <= h.end_date);
+      if (!holiday) return { date };
+      return {
+        date,
+        special: {
+          code: "H",
+          className: "attendance-matrix-cell-holiday",
+          title: t("attendanceSheet.holidayCellTitle", { date: formatDisplayDate(date), name: holiday.name }),
+        },
+      };
+    });
     allRows.forEach((row) => {
       const d = row.scheduled_date;
       if (row.status === "held" || d > today || actualDates.has(d)) return;
+      if (row.status === "cancelled" && !showCancelled) return;
+      if (row.status === "rescheduled" && !showRescheduled) return;
       const special: SpecialColumn =
         row.status === "cancelled"
           ? {
@@ -147,7 +192,7 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
       list.push({ date: d, special });
     });
     return list.sort((a, b) => (a.date < b.date ? -1 : 1));
-  }, [rows, allRows, t]);
+  }, [rows, allRows, recordsByKey, calendars, showHoliday, showCancelled, showRescheduled, t]);
 
   // 手機模式：以「月」分頁（上/下個月切換），每月欄數鎖死在 MOBILE_MATRIX_MONTH_COLS 以上，
   // 不靠橫向捲動；桌機維持原本一次全部顯示、超出寬度就橫向拉 bar。
@@ -213,6 +258,21 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
 
   return (
     <div className="attendance-overview">
+      <div className="attendance-overview-toggles">
+        <label>
+          <input type="checkbox" checked={showRescheduled} onChange={(e) => setShowRescheduled(e.target.checked)} />
+          {t("attendanceSheet.showRescheduled")}
+        </label>
+        <label>
+          <input type="checkbox" checked={showCancelled} onChange={(e) => setShowCancelled(e.target.checked)} />
+          {t("attendanceSheet.showCancelled")}
+        </label>
+        <label>
+          <input type="checkbox" checked={showHoliday} onChange={(e) => setShowHoliday(e.target.checked)} />
+          {t("attendanceSheet.showHoliday")}
+        </label>
+      </div>
+
       {isMobile && totalPages > 1 && (
         <div className="attendance-matrix-pagination">
           <button
@@ -381,14 +441,24 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
             {statusLabel(ATTENDANCE_STATUS_META[status].label)}
           </span>
         ))}
-        <span className="attendance-legend-item">
-          <span className="attendance-legend-swatch attendance-matrix-cell-cancelled">C</span>
-          {t("attendanceSheet.legendCancelled")}
-        </span>
-        <span className="attendance-legend-item">
-          <span className="attendance-legend-swatch attendance-matrix-cell-rescheduled">R</span>
-          {t("attendanceSheet.legendRescheduled")}
-        </span>
+        {showHoliday && (
+          <span className="attendance-legend-item">
+            <span className="attendance-legend-swatch attendance-matrix-cell-holiday">H</span>
+            {t("attendanceSheet.legendHoliday")}
+          </span>
+        )}
+        {showCancelled && (
+          <span className="attendance-legend-item">
+            <span className="attendance-legend-swatch attendance-matrix-cell-cancelled">C</span>
+            {t("attendanceSheet.legendCancelled")}
+          </span>
+        )}
+        {showRescheduled && (
+          <span className="attendance-legend-item">
+            <span className="attendance-legend-swatch attendance-matrix-cell-rescheduled">R</span>
+            {t("attendanceSheet.legendRescheduled")}
+          </span>
+        )}
         <span className="attendance-legend-item">
           <span className="attendance-legend-swatch attendance-matrix-cell-unmarked">·</span>
           {t("attendanceSheet.legendUnmarked")}
