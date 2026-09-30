@@ -33,12 +33,21 @@ function formatMonthLabel(monthKey: string): string {
   return `${MONTH_FULL[m - 1] || m} ${y}`;
 }
 
+/** 奇數月／偶數月交替底色，讓桌機不分頁的總覽也看得出月份分界（樣式同選修課點名總覽）。 */
+const monthToneClass = (date: string): string =>
+  Number(date.slice(5, 7)) % 2 === 1 ? "attendance-month-odd" : "attendance-month-even";
+
 /** 手機斷點與桌機共用（見 attendance-sheet.css 的 @media max-width: 767px）。 */
 const MOBILE_BREAKPOINT = 767;
 
 /** 總覽表格在手機模式下，每個月固定佔用的日期欄數下限——通常一個月 4～5 堂課，欄數不足時
  * 補空白欄湊滿；若某月因為加課超過這個數字，照實際堂數顯示，不裁切資料。 */
 const MOBILE_MATRIX_MONTH_COLS = 6;
+
+function todayStr(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate())).toISOString().slice(0, 10);
+}
 
 function useIsMobile(): boolean {
   const [isMobile, setIsMobile] = useState(
@@ -70,6 +79,25 @@ interface MonthGroup {
   rows: GeneratedScheduleRow[];
 }
 
+/** 停課／調課原訂日期：整欄合併成一格（同選修課點名總覽的 C／R） */
+interface SpecialColumn {
+  code: string;
+  className: string;
+  title: string;
+}
+
+/** 矩陣的一欄：一般上課日，或整欄合併的停課／調課原訂日期 */
+interface MatrixColumn {
+  date: string;
+  special?: SpecialColumn;
+}
+
+interface ColumnMonthGroup {
+  key: string;
+  label: string;
+  columns: MatrixColumn[];
+}
+
 /** 「學生 × 日期」矩陣總覽，唯讀，僅供快速檢視整期出勤概況（例如管理員查核）；不在此處編輯。 */
 export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
   rows,
@@ -86,32 +114,64 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
       return t("attendanceSheet.scheduleRescheduled", { date: row.scheduled_date, newDate: row.rescheduled_to });
     return t("attendanceSheet.scheduleHeld", { date: row.scheduled_date });
   };
-  const chronological = useMemo(() => [...rows].reverse(), [rows]);
   const isMobile = useIsMobile();
+
+  // 欄位：rows 的實際上課日，加上今天以前停課／調課的原訂日期（整欄合併顯示 C／R）；
+  // 原訂日期若同時是某堂課的實際上課日（例如別堂調課過來），照一般上課日顯示。
+  const columns = useMemo<MatrixColumn[]>(() => {
+    const actualDates = new Set(rows.map((row) => row.actual_date));
+    const today = todayStr();
+    const list: MatrixColumn[] = Array.from(actualDates).map((date) => ({ date }));
+    allRows.forEach((row) => {
+      const d = row.scheduled_date;
+      if (row.status === "held" || d > today || actualDates.has(d)) return;
+      const special: SpecialColumn =
+        row.status === "cancelled"
+          ? {
+              code: "C",
+              className: "attendance-matrix-cell-cancelled",
+              title: `${t("attendanceSheet.cancelledCellTitle", { date: formatDisplayDate(d) })}${
+                row.cancellation_reason ? `：${row.cancellation_reason}` : ""
+              }`,
+            }
+          : {
+              code: "R",
+              className: "attendance-matrix-cell-rescheduled",
+              title: `${t("attendanceSheet.rescheduledCellTitle", {
+                date: formatDisplayDate(d),
+                newDate: row.rescheduled_to ? formatDisplayDate(row.rescheduled_to) : "-",
+              })}${row.rescheduled_venue ? `（${row.rescheduled_venue}）` : ""}${
+                row.reschedule_reason ? `：${row.reschedule_reason}` : ""
+              }`,
+            };
+      list.push({ date: d, special });
+    });
+    return list.sort((a, b) => (a.date < b.date ? -1 : 1));
+  }, [rows, allRows, t]);
 
   // 手機模式：以「月」分頁（上/下個月切換），每月欄數鎖死在 MOBILE_MATRIX_MONTH_COLS 以上，
   // 不靠橫向捲動；桌機維持原本一次全部顯示、超出寬度就橫向拉 bar。
-  const monthGroups = useMemo<MonthGroup[]>(() => {
-    const map = new Map<string, GeneratedScheduleRow[]>();
-    chronological.forEach((row) => {
-      const key = row.actual_date.slice(0, 7);
+  const monthGroups = useMemo<ColumnMonthGroup[]>(() => {
+    const map = new Map<string, MatrixColumn[]>();
+    columns.forEach((col) => {
+      const key = col.date.slice(0, 7);
       const bucket = map.get(key);
-      if (bucket) bucket.push(row);
-      else map.set(key, [row]);
+      if (bucket) bucket.push(col);
+      else map.set(key, [col]);
     });
-    return Array.from(map.entries()).map(([key, monthRows]) => ({
+    return Array.from(map.entries()).map(([key, monthColumns]) => ({
       key,
       label: formatMonthLabel(key),
-      rows: monthRows,
+      columns: monthColumns,
     }));
-  }, [chronological]);
+  }, [columns]);
 
   const totalPages = isMobile ? Math.max(1, monthGroups.length) : 1;
   const [pageIndex, setPageIndex] = useState<number | null>(null);
   // 預設停在最後一頁（最新月份），沒手動翻頁前一律跟著資料筆數走。
   const currentPageIndex = Math.min(pageIndex ?? totalPages - 1, totalPages - 1);
   const currentMonth = isMobile ? monthGroups[currentPageIndex] : undefined;
-  const visibleColumns = isMobile ? currentMonth?.rows ?? [] : chronological;
+  const visibleColumns = isMobile ? currentMonth?.columns ?? [] : columns;
 
   // 表格下方的「本月排課紀錄」條列：用完整排課列表（含停課），依「原訂日期」分月分組，
   // 手機模式只顯示當前分頁那個月，桌機因為矩陣本身不分月，改為每個月各自列出。
@@ -182,13 +242,13 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
               <th className="attendance-matrix-student-col" style={studentColStyle}>
                 {t("attendanceSheet.studentCol")}
               </th>
-              {visibleColumns.map((row) => {
-                const { month, day } = formatMonthDayParts(row.actual_date);
+              {visibleColumns.map((col) => {
+                const { month, day } = formatMonthDayParts(col.date);
                 return (
                   <th
-                    key={row.actual_date}
-                    title={row.actual_date}
-                    className="attendance-matrix-date-col"
+                    key={col.date}
+                    title={col.special ? col.special.title : formatDisplayDate(col.date)}
+                    className={`attendance-matrix-date-col ${monthToneClass(col.date)}`}
                     style={dateColStyle}
                   >
                     <span className="attendance-date-chip">
@@ -208,7 +268,7 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
             </tr>
           </thead>
           <tbody>
-            {roster.map((student) => (
+            {roster.map((student, rowIndex) => (
               <tr key={student.student_id}>
                 <td className="attendance-matrix-student-col" style={studentColStyle}>
                   <div className="attendance-matrix-student-name">{student.name_cn}</div>
@@ -217,14 +277,30 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
                     <span className="attendance-matrix-student-class">{student.real_class_name}</span>
                   </div>
                 </td>
-                {visibleColumns.map((row) => {
-                  if (!isEnrolledByDate(student, row.actual_date)) {
+                {visibleColumns.map((col) => {
+                  const date = col.date;
+                  if (col.special) {
+                    // 停課／調課原訂日期整欄合併成一格，只在第一列輸出
+                    if (rowIndex > 0) return null;
                     return (
                       <td
-                        key={row.actual_date}
-                        className="attendance-matrix-cell attendance-matrix-cell-not-joined"
+                        key={date}
+                        rowSpan={roster.length}
+                        className={`attendance-matrix-cell ${col.special.className}`}
+                        title={col.special.title}
+                        style={dateColStyle}
+                      >
+                        {col.special.code}
+                      </td>
+                    );
+                  }
+                  if (!isEnrolledByDate(student, date)) {
+                    return (
+                      <td
+                        key={date}
+                        className={`attendance-matrix-cell attendance-matrix-cell-not-joined ${monthToneClass(date)}`}
                         title={t("attendanceSheet.notJoinedCellTitle", {
-                          date: formatDisplayDate(row.actual_date),
+                          date: formatDisplayDate(date),
                           joinDate: formatDisplayDate(student.enrollment_date),
                         })}
                         style={dateColStyle}
@@ -234,25 +310,30 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
                     );
                   }
 
-                  const record = recordsByKey.get(`${student.student_id}|${row.actual_date}`);
+                  const record = recordsByKey.get(`${student.student_id}|${date}`);
                   const meta = record ? ATTENDANCE_STATUS_META[record.status] : null;
-                  const title = meta
-                    ? `${formatDisplayDate(row.actual_date)} ${statusLabel(meta.label)}${
-                        record?.absence_reason ? `：${reasonLabel(record.absence_reason)}` : ""
-                      }`
-                    : t("attendanceSheet.notMarkedCellTitle", { date: formatDisplayDate(row.actual_date) });
+                  if (!meta) {
+                    return (
+                      <td
+                        key={date}
+                        className={`attendance-matrix-cell attendance-matrix-cell-unmarked ${monthToneClass(date)}`}
+                        title={t("attendanceSheet.notMarkedCellTitle", { date: formatDisplayDate(date) })}
+                        style={dateColStyle}
+                      >
+                        ·
+                      </td>
+                    );
+                  }
                   return (
                     <td
-                      key={row.actual_date}
+                      key={date}
                       className="attendance-matrix-cell"
-                      title={title}
-                      style={{
-                        background: meta ? meta.color : "#eee",
-                        color: meta ? "#fff" : "#999",
-                        ...dateColStyle,
-                      }}
+                      title={`${formatDisplayDate(date)} ${statusLabel(meta.label)}${
+                        record?.absence_reason ? `：${reasonLabel(record.absence_reason)}` : ""
+                      }`}
+                      style={{ background: meta.color, color: "#fff", ...dateColStyle }}
                     >
-                      {meta ? meta.code : "·"}
+                      {meta.code}
                     </td>
                   );
                 })}
@@ -300,6 +381,22 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
             {statusLabel(ATTENDANCE_STATUS_META[status].label)}
           </span>
         ))}
+        <span className="attendance-legend-item">
+          <span className="attendance-legend-swatch attendance-matrix-cell-cancelled">C</span>
+          {t("attendanceSheet.legendCancelled")}
+        </span>
+        <span className="attendance-legend-item">
+          <span className="attendance-legend-swatch attendance-matrix-cell-rescheduled">R</span>
+          {t("attendanceSheet.legendRescheduled")}
+        </span>
+        <span className="attendance-legend-item">
+          <span className="attendance-legend-swatch attendance-matrix-cell-unmarked">·</span>
+          {t("attendanceSheet.legendUnmarked")}
+        </span>
+        <span className="attendance-legend-item">
+          <span className="attendance-legend-swatch attendance-matrix-cell-not-joined">-</span>
+          {t("attendanceSheet.legendNotJoined")}
+        </span>
       </div>
     </div>
   );

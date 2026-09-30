@@ -308,11 +308,42 @@
   flex-shrink: 0;
 }
 
-/* 加入日期晚於該堂課日期的儲存格：反灰，不算「尚未點名」 */
-.tu-scope .attendance-matrix-cell-not-joined {
+/* 加入日期晚於該堂課日期的儲存格：反灰，不算「尚未點名」（表格與圖例共用，蓋過圖例預設的白字） */
+.tu-scope .attendance-matrix-cell-not-joined,
+.tu-scope .attendance-legend-swatch.attendance-matrix-cell-not-joined {
   background: #f5f5f5;
-  color: #ccc;
+  color: #8a8a8a;
   font-weight: 400;
+}
+
+/* 未點名：不加底色，只顯示深色的點（表格與圖例共用） */
+.tu-scope .attendance-matrix-cell-unmarked,
+.tu-scope .attendance-legend-swatch.attendance-matrix-cell-unmarked {
+  background: transparent;
+  color: #29241a;
+  font-weight: 700;
+}
+
+/* 奇數月／偶數月交替底色（日期表頭、未加入的格子；已點名的格子維持狀態色，未點名不加底色） */
+.tu-scope .attendance-matrix th.attendance-month-even {
+  background: #e3ecf7;
+}
+
+.tu-scope .attendance-matrix-cell-not-joined.attendance-month-even {
+  background: #edf2f8;
+}
+
+/* 停課（C）／調課原訂日期（R）：整欄合併一格 */
+.tu-scope .attendance-matrix-cell-cancelled {
+  background: #3c3c3c;
+  color: #fff;
+  font-weight: 700;
+}
+
+.tu-scope .attendance-matrix-cell-rescheduled {
+  background: #185abd;
+  color: #fff;
+  font-weight: 700;
 }
 
 /* 分頁湊數用的空白補位欄（例如最後一頁只剩 1 天）：維持跟正常欄一樣的格線與欄寬，只是不放內容，

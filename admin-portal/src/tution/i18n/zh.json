@@ -420,7 +420,13 @@
     "noScheduleLog": "本月尚無排課紀錄",
     "scheduleCancelled": "{{date}} 停課",
     "scheduleRescheduled": "{{date}} 調至 {{newDate}}",
-    "scheduleHeld": "{{date}} 上課"
+    "scheduleHeld": "{{date}} 上課",
+    "cancelledCellTitle": "{{date}} 停課",
+    "rescheduledCellTitle": "{{date}} 調課至 {{newDate}}",
+    "legendCancelled": "停課",
+    "legendRescheduled": "調課（原訂日期）",
+    "legendUnmarked": "未點名",
+    "legendNotJoined": "未加入"
   },
   "attendanceStatsPage": {
     "loadFailed": "加載失敗",
