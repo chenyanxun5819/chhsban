@@ -1,9 +1,9 @@
 /**
  * 「各課程開課報表」批次計算。
  *
- * 每日由 Cron Trigger 呼叫一次（見 index.ts 的 scheduled handler），結果整批存進 KV
- * （TutionKVService.setCourseReportSummary），前端一律讀快照，不即時計算——課程一多，
- * 逐課程即時抓排課/名單/出勤三份資料會很慢，改成後端一次全表掃描、分組後在記憶體算完。
+ * 每日由 Cron Trigger 呼叫一次（見 index.ts 的 scheduled handler），結果存進 D1
+ * （TutionService.setCourseReportSummary），前端一律讀快照。
+ * 出勤數字由 D1 直接 GROUP BY 算出各班各日期各狀態人數（每位學生每堂課只算最新一筆）。
  *
  * 排課的「應開課數／實際開課數／停課數／未點名」演算法，是從
  * tution-portal/src/utils/scheduleGenerator.ts 移植過來的（純日期運算，沒有前端依賴），
@@ -11,9 +11,8 @@
  */
 
 import type { TeacherKVManager } from "@chhsban/kv-utils";
-import type { TutionClass, TutionSchedule, TutionRoster, TutionAttendance } from "@chhsban/kv-utils";
-import type { TutionKVService } from "./tution-service";
-import { dedupeToLatestAttendance } from "./tution-service";
+import type { TutionClass, TutionSchedule } from "@chhsban/kv-utils";
+import type { TutionService } from "./tution-service";
 
 const DAY_NAME_TO_INDEX: Record<string, number> = {
   sunday: 0,
@@ -181,33 +180,30 @@ function groupByClassId<T extends { class_id: string }>(items: T[]): Map<string,
 }
 
 export async function computeCourseReport(
-  kvService: TutionKVService,
+  service: TutionService,
   teacherManager: TeacherKVManager,
 ): Promise<CourseReportSummary> {
-  const [allClasses, allSchedules, allRoster, allAttendance, allTeachers] = await Promise.all([
-    kvService.listAllClasses(),
-    kvService.listAllSchedules(),
-    kvService.listAllRoster(),
-    kvService.listAllAttendance(),
+  const [allClasses, allSchedules, allRoster, attendanceCounts, allTeachers] = await Promise.all([
+    service.listAllClasses(),
+    service.listAllSchedules(),
+    service.listAllRoster(),
+    service.countAttendanceByClassDate(),
     teacherManager.getAllTeachers(),
   ]);
 
   const teacherNameById = new Map(allTeachers.map((t) => [t.teacher_id, t.name_cn || t.name_en || ""]));
   const schedulesByClass = groupByClassId(allSchedules);
-  const rosterByClass = groupByClassId(allRoster as unknown as Array<TutionRoster & { class_id: string }>);
-  // 出勤新增制下 allAttendance 可能含同一 class_id+student_id+class_date 的多筆歷史紀錄，
-  // 先收斂成每組最新一筆，避免出席率/各狀態計數被歷史版本重複計入。
-  const dedupedAttendance = dedupeToLatestAttendance(allAttendance);
-  const attendanceByClass = groupByClassId(dedupedAttendance as unknown as Array<TutionAttendance & { class_id: string }>);
+  const rosterByClass = groupByClassId(allRoster);
+  const countsByClass = groupByClassId(attendanceCounts);
 
   const today = new Date();
 
   const rows: CourseReportRow[] = (allClasses as TutionClass[])
     .filter((cls) => REPORT_STATUSES.has(cls.approval_status))
     .map((cls) => {
-      const exceptions = schedulesByClass.get(cls.class_id) || [];
+      const exceptions: TutionSchedule[] = schedulesByClass.get(cls.class_id) || [];
       const rosterEntries = rosterByClass.get(cls.class_id) || [];
-      const attendanceRecords = attendanceByClass.get(cls.class_id) || [];
+      const counts = countsByClass.get(cls.class_id) || [];
 
       const scheduleRows = generateScheduleRows({
         dayOfWeek: cls.day_of_week,
@@ -217,7 +213,7 @@ export async function computeCourseReport(
         today,
       });
 
-      const attendedDates = new Set(attendanceRecords.map((a) => a.class_date));
+      const attendedDates = new Set(counts.map((c) => c.class_date));
       const summary = summarizeSchedule(scheduleRows, attendedDates, today);
 
       const activeRosterCount = rosterEntries.filter((r) => r.is_active).length;
@@ -227,19 +223,19 @@ export async function computeCourseReport(
       let absentCount = 0;
       let lateCount = 0;
       let excuseCount = 0;
-      for (const record of attendanceRecords) {
-        switch (record.status) {
+      for (const { status, count } of counts) {
+        switch (status) {
           case "present":
-            presentCount++;
+            presentCount += count;
             break;
           case "absent":
-            absentCount++;
+            absentCount += count;
             break;
           case "late":
-            lateCount++;
+            lateCount += count;
             break;
           case "excuse":
-            excuseCount++;
+            excuseCount += count;
             break;
         }
       }

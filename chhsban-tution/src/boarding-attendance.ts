@@ -8,7 +8,7 @@
  *   以學號查詢該生參加過的所有補習班、每堂課的點名狀態與統計（不限住宿生）。
  *
  * 上課日推算沿用 course-report.ts 的 generateScheduleRows（與老師排課／點名頁邏輯一致）；
- * 出勤只取同一 class_id+student_id+class_date 最新一筆（dedupeToLatestAttendance）。
+ * 出勤讀 D1 的 tution_attendance（每位學生每堂課的最新狀態），只查當天／該生相關的班級。
  */
 
 import {
@@ -20,7 +20,7 @@ import {
   type TutionRoster,
   type TutionSchedule,
 } from "@chhsban/kv-utils";
-import { dedupeToLatestAttendance, type TutionKVService } from "./tution-service";
+import type { TutionService } from "./tution-service";
 import { generateScheduleRows, type GeneratedScheduleRow } from "./course-report";
 
 /** 可查看這兩個頁面的身分：督察員、超級管理員、舍監 */
@@ -201,13 +201,13 @@ function sessionOnDate(
 }
 
 export async function computeBoardingAttendance(
-  kvService: TutionKVService,
+  service: TutionService,
   directory: StudentDirectory,
   date: string,
 ): Promise<BoardingAttendanceResult> {
   const [allClasses, allSchedules] = await Promise.all([
-    kvService.listAllClasses(),
-    kvService.listAllSchedules(),
+    service.listAllClasses(),
+    service.listAllSchedules(),
   ]);
   const schedulesByClass = groupBy(allSchedules, (s) => s.class_id);
 
@@ -231,20 +231,13 @@ export async function computeBoardingAttendance(
 
   if (candidates.length === 0) return { date, classes: [] };
 
-  const candidateIds = new Set(candidates.map((c) => c.cls.class_id));
-  const [allRoster, allAttendance] = await Promise.all([
-    kvService.listAllRoster(),
-    kvService.listAllAttendanceSummaries(),
+  const candidateIds = candidates.map((c) => c.cls.class_id);
+  const [candidateRoster, dayAttendance] = await Promise.all([
+    service.listRosterByClasses(candidateIds),
+    service.listAttendanceByDate(date, candidateIds),
   ]);
-  const rosterByClass = groupBy(
-    allRoster.filter((r) => candidateIds.has(r.class_id)),
-    (r) => r.class_id,
-  );
-  const attendanceByKey = new Map(
-    dedupeToLatestAttendance(
-      allAttendance.filter((a) => a.class_date === date && candidateIds.has(a.class_id)),
-    ).map((a) => [`${a.class_id}|${a.student_id}`, a]),
-  );
+  const rosterByClass = groupBy(candidateRoster, (r) => r.class_id);
+  const attendanceByKey = new Map(dayAttendance.map((a) => [`${a.class_id}|${a.student_id}`, a]));
 
   const groups = await Promise.all(
     candidates.map(async ({ cls, info }): Promise<BoardingClassGroup> => {
@@ -346,18 +339,15 @@ export interface StudentAttendanceResult {
 }
 
 export async function computeStudentAttendance(
-  kvService: TutionKVService,
+  service: TutionService,
   directory: StudentDirectory,
   studentNo: string,
 ): Promise<StudentAttendanceResult> {
   // 學號 → SMS 內部編號（名冊的 student_id）；名單條目有的存 student_id、有的也存了 student_no，兩者都比對
   const dirStudent = await directory.getByNo(studentNo);
-  const matchIds = new Set([studentNo, ...(dirStudent?.student_id ? [String(dirStudent.student_id)] : [])]);
+  const matchIds = [studentNo, ...(dirStudent?.student_id ? [String(dirStudent.student_id)] : [])];
 
-  const allRoster = await kvService.listAllRoster();
-  const entries = allRoster.filter(
-    (r) => matchIds.has(r.student_id) || (r as any).student_no === studentNo,
-  );
+  const entries = await service.listRosterByStudent(matchIds, studentNo);
 
   if (entries.length === 0) {
     // 沒參加任何補習班：仍回傳學生基本資料，讓前端顯示「查無補習紀錄」而不是「查無此學號」
@@ -377,25 +367,16 @@ export async function computeStudentAttendance(
     };
   }
 
-  const classIds = new Set(entries.map((e) => e.class_id));
-  const studentIds = new Set(entries.map((e) => e.student_id));
-  const [classes, allSchedules, allAttendance] = await Promise.all([
-    Promise.all(Array.from(classIds).map((id) => kvService.getClass(id))),
-    kvService.listAllSchedules(),
-    kvService.listAllAttendanceSummaries(),
+  const classIds = Array.from(new Set(entries.map((e) => e.class_id)));
+  const studentIds = Array.from(new Set(entries.map((e) => e.student_id)));
+  const [classes, schedules, attendance] = await Promise.all([
+    service.getClassesByIds(classIds),
+    service.listSchedulesByClasses(classIds),
+    service.listAttendanceByStudents(studentIds, classIds),
   ]);
-  const classById = new Map(
-    classes.filter((c): c is TutionClass => c !== null).map((c) => [c.class_id, c]),
-  );
-  const schedulesByClass = groupBy(
-    allSchedules.filter((s) => classIds.has(s.class_id)),
-    (s) => s.class_id,
-  );
-  const attendanceByKey = new Map(
-    dedupeToLatestAttendance(
-      allAttendance.filter((a) => classIds.has(a.class_id) && studentIds.has(a.student_id)),
-    ).map((a) => [`${a.class_id}|${a.class_date}`, a]),
-  );
+  const classById = new Map(classes.map((c: TutionClass) => [c.class_id, c]));
+  const schedulesByClass = groupBy(schedules, (s) => s.class_id);
+  const attendanceByKey = new Map(attendance.map((a) => [`${a.class_id}|${a.class_date}`, a]));
 
   // 學生基本資料取最新一筆名單條目來補齊
   const latestEntry = [...entries].sort((a, b) => (b.updated_at || 0) - (a.updated_at || 0))[0];

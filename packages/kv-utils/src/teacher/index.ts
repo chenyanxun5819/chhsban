@@ -6,11 +6,57 @@
 import type { TeacherRecord, KVNamespace } from "../types/index.js";
 import { KV_CONFIG } from "../types/index.js";
 
+// 全部教師的「email → teacher_id」對照表，整份存成一個 key（登入查詢用，見 findTeacherByEmail）
+const EMAIL_DIRECTORY_KEY = "email_directory";
+// 查無此 email 時，對照表超過這個時間才重建一次，避免有人亂打 email 就一直觸發全表掃描
+const EMAIL_DIRECTORY_REBUILD_MS = 30 * 60 * 1000;
+
+interface EmailDirectory {
+  built_at: number;
+  emails: Record<string, string>;
+}
+
 /**
  * Teacher KV 管理类
  */
 export class TeacherKVManager {
   constructor(private kv: KVNamespace) {}
+
+  /**
+   * 依 email 找教師（登入用）。
+   *
+   * 讀整份 email 對照表（1 次 KV 讀取）而不是掃描全部教師；對照表不存在、或查不到／email 已改過
+   * 且對照表超過 30 分鐘沒重建時才重建一次（掃描全部教師 + 1 次寫入）。所以不管外面怎麼亂打 email，
+   * 最多每 30 分鐘全表掃描一次；新增的老師最晚 30 分鐘後就能登入。
+   * 找到後一律比對教師資料裡現在的 email，教師改過 email 就不能再用舊 email 登入。
+   */
+  async findTeacherByEmail(email: string): Promise<TeacherRecord | null> {
+    const normalized = email.trim().toLowerCase();
+    const lookup = async (directory: EmailDirectory): Promise<TeacherRecord | null> => {
+      const teacherId = directory.emails[normalized];
+      if (!teacherId) return null;
+      const teacher = await this.getTeacher(teacherId);
+      return teacher && teacher.email?.trim().toLowerCase() === normalized ? teacher : null;
+    };
+
+    const raw = await this.kv.get(EMAIL_DIRECTORY_KEY);
+    const cached: EmailDirectory | null = raw ? JSON.parse(raw) : null;
+    if (cached) {
+      const teacher = await lookup(cached);
+      if (teacher || Date.now() - cached.built_at < EMAIL_DIRECTORY_REBUILD_MS) {
+        return teacher;
+      }
+    }
+
+    const emails: Record<string, string> = {};
+    for (const teacher of await this.getAllTeachers()) {
+      const key = teacher.email?.trim().toLowerCase();
+      if (key) emails[key] = teacher.teacher_id;
+    }
+    const rebuilt: EmailDirectory = { built_at: Date.now(), emails };
+    await this.kv.put(EMAIL_DIRECTORY_KEY, JSON.stringify(rebuilt));
+    return lookup(rebuilt);
+  }
 
   /**
    * 获取单个教师信息

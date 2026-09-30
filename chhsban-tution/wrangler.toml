@@ -49,6 +49,14 @@ id = "3159009d636640369959187fb7f85eee"
 binding = "AUDIT_LOG_KV"
 id = "b04b855097f848cebbb8d71207f4159c"
 
+# D1 資料庫：補習班的班級、名單、排課例外、點名、設定（2026-09-30 由 KV 遷移，資料表見 migrations/）
+# 上面 TUTION_CLASS/ROSTER/ATTENDANCE/SCHEDULE_KV 保留綁定只為了遷移腳本與回滾，程式已不再讀寫
+[[d1_databases]]
+binding = "DB"
+database_name = "tution-db"
+database_id = "6f097da0-b5d2-441a-b5bf-e431e02ad327"
+migrations_dir = "migrations"
+
 # R2 綁定配置（簽核紙本掃描檔存檔備份用）
 [[r2_buckets]]
 binding = "SIGNED_FORMS_BUCKET"
@@ -60,13 +68,6 @@ bucket_name = "tution-signed-forms"
 binding = "STUDENT_SYNC"
 service = "student-sync"
 entrypoint = "SyncService"
-
-# 環境變數（默認環境）
-[vars]
-GOOGLE_SHEETS_SPREADSHEET_ID = "18Fq3eWpf6Z1kx_-ihB0Hs38O3IomBzxJQne8QYHoYJI"
-GOOGLE_SHEETS_SHEET_CLASSES = "Classes"
-GOOGLE_SHEETS_SHEET_ROSTER = "Roster"
-GOOGLE_SHEETS_SHEET_ATTENDANCE = "Attendance"
 
 # 生產環境配置
 # 註：曾規劃掛在自訂網域 api.chhsban.tution.mybazaar.my，但 mybazaar.my 的
@@ -123,11 +124,6 @@ GOOGLE_SHEETS_SHEET_ATTENDANCE = "Attendance"
 [triggers]
 crons = ["0 16 * * *"]
 
-# 敏感信息使用 wrangler secret 設置（不寫在此文件中）
-# 執行以下命令設置 Google Sheets API Key:
-# wrangler secret put GOOGLE_SHEETS_API_KEY --env production
-# 輸入: AIzaSyBin2EW-i294Q7GvzZimZYddx3Y33yR7_A
-# 如需可寫入 Google Sheets，請改用 Service Account secrets:
-# wrangler secret put GOOGLE_SERVICE_ACCOUNT_EMAIL --env production
-# wrangler secret put GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY --env production
-# wrangler secret put GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID --env production
+# 敏感資訊一律用 wrangler secret 設置，絕不寫在此文件中（正式環境是不帶 --env 的預設 Worker）：
+# wrangler secret put AUTH_PENDING_SECRET
+# wrangler secret put GOOGLE_VISION_API_KEY

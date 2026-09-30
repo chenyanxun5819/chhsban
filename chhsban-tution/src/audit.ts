@@ -9,6 +9,7 @@ export type AuditAction =
   | "roster.withdraw"
   | "class.approve"
   | "class.reject"
+  | "class.delete"
   | "receipt.review"
   | "teacher.password_reset";
 

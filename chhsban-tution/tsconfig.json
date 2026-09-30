@@ -4,6 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "node",
     "lib": ["ES2020"],
+    "types": ["@cloudflare/workers-types"],
     "declaration": true,
     "outDir": "./dist",
     "rootDir": "./src",

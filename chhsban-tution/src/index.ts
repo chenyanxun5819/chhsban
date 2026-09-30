@@ -1,35 +1,22 @@
 /**
  * 補習班系統 - Cloudflare Worker 入口點
- * 功能：開課管理、學生點名、課程預約、Google Sheets 同步、PDF 生成
- * 
- * ⚠️ 重要限制
- * 
- * KV PUT 額度：1,000/天（帳號全域）
- * 此系統與其他所有系統共享此限額
- * 詳見: /memories/repo/PUT操作成本清單.md
- * 
- * 登入成本（兩階段密碼登入，見 /api/auth/* 系列端點）:
- * - 日常登入（已設密碼）: /auth/verify (0 PUT) + /auth/login-password (1 PUT，session) = 1 PUT
- * - 首次登入（設定密碼那一次）: /auth/verify (首次可能 1 PUT 建 email 索引)
- *   + /auth/set-password (1 PUT 存密碼 + 1 PUT session) = 最多 3 PUT（一次性成本）
- * - 密碼輸入錯誤: /auth/login-password 失敗 +1 PUT（鎖定計數器，僅異常路徑才有此成本）
+ * 功能：開課管理、學生點名、排課例外、收據／簽核檔、PDF 生成
  *
- * 其他操作成本:
- * - 提交申請: 1 PUT (createClass)
- * - 更新班級: 1 PUT (updateClass)
- * - 建立記錄: 1 PUT 
+ * ⚠️ 資料儲存（2026-09-30 起）
+ * - 補習班的班級、名單、排課例外、點名、設定：D1（env.DB，見 tution-service.ts、migrations/）
+ * - 登入 session、教師、學生名錄、教室：仍是跨系統共用的 KV
+ *   KV 免費版每天 1,000 次寫入是全帳號共用，登入時建立 session 等仍會用到，別在 KV 上加新的大量寫入。
+ * - D1 免費版單次請求最多 50 次查詢：列表類端點一律批次查詢，不要逐筆查。
  */
 
 import { createAuthKVManager, createTeacherKVManager, createStudentDirectory, isLeftSchool, studentStatus, createClassroomKVManager, TutionClassStatus, AttendanceStatus, createPendingToken, verifyPendingToken, hashPassword, verifyPassword, generateStrongPassword, validatePasswordStrength, type TutionClass, type TutionSchedule } from "@chhsban/kv-utils";
-import { KV_NAMESPACES } from "@chhsban/cloudflare-config";
-import { TutionSheetsSync } from "./sheets-sync";
-import { TutionKVService } from "./tution-service";
+import { TutionService } from "./tution-service";
 import { generatePDFResponse } from "./pdf-generator";
 import { buildSignedFormKey, getSignedFormResponse, isAllowedContentType } from "./signed-form";
 import { getSemesterInfo } from "./semester";
 import { buildReceiptKey, getReceiptResponse, isAllowedReceiptContentType, isSemesterHalf, type ReceiptRecord } from "./receipt";
 import { ocrReceiptImage } from "./google-vision";
-import { computeCourseReport } from "./course-report";
+import { computeCourseReport, generateScheduleRows } from "./course-report";
 import {
   BOARDING_VIEW_PERMISSIONS,
   computeBoardingAttendance,
@@ -45,23 +32,12 @@ interface Env {
   STUDENT_KV: KVNamespace;
   TEACHER_KV: KVNamespace;
   AUTH_KV: KVNamespace;
-  TUTION_CLASS_KV: KVNamespace;
-  TUTION_ROSTER_KV: KVNamespace;
-  TUTION_ATTENDANCE_KV: KVNamespace;
-  TUTION_SCHEDULE_KV: KVNamespace;
   CLASSROOM_KV: KVNamespace;
   ASSETS_KV: KVNamespace;
   AUDIT_LOG_KV: KVNamespace;
+  DB: D1Database;
   SIGNED_FORMS_BUCKET: R2Bucket;
   STUDENT_SYNC: StudentSyncService;
-  GOOGLE_SHEETS_API_KEY?: string;
-  GOOGLE_SHEETS_SPREADSHEET_ID: string;
-  GOOGLE_SHEETS_SHEET_CLASSES: string;
-  GOOGLE_SHEETS_SHEET_ROSTER: string;
-  GOOGLE_SHEETS_SHEET_ATTENDANCE: string;
-  GOOGLE_SERVICE_ACCOUNT_EMAIL?: string;
-  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?: string;
-  GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID?: string;
   GOOGLE_VISION_API_KEY?: string;
   AUTH_PENDING_SECRET: string;
 }
@@ -80,53 +56,134 @@ const FIXED_TIME_START = "19:00";
 const FIXED_TIME_END = "21:00";
 const MAX_STUDENTS_PER_CLASS = 30;
 
-async function buildRosterSnapshots(
-  env: Env,
-  kvService: TutionKVService,
-  classId: string,
-): Promise<IncomingRosterSnapshot[]> {
-  const directory = createStudentDirectory(env.STUDENT_KV);
-  const rosterEntries = await kvService.listRosterByClass(classId);
+// 資料保留：今年＋往前 2 年（與選修課一致），更早開課的班級由每日排程清理；
+// 每班刪除約 6 次 D1 查詢，一次最多清 5 班，未清完的隔天繼續
+const RETENTION_PAST_YEARS = 2;
+const PURGE_CLASSES_PER_RUN = 5;
 
-  return Promise.all(
-    rosterEntries.map(async (entry) => {
-      const student = (await directory.getById(entry.student_id)) || (await directory.getStudent(entry.student_id));
+// 可以點名的課程狀態（與開課報表一致：審批通過後才算有開課）
+const ATTENDANCE_CLASS_STATUSES = new Set<string>([
+  TutionClassStatus.APPROVED,
+  TutionClassStatus.ACTIVE,
+  TutionClassStatus.ENDED,
+]);
 
-      return {
-        student_id: entry.student_id,
-        student_no: student?.student_no || (entry as any).student_no || entry.student_id,
-        name_cn: entry.student_name_cn,
-        name_en: entry.student_name_en,
-        real_class_name: entry.student_class,
-        input_class_name: entry.student_class,
-      };
-    }),
-  );
+// 排課例外記錄可由外部設定的欄位
+const SCHEDULE_EDITABLE_FIELDS = [
+  "scheduled_date",
+  "status",
+  "cancellation_reason",
+  "rescheduled_to",
+  "rescheduled_venue",
+  "reschedule_reason",
+];
+
+// 申請表內容欄位：建立申請時可填、待審批階段可修改
+const CLASS_FORM_FIELDS = ["form", "subject", "day_of_week", "start_date", "fees", "venue"];
+
+function pickFields(body: Record<string, any>, fields: string[]): Record<string, any> {
+  const picked: Record<string, any> = {};
+  for (const field of fields) {
+    if (field in body) picked[field] = body[field];
+  }
+  return picked;
 }
 
-async function buildClassResponse(
-  env: Env,
-  kvService: TutionKVService,
-  tutionClass: any,
-): Promise<any> {
-  const teacherManager = createTeacherKVManager(env.TEACHER_KV);
-  const teacher = tutionClass.teacher_id
-    ? await teacherManager.getTeacher(tutionClass.teacher_id)
-    : null;
+/** 名單學生必須在學生名錄裡、未離校、不重複；有問題回傳錯誤 Response，沒問題回傳 null */
+async function validateRosterStudents(env: Env, students: IncomingRosterSnapshot[]): Promise<Response | null> {
+  const directory = createStudentDirectory(env.STUDENT_KV);
+  const seen = new Set<string>();
+  for (const student of students) {
+    const id = String(student?.student_id ?? "").trim();
+    const found = id ? (await directory.getStudent(id)) || (student.student_no ? await directory.getByNo(student.student_no) : null) : null;
+    if (!found) {
+      return jsonResponse({ error: "STUDENT_NOT_FOUND", student_id: id }, 400);
+    }
+    if (isLeftSchool(found)) {
+      return jsonResponse({ error: "STUDENT_LEFT_SCHOOL", student_id: id }, 409);
+    }
+    if (seen.has(id)) {
+      return jsonResponse({ error: "DUPLICATE_STUDENT", student_id: id }, 400);
+    }
+    seen.add(id);
+  }
+  return null;
+}
 
-  const initialRoster = Array.isArray(tutionClass.initial_roster) && tutionClass.initial_roster.length > 0
-    ? tutionClass.initial_roster
-    : await buildRosterSnapshots(env, kvService, tutionClass.class_id);
-
+/** 前端送來的名單快照 → 名單條目 */
+function toRosterItem(classId: string, enrollmentDate: string, student: IncomingRosterSnapshot): any {
   return {
-    ...tutionClass,
-    teacher_name_cn:
-      tutionClass.teacher_name_cn ||
-      teacher?.name_cn ||
-      teacher?.name_en ||
-      "",
-    initial_roster: initialRoster,
+    class_id: classId,
+    student_id: student.student_id,
+    student_name_cn: student.name_cn,
+    student_name_en: student.name_en || "-",
+    student_class: student.real_class_name || student.input_class_name || "-",
+    enrollment_date: enrollmentDate,
+    is_active: true,
+    student_no: student.student_no || student.student_id,
+    gender_boarding: student.gender_boarding || "-",
   };
+}
+
+/** 刪除班級：先刪 R2 的簽核檔與收據，再刪 D1 的班級與所有關聯資料 */
+async function deleteClassWithFiles(env: Env, service: TutionService, tutionClass: any): Promise<void> {
+  const fileKeys = [
+    tutionClass.signed_form_key,
+    tutionClass.receipt_h1?.key,
+    tutionClass.receipt_h2?.key,
+  ].filter((key): key is string => typeof key === "string" && key.length > 0);
+  if (fileKeys.length > 0) {
+    await env.SIGNED_FORMS_BUCKET.delete(fileKeys);
+  }
+  await service.deleteClass(tutionClass.class_id);
+}
+
+/**
+ * 補上班級回應需要的教師姓名與 initial_roster（開課時的名單快照；舊資料沒有快照時由名單組出）。
+ * 整批處理：名單只查 1 次 D1，教師每位只讀 1 次 KV，避免列表頁逐班查詢超過 D1 單次請求上限。
+ */
+async function buildClassResponses(
+  env: Env,
+  service: TutionService,
+  classes: any[],
+): Promise<any[]> {
+  const hasSnapshot = (c: any) => Array.isArray(c.initial_roster) && c.initial_roster.length > 0;
+  const needRoster = classes.filter((c) => !hasSnapshot(c)).map((c) => c.class_id);
+  const directory = createStudentDirectory(env.STUDENT_KV);
+  const rosterByClass = new Map<string, IncomingRosterSnapshot[]>();
+  for (const entry of await service.listRosterByClasses(needRoster)) {
+    const student = (await directory.getById(entry.student_id)) || (await directory.getStudent(entry.student_id));
+    const list = rosterByClass.get(entry.class_id) || [];
+    list.push({
+      student_id: entry.student_id,
+      student_no: student?.student_no || (entry as any).student_no || entry.student_id,
+      name_cn: entry.student_name_cn,
+      name_en: entry.student_name_en,
+      real_class_name: entry.student_class,
+      input_class_name: entry.student_class,
+    });
+    rosterByClass.set(entry.class_id, list);
+  }
+
+  const teacherManager = createTeacherKVManager(env.TEACHER_KV);
+  const teacherIds = Array.from(new Set(classes.filter((c) => !c.teacher_name_cn && c.teacher_id).map((c) => c.teacher_id)));
+  const teachers = new Map(
+    await Promise.all(teacherIds.map(async (id) => [id, await teacherManager.getTeacher(id)] as const)),
+  );
+
+  return classes.map((c) => {
+    const teacher = teachers.get(c.teacher_id);
+    return {
+      ...c,
+      teacher_name_cn: c.teacher_name_cn || teacher?.name_cn || teacher?.name_en || "",
+      initial_roster: hasSnapshot(c) ? c.initial_roster : rosterByClass.get(c.class_id) || [],
+    };
+  });
+}
+
+async function buildClassResponse(env: Env, service: TutionService, tutionClass: any): Promise<any> {
+  const [hydrated] = await buildClassResponses(env, service, [tutionClass]);
+  return hydrated;
 }
 
 /**
@@ -151,36 +208,6 @@ function jsonResponse(data: any, status: number = 200): Response {
   });
 }
 
-async function syncClassDataToSheets(env: Env, kvService: TutionKVService): Promise<void> {
-  if (!env.GOOGLE_SHEETS_API_KEY && !env.GOOGLE_SERVICE_ACCOUNT_EMAIL) {
-    console.warn("[SHEETS] No Google Sheets credentials are configured; skipping sync");
-    return;
-  }
-
-  const sheetsSync = new TutionSheetsSync({
-    apiKey: env.GOOGLE_SHEETS_API_KEY,
-    spreadsheetId: env.GOOGLE_SHEETS_SPREADSHEET_ID,
-    serviceAccountEmail: env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-    serviceAccountPrivateKey: env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
-    serviceAccountPrivateKeyId: env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID,
-    sheetNames: {
-      classes: env.GOOGLE_SHEETS_SHEET_CLASSES,
-      roster: env.GOOGLE_SHEETS_SHEET_ROSTER,
-      attendance: env.GOOGLE_SHEETS_SHEET_ATTENDANCE,
-    },
-  });
-
-  const [classes, roster] = await Promise.all([
-    kvService.listAllClasses(),
-    kvService.listAllRoster(),
-  ]);
-
-  await Promise.all([
-    sheetsSync.syncClasses(classes),
-    sheetsSync.syncRoster(roster),
-  ]);
-}
-
 /**
  * 處理認證驗證 (Email 驗證)
  */
@@ -203,37 +230,9 @@ async function handleAuthVerify(request: Request, env: Env): Promise<Response> {
     }
 
     const email = String(body.email).trim().toLowerCase();
-    console.log(`[AUTH] Verifying email: ${email}`);
 
-    // 優化查詢：先嘗試從 email 索引查找
-    const emailKey = `email:${email}`;
-    const teacherIdFromIndex = await env.TEACHER_KV.get(emailKey);
-    
-    let teacher = null;
-    
-    if (teacherIdFromIndex) {
-      // 從索引找到 teacher_id，直接獲取教師資料
-      console.log(`[AUTH] Found teacher_id from email index: ${teacherIdFromIndex}`);
-      const teacherManager = createTeacherKVManager(env.TEACHER_KV);
-      teacher = await teacherManager.getTeacher(teacherIdFromIndex);
-    } else {
-      // 索引不存在，回退到掃描所有教師（慢）
-      console.log(`[AUTH] Email index not found, falling back to full scan`);
-      const teacherManager = createTeacherKVManager(env.TEACHER_KV);
-      const startTime = Date.now();
-      
-      const allTeachers = await teacherManager.getAllTeachers();
-      const loadTime = Date.now() - startTime;
-      console.log(`[AUTH] Loaded ${allTeachers.length} teachers in ${loadTime}ms`);
-      
-      teacher = allTeachers.find((t) => t.email.toLowerCase() === email);
-      
-      // 如果找到教師，建立索引供下次使用
-      if (teacher) {
-        console.log(`[AUTH] Creating email index for future logins`);
-        await env.TEACHER_KV.put(emailKey, teacher.teacher_id);
-      }
-    }
+    // 讀整份 email 對照表（1 次 KV 讀取），不掃描全部教師，見 kv-utils 的 findTeacherByEmail
+    const teacher = await createTeacherKVManager(env.TEACHER_KV).findTeacherByEmail(email);
 
     if (!teacher) {
       console.log(`[AUTH] Teacher not found for email: ${email}`);
@@ -493,23 +492,6 @@ export default {
       );
     }
 
-    // 初始化路由不需要 token（但需要初始化密钥）
-    if (pathname.startsWith("/api/sync")) {
-      const url = new URL(request.url);
-      const action = url.searchParams.get("action");
-      
-      if (action === "init") {
-        const initKey = url.searchParams.get("key") || request.headers.get("X-Init-Key");
-        const expectedKey = env.GOOGLE_SHEETS_API_KEY ? "init-" + env.GOOGLE_SHEETS_API_KEY.substring(0, 8) : "init-default";
-        
-        if (initKey === expectedKey || initKey === "init") {
-          return handleSync(request, env, null);
-        }
-        
-        return jsonResponse({ error: "Unauthorized: Invalid init key" }, 401);
-      }
-    }
-
     // 其他端點需要身份驗證
     const token = request.headers.get("Authorization")?.replace("Bearer ", "");
     if (!token) {
@@ -531,14 +513,6 @@ export default {
       }
 
       // 路由處理
-      if (pathname === "/api/health") {
-        return handleHealth();
-      }
-      
-      if (pathname.startsWith("/api/sync")) {
-        return handleSync(request, env, session);
-      }
-
       if (pathname.startsWith("/api/v1/students")) {
         return handleStudents(request, env, session);
       }
@@ -598,21 +572,29 @@ export default {
     }
   },
 
-  // 每日凌晨（見 wrangler.toml 的 [triggers] crons）重新計算「各課程開課報表」並整批存入 KV，
-  // 前端一律讀這份快照，不即時計算
+  // 每日凌晨（見 wrangler.toml 的 [triggers] crons）：
+  // 1. 清理超過保留年限（今年＋往前 2 年，依開課日期）的班級，連同名單、點名、排課例外、R2 檔案
+  // 2. 重新計算「各課程開課報表」並存入 D1，前端一律讀這份快照
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
       (async () => {
+        const service = new TutionService(env.DB);
         try {
-          const kvService = new TutionKVService(
-            env.TUTION_CLASS_KV,
-            env.TUTION_ROSTER_KV,
-            env.TUTION_ATTENDANCE_KV,
-            env.TUTION_SCHEDULE_KV,
-          );
+          const minYear = new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear() - RETENTION_PAST_YEARS;
+          const expired = await service.listExpiredClasses(minYear, PURGE_CLASSES_PER_RUN);
+          for (const cls of expired) {
+            await deleteClassWithFiles(env, service, cls);
+          }
+          if (expired.length > 0) {
+            console.log(`Purged ${expired.length} expired classes:`, expired.map((c) => c.class_id).join(", "));
+          }
+        } catch (error) {
+          console.error("Scheduled purge failed:", error);
+        }
+        try {
           const teacherManager = createTeacherKVManager(env.TEACHER_KV);
-          const summary = await computeCourseReport(kvService, teacherManager);
-          await kvService.setCourseReportSummary(summary);
+          const summary = await computeCourseReport(service, teacherManager);
+          await service.setCourseReportSummary(summary);
           console.log(`Course report summary refreshed: ${summary.rows.length} courses`);
         } catch (error) {
           console.error("Scheduled course report refresh failed:", error);
@@ -622,17 +604,13 @@ export default {
   },
 };
 
-function handleHealth(): Response {
-  return jsonResponse({ status: "ok", service: "tution-system" });
-}
-
 /**
  * 處理學生查詢端點
  */
 async function handleStudents(
   request: Request,
   env: Env,
-  session: any,
+  _session: any,
 ): Promise<Response> {
   const url = new URL(request.url);
   const method = request.method;
@@ -705,17 +683,14 @@ async function handleClasses(
   const subId = pathParts[6]; // /api/v1/classes/{classId}/roster/{rosterId}
   const subSubAction = pathParts[7]; // /api/v1/classes/{classId}/roster/{rosterId}/withdraw
 
-  const kvService = new TutionKVService(
-    env.TUTION_CLASS_KV,
-    env.TUTION_ROSTER_KV,
-    env.TUTION_ATTENDANCE_KV,
-    env.TUTION_SCHEDULE_KV,
-  );
+  const service = new TutionService(env.DB);
 
   try {
     // POST /api/v1/classes - 建立新補習班
     if (method === "POST" && !classId) {
-      const data = await request.json();
+      // 只接受申請表欄位，其餘（approval_status、receipt_*、signed_form_* 等）一律由系統設定
+      const body = (await request.json()) as Record<string, any>;
+      const data = pickFields(body, [...CLASS_FORM_FIELDS, "time_start", "time_end", "end_date", "initial_roster"]);
 
       // 驗證必填欄位
       if (
@@ -728,23 +703,20 @@ async function handleClasses(
         return jsonResponse({ error: "Missing required fields" }, 400);
       }
 
-      // 如果沒有提供教師中文名字，從 TEACHER_KV 中查詢
-      let teacherNameCn = data.teacher_name_cn;
-      if (!teacherNameCn) {
-        try {
-          const teacherManager = createTeacherKVManager(env.TEACHER_KV);
-          const teacher = await teacherManager.getTeacher(session.teacher_id);
-          teacherNameCn = teacher?.name_cn || teacher?.name_en || "";
-        } catch (e) {
-          console.warn("Failed to fetch teacher name:", e);
-          teacherNameCn = "";
-        }
+      if (data.end_date && !isValidDateString(data.end_date)) {
+        return jsonResponse({ error: "INVALID_END_DATE" }, 400);
       }
+      if (!isValidDateString(data.start_date)) {
+        return jsonResponse({ error: "INVALID_START_DATE" }, 400);
+      }
+
+      const teacher = await createTeacherKVManager(env.TEACHER_KV).getTeacher(session.teacher_id);
+      const teacherNameCn = teacher?.name_cn || teacher?.name_en || "";
 
       // 每學年（以 7/1 為界的上/下學年）每位申請人最多 2 堂已批准（含進行中）的課程，
       // 依新申請的 start_date 判斷落在哪個學年
       const semester = getSemesterInfo(data.start_date);
-      const teacherClasses = await kvService.listClassesByTeacher(session.teacher_id);
+      const teacherClasses = await service.listClassesByTeacher(session.teacher_id);
       const approvedThisSemester = teacherClasses.filter(
         (c) =>
           (c.approval_status === "approved" || c.approval_status === "active") &&
@@ -757,68 +729,38 @@ async function handleClasses(
         );
       }
 
-      if (Array.isArray(data.initial_roster) && data.initial_roster.length > MAX_STUDENTS_PER_CLASS) {
+      const initialRoster: IncomingRosterSnapshot[] = Array.isArray(data.initial_roster) ? data.initial_roster : [];
+      if (initialRoster.length > MAX_STUDENTS_PER_CLASS) {
         return jsonResponse(
-          { error: `學生名單共 ${data.initial_roster.length} 人，超過每堂課最多 ${MAX_STUDENTS_PER_CLASS} 人上限` },
+          { error: `學生名單共 ${initialRoster.length} 人，超過每堂課最多 ${MAX_STUDENTS_PER_CLASS} 人上限` },
           400,
         );
       }
+      const rosterError = await validateRosterStudents(env, initialRoster);
+      if (rosterError) return rosterError;
 
-      // 產生可讀的申請代碼：tution-{年份後兩碼}-{該年度序號}
-      const currentYear = new Date().getFullYear();
-      const existingClasses = await kvService.listAllClasses();
-      const sameYearCount = existingClasses.filter(
-        (c) => new Date(c.created_at).getFullYear() === currentYear,
-      ).length;
-      const applicationNo = `tution-${String(currentYear).slice(-2)}-${String(sameYearCount + 1).padStart(2, "0")}`;
+      // 申請代碼 tution-{年份後兩碼}-{序號}，計數器只增不減，刪除申請後號碼不會重複
+      const applicationNo = await service.nextApplicationNo(new Date().getFullYear());
 
-      const classData = {
+      const newClass = await service.createClass({
         ...data,
         teacher_id: session.teacher_id,
         teacher_name_cn: teacherNameCn,
-        approval_status: "pending",
+        approval_status: TutionClassStatus.PENDING,
         time_start: data.time_start || FIXED_TIME_START,
         time_end: data.time_end || FIXED_TIME_END,
         application_no: applicationNo,
-      };
+      } as any);
 
-      const newClass = await kvService.createClass(classData);
+      await service.addRosterEntries(initialRoster.map((student) => toRosterItem(newClass.class_id, newClass.start_date, student)));
 
-      const initialRoster = Array.isArray(data.initial_roster)
-        ? (data.initial_roster as IncomingRosterSnapshot[])
-        : [];
-
-      if (initialRoster.length > 0) {
-        await Promise.all(
-          initialRoster.map((student) =>
-            kvService.addRosterEntry({
-              class_id: newClass.class_id,
-              student_id: student.student_id,
-              student_name_cn: student.name_cn,
-              student_name_en: student.name_en || "-",
-              student_class: student.real_class_name || student.input_class_name || "-",
-              enrollment_date: newClass.start_date,
-              is_active: true,
-              student_no: student.student_no || student.student_id,
-              gender_boarding: student.gender_boarding || "-",
-            } as any),
-          ),
-        );
-      }
-
-      try {
-        await syncClassDataToSheets(env, kvService);
-      } catch (syncError) {
-        console.error("[SHEETS] Failed to sync after class creation:", syncError);
-      }
-
-      const hydratedClass = await buildClassResponse(env, kvService, newClass);
+      const hydratedClass = await buildClassResponse(env, service, newClass);
       return jsonResponse({ data: hydratedClass }, 201);
     }
 
     // GET /api/v1/classes/{classId} - 取得補習班詳情
     if (method === "GET" && classId && !subAction) {
-      const tutionClass = await kvService.getClass(classId);
+      const tutionClass = await service.getClass(classId);
 
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
@@ -833,13 +775,13 @@ async function handleClasses(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      const hydratedClass = await buildClassResponse(env, kvService, tutionClass);
+      const hydratedClass = await buildClassResponse(env, service, tutionClass);
       return jsonResponse({ data: hydratedClass }, 200);
     }
 
     // PUT /api/v1/classes/{classId} - 更新補習班
     if (method === "PUT" && classId && !subAction) {
-      const tutionClass = await kvService.getClass(classId);
+      const tutionClass = await service.getClass(classId);
 
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
@@ -854,45 +796,61 @@ async function handleClasses(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      const updates = await request.json();
-      const updated = await kvService.updateClass(classId, updates);
-
-      try {
-        await syncClassDataToSheets(env, kvService);
-      } catch (syncError) {
-        console.error("[SHEETS] Failed to sync after class update:", syncError);
+      // 欄位白名單：結束日期隨時可改；申請表內容只有待審批時可改。
+      // 審批狀態、地點指定、收據、簽核檔都有各自的端點，這裡一律不接受。
+      const body = (await request.json()) as Record<string, any>;
+      const allowed = tutionClass.approval_status === TutionClassStatus.PENDING
+        ? ["end_date", ...CLASS_FORM_FIELDS]
+        : ["end_date"];
+      const rejected = Object.keys(body).filter((key) => !allowed.includes(key));
+      if (rejected.length > 0) {
+        return jsonResponse({ error: "FIELDS_NOT_EDITABLE", fields: rejected }, 400);
+      }
+      if (body.end_date && !isValidDateString(body.end_date)) {
+        return jsonResponse({ error: "INVALID_END_DATE" }, 400);
+      }
+      if ("start_date" in body && !isValidDateString(body.start_date)) {
+        return jsonResponse({ error: "INVALID_START_DATE" }, 400);
       }
 
+      const updated = await service.updateClass(classId, body);
       return jsonResponse({ data: updated }, 200);
     }
 
     // DELETE /api/v1/classes/{classId} - 刪除補習班
     if (method === "DELETE" && classId && !subAction) {
-      const tutionClass = await kvService.getClass(classId);
+      const tutionClass = await service.getClass(classId);
 
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
 
-      // 驗證權限
-      if (
-        tutionClass.teacher_id !== session.teacher_id &&
-        session.permission !== "admin" &&
-        session.permission !== "super_admin"
-      ) {
+      // 管理員可刪任何狀態；申請人只能刪自己「待審批／被退回」的申請（已開課的課有點名紀錄，不能自行刪）
+      const isAdmin = session.permission === "admin" || session.permission === "super_admin";
+      const isOwner = tutionClass.teacher_id === session.teacher_id;
+      if (!isAdmin && !isOwner) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
-
-      const rosterEntries = await kvService.listRosterByClass(classId);
-      await Promise.all(rosterEntries.map((entry) => kvService.deleteRosterEntry(entry.roster_id)));
-
-      await kvService.deleteClass(classId);
-
-      try {
-        await syncClassDataToSheets(env, kvService);
-      } catch (syncError) {
-        console.error("[SHEETS] Failed to sync after class deletion:", syncError);
+      if (
+        !isAdmin &&
+        tutionClass.approval_status !== TutionClassStatus.PENDING &&
+        tutionClass.approval_status !== TutionClassStatus.REJECTED
+      ) {
+        return jsonResponse({ error: "只有待審批或被退回的申請可以刪除，已進入審核或開課的課程請聯絡管理員" }, 409);
       }
+
+      await deleteClassWithFiles(env, service, tutionClass);
+
+      ctx.waitUntil(
+        logAudit(env, {
+          action: "class.delete",
+          target_type: "class",
+          target_id: classId,
+          actor_id: session.teacher_id,
+          actor_permission: session.permission,
+          before: { approval_status: tutionClass.approval_status, application_no: (tutionClass as any).application_no },
+        }),
+      );
 
       return new Response(null, { status: 204, headers: getCorsHeaders() });
     }
@@ -903,7 +861,7 @@ async function handleClasses(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      const tutionClass = await kvService.getClass(classId);
+      const tutionClass = await service.getClass(classId);
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -923,7 +881,7 @@ async function handleClasses(
               rejection_reason: body.rejection_reason || "",
             };
 
-      const updated = await kvService.updateClass(classId, updates);
+      const updated = await service.updateClass(classId, updates);
 
       ctx.waitUntil(
         logAudit(env, {
@@ -937,11 +895,6 @@ async function handleClasses(
         }),
       );
 
-      try {
-        await syncClassDataToSheets(env, kvService);
-      } catch (syncError) {
-        console.error("[SHEETS] Failed to sync after approval decision:", syncError);
-      }
 
       return jsonResponse({ data: updated }, 200);
     }
@@ -952,7 +905,7 @@ async function handleClasses(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      const tutionClass = await kvService.getClass(classId);
+      const tutionClass = await service.getClass(classId);
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -962,23 +915,18 @@ async function handleClasses(
         return jsonResponse({ error: "Missing venue" }, 400);
       }
 
-      const updated = await kvService.updateClass(classId, {
+      const updated = await service.updateClass(classId, {
         venue: body.venue,
         approval_status: "reviewing" as TutionClassStatus,
       });
 
-      try {
-        await syncClassDataToSheets(env, kvService);
-      } catch (syncError) {
-        console.error("[SHEETS] Failed to sync after venue assignment:", syncError);
-      }
 
       return jsonResponse({ data: updated }, 200);
     }
 
     // PUT /api/v1/classes/{classId}/roster - 申請人（待審批階段）重新提交學生名單
     if (method === "PUT" && classId && subAction === "roster" && !subId) {
-      const tutionClass = await kvService.getClass(classId);
+      const tutionClass = await service.getClass(classId);
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -1005,42 +953,25 @@ async function handleClasses(
         );
       }
 
-      const existingEntries = await kvService.listRosterByClass(classId);
-      await Promise.all(existingEntries.map((entry) => kvService.deleteRosterEntry(entry.roster_id)));
+      const rosterError = await validateRosterStudents(env, students);
+      if (rosterError) return rosterError;
 
-      await Promise.all(
-        students.map((student) =>
-          kvService.addRosterEntry({
-            class_id: classId,
-            student_id: student.student_id,
-            student_name_cn: student.name_cn,
-            student_name_en: student.name_en || "-",
-            student_class: student.real_class_name || student.input_class_name || "-",
-            enrollment_date: tutionClass.start_date,
-            is_active: true,
-            student_no: student.student_no || student.student_id,
-            gender_boarding: student.gender_boarding || "-",
-          } as any),
-        ),
+      await service.replaceRoster(
+        classId,
+        students.map((student) => toRosterItem(classId, tutionClass.start_date, student)),
       );
 
-      const updated = await kvService.updateClass(classId, {
+      const updated = await service.updateClass(classId, {
         initial_roster: students,
       } as any);
 
-      try {
-        await syncClassDataToSheets(env, kvService);
-      } catch (syncError) {
-        console.error("[SHEETS] Failed to sync after roster update:", syncError);
-      }
-
-      const hydratedClass = await buildClassResponse(env, kvService, updated);
+      const hydratedClass = await buildClassResponse(env, service, updated);
       return jsonResponse({ data: hydratedClass }, 200);
     }
 
     // GET /api/v1/classes/{classId}/roster - 查詢已開課課程的學生名單（含在讀 + 已退出）
     if (method === "GET" && classId && subAction === "roster" && !subId) {
-      const tutionClass = await kvService.getClass(classId);
+      const tutionClass = await service.getClass(classId);
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -1053,7 +984,7 @@ async function handleClasses(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      const entries = await kvService.listRosterByClass(classId);
+      const entries = await service.listRosterByClass(classId);
       const directory = createStudentDirectory(env.STUDENT_KV);
 
       // 學號／真實班級／住宿代碼／在校狀態以學生名錄為準（見 resolveRosterStudentInfo）
@@ -1079,7 +1010,7 @@ async function handleClasses(
 
     // POST /api/v1/classes/{classId}/roster - 已開課課程新增學生（記錄加入日期）
     if (method === "POST" && classId && subAction === "roster") {
-      const tutionClass = await kvService.getClass(classId);
+      const tutionClass = await service.getClass(classId);
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -1109,7 +1040,7 @@ async function handleClasses(
 
       const resolvedStudentId = student.student_id || body.student_id;
 
-      const existingEntries = await kvService.listRosterByClass(classId);
+      const existingEntries = await service.listRosterByClass(classId);
       const existingEntry = existingEntries.find((entry) => entry.student_id === resolvedStudentId);
       if (existingEntry?.is_active) {
         return jsonResponse({ error: "該學生已在名單中" }, 400);
@@ -1124,11 +1055,11 @@ async function handleClasses(
         );
       }
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().split("T")[0]; // 馬來西亞日期
       // 若學生先前已退出，重新加入時復用同一筆名冊紀錄（清除退出資訊、更新加入日期），
       // 避免「已退出」名單把同一位學生的每次進出都疊成一筆新紀錄、無限累加。
       const entry = existingEntry
-        ? await kvService.updateRosterEntry(existingEntry.roster_id, {
+        ? await service.updateRosterEntry(existingEntry.roster_id, {
             student_name_cn: student.name_cn,
             student_name_en: student.name_en || "-",
             student_class: student.real_class_name || student.class || "-",
@@ -1138,7 +1069,7 @@ async function handleClasses(
             withdrawal_date: undefined,
             withdrawal_reason: undefined,
           } as any)
-        : await kvService.addRosterEntry({
+        : await service.addRosterEntry({
             class_id: classId,
             student_id: resolvedStudentId,
             student_name_cn: student.name_cn,
@@ -1162,11 +1093,6 @@ async function handleClasses(
         }),
       );
 
-      try {
-        await syncClassDataToSheets(env, kvService);
-      } catch (syncError) {
-        console.error("[SHEETS] Failed to sync after roster add:", syncError);
-      }
 
       return jsonResponse({
         data: {
@@ -1188,7 +1114,7 @@ async function handleClasses(
 
     // PUT /api/v1/classes/{classId}/roster/{rosterId}/withdraw - 已開課課程學生退出（記錄退出日期）
     if (method === "PUT" && classId && subAction === "roster" && subId && subSubAction === "withdraw") {
-      const tutionClass = await kvService.getClass(classId);
+      const tutionClass = await service.getClass(classId);
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -1201,7 +1127,7 @@ async function handleClasses(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      const entry = await kvService.getRosterEntry(subId);
+      const entry = await service.getRosterEntry(subId);
       if (!entry || entry.class_id !== classId) {
         return jsonResponse({ error: "Roster entry not found" }, 404);
       }
@@ -1222,7 +1148,7 @@ async function handleClasses(
       if (entry.enrollment_date && withdrawalDate < entry.enrollment_date) {
         return jsonResponse({ error: "WITHDRAWAL_BEFORE_ENROLLMENT" }, 400);
       }
-      await kvService.removeStudentFromRoster(subId, body.reason || "", withdrawalDate);
+      await service.removeStudentFromRoster(subId, body.reason || "", withdrawalDate);
 
       ctx.waitUntil(
         logAudit(env, {
@@ -1237,18 +1163,13 @@ async function handleClasses(
         }),
       );
 
-      try {
-        await syncClassDataToSheets(env, kvService);
-      } catch (syncError) {
-        console.error("[SHEETS] Failed to sync after roster withdrawal:", syncError);
-      }
 
       return jsonResponse({ success: true }, 200);
     }
 
     // GET /api/v1/classes/{classId}/pdf - 套印申請表 PDF（供審核中階段列印紙本用）
     if (method === "GET" && classId && subAction === "pdf") {
-      const tutionClass = await kvService.getClass(classId);
+      const tutionClass = await service.getClass(classId);
 
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
@@ -1263,7 +1184,7 @@ async function handleClasses(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      const hydratedClass = await buildClassResponse(env, kvService, tutionClass);
+      const hydratedClass = await buildClassResponse(env, service, tutionClass);
       return generatePDFResponse(hydratedClass, env.ASSETS_KV);
     }
 
@@ -1273,7 +1194,7 @@ async function handleClasses(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      const tutionClass = await kvService.getClass(classId);
+      const tutionClass = await service.getClass(classId);
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -1296,7 +1217,7 @@ async function handleClasses(
         httpMetadata: { contentType },
       });
 
-      const updated = await kvService.updateClass(classId, {
+      const updated = await service.updateClass(classId, {
         signed_form_key: key,
         signed_form_filename: filename || undefined,
         signed_form_content_type: contentType,
@@ -1313,7 +1234,7 @@ async function handleClasses(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      const tutionClass = (await kvService.getClass(classId)) as any;
+      const tutionClass = (await service.getClass(classId)) as any;
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -1370,7 +1291,7 @@ async function handleClasses(
 
     // PUT /api/v1/classes/{classId}/receipt - 申請人上傳場地費收據（上傳後即進入審核中，無法再更改）
     if (method === "PUT" && classId && subAction === "receipt" && !subId) {
-      const tutionClass = (await kvService.getClass(classId)) as any;
+      const tutionClass = (await service.getClass(classId)) as any;
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -1448,7 +1369,7 @@ async function handleClasses(
         uploaded_by: session.teacher_id,
       };
 
-      const updated = await kvService.updateClass(classId, {
+      const updated = await service.updateClass(classId, {
         [half === "h1" ? "receipt_h1" : "receipt_h2"]: receiptRecord,
       } as any);
 
@@ -1457,7 +1378,7 @@ async function handleClasses(
 
     // GET /api/v1/classes/{classId}/receipt?half=h1|h2 - 下載收據檔案
     if (method === "GET" && classId && subAction === "receipt" && !subId) {
-      const tutionClass = (await kvService.getClass(classId)) as any;
+      const tutionClass = (await service.getClass(classId)) as any;
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -1489,7 +1410,7 @@ async function handleClasses(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      const tutionClass = (await kvService.getClass(classId)) as any;
+      const tutionClass = (await service.getClass(classId)) as any;
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -1518,7 +1439,7 @@ async function handleClasses(
         rejection_reason: decision === "rejected" ? body?.rejection_reason || "" : undefined,
       };
 
-      const updated = await kvService.updateClass(classId, {
+      const updated = await service.updateClass(classId, {
         [fieldName]: updatedReceipt,
       } as any);
 
@@ -1550,10 +1471,7 @@ async function handleClasses(
           session.permission === "classroom_manager"
         ) {
           // 查詢所有課程
-          const allClasses = await kvService.listAllClasses();
-          const hydratedClasses = await Promise.all(
-            allClasses.map((item) => buildClassResponse(env, kvService, item)),
-          );
+          const hydratedClasses = await buildClassResponses(env, service, await service.listAllClasses());
           return jsonResponse({
             success: true,
             data: hydratedClasses,
@@ -1567,11 +1485,15 @@ async function handleClasses(
         }, 400);
       }
 
-      // 查詢特定教師的課程
-      const classes = await kvService.listClassesByTeacher(teacherId);
-      const hydratedClasses = await Promise.all(
-        classes.map((item) => buildClassResponse(env, kvService, item)),
-      );
+      // 查詢特定教師的課程：只能查自己的（管理員可查任何人），課程資料含學生名單
+      if (
+        teacherId !== session.teacher_id &&
+        session.permission !== "admin" &&
+        session.permission !== "super_admin"
+      ) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+      const hydratedClasses = await buildClassResponses(env, service, await service.listClassesByTeacher(teacherId));
       return jsonResponse({
         success: true,
         data: hydratedClasses,
@@ -1595,18 +1517,10 @@ async function handleMyClasses(
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  const kvService = new TutionKVService(
-    env.TUTION_CLASS_KV,
-    env.TUTION_ROSTER_KV,
-    env.TUTION_ATTENDANCE_KV,
-    env.TUTION_SCHEDULE_KV,
-  );
+  const service = new TutionService(env.DB);
 
   try {
-    const classes = await kvService.listClassesByTeacher(session.teacher_id);
-    const hydratedClasses = await Promise.all(
-      classes.map((item) => buildClassResponse(env, kvService, item)),
-    );
+    const hydratedClasses = await buildClassResponses(env, service, await service.listClassesByTeacher(session.teacher_id));
 
     return jsonResponse({
       success: true,
@@ -1623,11 +1537,11 @@ async function handleMyClasses(
  * 點名（出勤紀錄）查詢與寫入
  *
  * GET  /api/v1/attendance?class={id}  - 查詢整班出勤紀錄（唯讀，排課表格/出勤統計頁使用）；
- *                                        回傳的是每組 class_id+student_id+class_date 最新一筆
- *                                        （見 tution-service.ts 的 dedupeToLatestAttendance）。
- * POST /api/v1/attendance/bulk        - 批次新增某班某日期全體學生的點名結果，新增制：
- *                                        同一學生同一日期已有紀錄也一律新增一筆，不覆寫舊紀錄，
- *                                        保留完整修改歷史。
+ *                                        每位學生每堂課一筆（目前狀態）。
+ * POST /api/v1/attendance/bulk        - 批次寫入某班某日期的點名結果。歷史全部保留在
+ *                                        tution_attendance_log，目前狀態覆寫 tution_attendance。
+ *                                        只能點：已批准的課、實際上課日（含調課、不含停課）、今天以前、
+ *                                        當天在名單上的學生。
  */
 async function handleAttendance(
   request: Request,
@@ -1638,12 +1552,7 @@ async function handleAttendance(
   const pathParts = url.pathname.split("/");
   const subAction = pathParts[4]; // /api/v1/attendance/{bulk}
 
-  const kvService = new TutionKVService(
-    env.TUTION_CLASS_KV,
-    env.TUTION_ROSTER_KV,
-    env.TUTION_ATTENDANCE_KV,
-    env.TUTION_SCHEDULE_KV,
-  );
+  const service = new TutionService(env.DB);
 
   const canManageClass = (tutionClass: TutionClass) =>
     tutionClass.teacher_id === session.teacher_id ||
@@ -1658,7 +1567,7 @@ async function handleAttendance(
         return jsonResponse({ error: "Missing required query param: class" }, 400);
       }
 
-      const tutionClass = await kvService.getClass(classId);
+      const tutionClass = await service.getClass(classId);
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -1666,7 +1575,7 @@ async function handleAttendance(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      const records = await kvService.listAttendanceByClass(classId);
+      const records = await service.listAttendanceByClass(classId);
       return jsonResponse({ data: records }, 200);
     }
 
@@ -1682,12 +1591,13 @@ async function handleAttendance(
         }>;
       };
 
-      if (!body.class_id || !body.class_date || !Array.isArray(body.records)) {
+      if (!body.class_id || !isValidDateString(body.class_date ?? null) || !Array.isArray(body.records)) {
         return jsonResponse(
-          { error: "Missing required fields: class_id, class_date, records" },
+          { error: "Missing required fields: class_id, class_date (YYYY-MM-DD), records" },
           400,
         );
       }
+      const classDate = body.class_date as string;
 
       const validStatuses = new Set<string>(Object.values(AttendanceStatus));
       for (const record of body.records) {
@@ -1704,7 +1614,7 @@ async function handleAttendance(
         }
       }
 
-      const tutionClass = await kvService.getClass(body.class_id);
+      const tutionClass = await service.getClass(body.class_id);
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -1712,34 +1622,56 @@ async function handleAttendance(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      // 停課日期不可點名（「有開課」的日期不落地儲存，只需檢查是否被標記為停課）
-      const schedules = await kvService.listSchedulesByClass(body.class_id);
-      const isCancelled = schedules.some(
-        (s) => s.scheduled_date === body.class_date && s.status === "cancelled",
-      );
-      if (isCancelled) {
-        return jsonResponse({ error: "This date is cancelled and cannot be marked" }, 400);
+      if (!ATTENDANCE_CLASS_STATUSES.has(tutionClass.approval_status)) {
+        return jsonResponse({ error: "CLASS_NOT_APPROVED" }, 409);
       }
 
-      // 新增制：每次點名都新增一筆記錄，保留完整修改歷史；讀取端（listAttendanceByClass /
-      // listAttendanceByStudent）只回傳同一 class_id+student_id+class_date 裡最新的一筆。
-      const now = Date.now();
-      const classId = body.class_id;
-      const classDate = body.class_date;
-      const saved = await Promise.all(
-        body.records.map((record) => {
-          const absenceReason =
-            record.status === AttendanceStatus.EXCUSE ? record.absence_reason : undefined;
-          return kvService.recordAttendance({
-            class_id: classId,
-            student_id: record.student_id,
-            class_date: classDate,
-            status: record.status,
-            absence_reason: absenceReason,
-            recorded_at: now,
-            recorded_by: session.teacher_id,
-          });
-        }),
+      // 只能點實際上課日（依上課星期推算，套用停課／調課），且不能是未來日期（馬來西亞時間）
+      const todayMYT = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().split("T")[0];
+      if (classDate > todayMYT) {
+        return jsonResponse({ error: "FUTURE_DATE" }, 400);
+      }
+      const [schedules, rosterEntries] = await Promise.all([
+        service.listSchedulesByClass(tutionClass.class_id),
+        service.listRosterByClass(tutionClass.class_id),
+      ]);
+      const sessionRows = generateScheduleRows({
+        dayOfWeek: tutionClass.day_of_week,
+        startDate: tutionClass.start_date,
+        endDate: tutionClass.end_date,
+        exceptions: schedules,
+        today: new Date(`${todayMYT}T00:00:00Z`),
+        // 往後多推 60 天，涵蓋「後面的課提前調到今天以前」的情況（未來日期上面已擋）
+        horizonDays: 60,
+      });
+      if (!sessionRows.some((row) => row.status !== "cancelled" && row.actual_date === classDate)) {
+        return jsonResponse({ error: "NOT_A_SESSION_DATE" }, 400);
+      }
+
+      // 學生當天必須在名單上：加入日 ≤ 上課日，且未退出或退出日晚於上課日
+      const enrolled = new Set(
+        rosterEntries
+          .filter(
+            (entry) =>
+              (!entry.enrollment_date || entry.enrollment_date <= classDate) &&
+              (!entry.withdrawal_date || entry.withdrawal_date > classDate),
+          )
+          .map((entry) => entry.student_id),
+      );
+      const notEnrolled = body.records.filter((record) => !enrolled.has(record.student_id)).map((r) => r.student_id);
+      if (notEnrolled.length > 0) {
+        return jsonResponse({ error: "STUDENT_NOT_ON_ROSTER", student_ids: notEnrolled }, 400);
+      }
+
+      const saved = await service.recordAttendanceBatch(
+        tutionClass.class_id,
+        classDate,
+        body.records.map((record) => ({
+          student_id: record.student_id,
+          status: record.status,
+          absence_reason: record.status === AttendanceStatus.EXCUSE ? record.absence_reason : undefined,
+        })),
+        session.teacher_id,
       );
 
       return jsonResponse({ data: saved }, 200);
@@ -1771,12 +1703,7 @@ async function handleBoardingAttendance(
   }
 
   const url = new URL(request.url);
-  const kvService = new TutionKVService(
-    env.TUTION_CLASS_KV,
-    env.TUTION_ROSTER_KV,
-    env.TUTION_ATTENDANCE_KV,
-    env.TUTION_SCHEDULE_KV,
-  );
+  const service = new TutionService(env.DB);
   const directory = createStudentDirectory(env.STUDENT_KV);
 
   try {
@@ -1785,7 +1712,7 @@ async function handleBoardingAttendance(
       if (!isValidDateString(date)) {
         return jsonResponse({ error: "Invalid or missing query param: date (YYYY-MM-DD)" }, 400);
       }
-      const result = await computeBoardingAttendance(kvService, directory, date);
+      const result = await computeBoardingAttendance(service, directory, date);
       return jsonResponse({ data: result }, 200);
     }
 
@@ -1794,7 +1721,7 @@ async function handleBoardingAttendance(
       if (!studentNo) {
         return jsonResponse({ error: "Missing required query param: student_no" }, 400);
       }
-      const result = await computeStudentAttendance(kvService, directory, studentNo);
+      const result = await computeStudentAttendance(service, directory, studentNo);
       if (!result.student && result.classes.length === 0) {
         return jsonResponse({ error: "Student not found" }, 404);
       }
@@ -1827,17 +1754,12 @@ async function handleSettings(
   const pathParts = url.pathname.split("/");
   const settingKey = pathParts[4]; // /api/v1/settings/{key}
 
-  const kvService = new TutionKVService(
-    env.TUTION_CLASS_KV,
-    env.TUTION_ROSTER_KV,
-    env.TUTION_ATTENDANCE_KV,
-    env.TUTION_SCHEDULE_KV,
-  );
+  const service = new TutionService(env.DB);
 
   try {
     if (settingKey === "last-teaching-date") {
       if (method === "GET") {
-        const date = await kvService.getLastTeachingDate();
+        const date = await service.getLastTeachingDate();
         return jsonResponse({ data: { date } }, 200);
       }
 
@@ -1847,11 +1769,11 @@ async function handleSettings(
         }
 
         const body = (await request.json()) as { date?: string };
-        if (!body.date) {
-          return jsonResponse({ error: "Missing date" }, 400);
+        if (!isValidDateString(body.date ?? null)) {
+          return jsonResponse({ error: "Missing or invalid date (YYYY-MM-DD)" }, 400);
         }
 
-        await kvService.setLastTeachingDate(body.date);
+        await service.setLastTeachingDate(body.date as string);
         return jsonResponse({ data: { date: body.date } }, 200);
       }
     }
@@ -1884,12 +1806,7 @@ async function handleReports(
   const reportKey = pathParts[4]; // /api/v1/reports/{key}
   const subAction = pathParts[5]; // /api/v1/reports/{key}/{refresh}
 
-  const kvService = new TutionKVService(
-    env.TUTION_CLASS_KV,
-    env.TUTION_ROSTER_KV,
-    env.TUTION_ATTENDANCE_KV,
-    env.TUTION_SCHEDULE_KV,
-  );
+  const service = new TutionService(env.DB);
   const teacherManager = createTeacherKVManager(env.TEACHER_KV);
 
   try {
@@ -1898,7 +1815,7 @@ async function handleReports(
     }
 
     if (request.method === "GET" && !subAction) {
-      const summary = await kvService.getCourseReportSummary();
+      const summary = await service.getCourseReportSummary();
       return jsonResponse({ data: summary }, 200);
     }
 
@@ -1906,8 +1823,8 @@ async function handleReports(
       if (session.permission !== "super_admin") {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
-      const summary = await computeCourseReport(kvService, teacherManager);
-      await kvService.setCourseReportSummary(summary);
+      const summary = await computeCourseReport(service, teacherManager);
+      await service.setCourseReportSummary(summary);
       return jsonResponse({ data: summary }, 200);
     }
 
@@ -1934,12 +1851,7 @@ async function handleSchedules(
   const pathParts = url.pathname.split("/");
   const scheduleId = pathParts[4]; // /api/v1/schedules/{scheduleId}
 
-  const kvService = new TutionKVService(
-    env.TUTION_CLASS_KV,
-    env.TUTION_ROSTER_KV,
-    env.TUTION_ATTENDANCE_KV,
-    env.TUTION_SCHEDULE_KV,
-  );
+  const service = new TutionService(env.DB);
 
   const canManageClass = (tutionClass: TutionClass) =>
     tutionClass.teacher_id === session.teacher_id ||
@@ -1961,11 +1873,11 @@ async function handleSchedules(
         ) {
           return jsonResponse({ error: "Missing required query param: class" }, 400);
         }
-        const allSchedules = await kvService.listAllSchedules();
+        const allSchedules = await service.listAllSchedules();
         return jsonResponse({ data: allSchedules }, 200);
       }
 
-      const tutionClass = await kvService.getClass(classId);
+      const tutionClass = await service.getClass(classId);
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -1973,15 +1885,19 @@ async function handleSchedules(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      const schedules = await kvService.listSchedulesByClass(classId);
+      const schedules = await service.listSchedulesByClass(classId);
       return jsonResponse({ data: schedules }, 200);
     }
 
     // POST /api/v1/schedules - 建立例外記錄（無開課／調課）
     if (method === "POST" && !scheduleId) {
-      const data = (await request.json()) as Partial<TutionSchedule>;
+      // 欄位白名單：schedule_id、created_at 等由系統產生，不接受外部傳入
+      const data = pickFields((await request.json()) as Record<string, any>, [
+        "class_id",
+        ...SCHEDULE_EDITABLE_FIELDS,
+      ]) as Partial<TutionSchedule>;
 
-      if (!data.class_id || !data.scheduled_date || !data.status) {
+      if (!data.class_id || !isValidDateString(data.scheduled_date ?? null) || !data.status) {
         return jsonResponse(
           { error: "Missing required fields: class_id, scheduled_date, status" },
           400,
@@ -1998,15 +1914,15 @@ async function handleSchedules(
       }
       if (
         data.status === "rescheduled" &&
-        (!data.rescheduled_to || !data.reschedule_reason)
+        (!isValidDateString(data.rescheduled_to ?? null) || !data.reschedule_reason)
       ) {
         return jsonResponse(
-          { error: "rescheduled_to and reschedule_reason are required" },
+          { error: "rescheduled_to (YYYY-MM-DD) and reschedule_reason are required" },
           400,
         );
       }
 
-      const tutionClass = await kvService.getClass(data.class_id);
+      const tutionClass = await service.getClass(data.class_id);
       if (!tutionClass) {
         return jsonResponse({ error: "Class not found" }, 404);
       }
@@ -2015,14 +1931,14 @@ async function handleSchedules(
       }
 
       // 同一課程同一天只能有一筆例外記錄：若已存在則直接更新，避免重複
-      const existing = await kvService.listSchedulesByClass(data.class_id);
+      const existing = await service.listSchedulesByClass(data.class_id);
       const duplicate = existing.find((s) => s.scheduled_date === data.scheduled_date);
       if (duplicate) {
-        const updated = await kvService.updateSchedule(duplicate.schedule_id, data);
+        const updated = await service.updateSchedule(duplicate.schedule_id, data);
         return jsonResponse({ data: updated }, 200);
       }
 
-      const created = await kvService.createSchedule(
+      const created = await service.createSchedule(
         data as Omit<TutionSchedule, "schedule_id" | "created_at" | "updated_at">,
       );
       return jsonResponse({ data: created }, 201);
@@ -2030,17 +1946,32 @@ async function handleSchedules(
 
     // PUT /api/v1/schedules/{scheduleId} - 更新例外記錄
     if (method === "PUT" && scheduleId) {
-      const existing = await kvService.getSchedule(scheduleId);
+      const existing = await service.getSchedule(scheduleId);
       if (!existing) {
         return jsonResponse({ error: "Schedule not found" }, 404);
       }
 
-      const tutionClass = await kvService.getClass(existing.class_id);
+      const tutionClass = await service.getClass(existing.class_id);
       if (!tutionClass) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      const updates = (await request.json()) as Partial<TutionSchedule>;
+      // 欄位白名單：不能改 class_id（把例外記錄搬到別的課）、schedule_id、created_at
+      const body = (await request.json()) as Record<string, any>;
+      const rejectedFields = Object.keys(body).filter((key) => !SCHEDULE_EDITABLE_FIELDS.includes(key));
+      if (rejectedFields.length > 0) {
+        return jsonResponse({ error: "FIELDS_NOT_EDITABLE", fields: rejectedFields }, 400);
+      }
+      const updates = body as Partial<TutionSchedule>;
+      if (updates.status && updates.status !== "cancelled" && updates.status !== "rescheduled") {
+        return jsonResponse({ error: "status must be 'cancelled' or 'rescheduled'" }, 400);
+      }
+      if (updates.scheduled_date !== undefined && !isValidDateString(updates.scheduled_date)) {
+        return jsonResponse({ error: "INVALID_SCHEDULED_DATE" }, 400);
+      }
+      if (updates.rescheduled_to !== undefined && !isValidDateString(updates.rescheduled_to)) {
+        return jsonResponse({ error: "INVALID_RESCHEDULED_TO" }, 400);
+      }
 
       // classroom_manager 是窄範圍角色：只能在「每日教室使用總覽」為已調課的例外記錄指定教室，
       // 不能像 admin/super_admin 一樣改動其他欄位（狀態、原因、調課日期等）。
@@ -2063,23 +1994,23 @@ async function handleSchedules(
         return jsonResponse({ error: "rescheduled_to is required" }, 400);
       }
 
-      const updated = await kvService.updateSchedule(scheduleId, updates);
+      const updated = await service.updateSchedule(scheduleId, updates);
       return jsonResponse({ data: updated }, 200);
     }
 
     // DELETE /api/v1/schedules/{scheduleId} - 移除例外記錄（改回「有開課」）
     if (method === "DELETE" && scheduleId) {
-      const existing = await kvService.getSchedule(scheduleId);
+      const existing = await service.getSchedule(scheduleId);
       if (!existing) {
         return jsonResponse({ error: "Schedule not found" }, 404);
       }
 
-      const tutionClass = await kvService.getClass(existing.class_id);
+      const tutionClass = await service.getClass(existing.class_id);
       if (!tutionClass || !canManageClass(tutionClass)) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      await kvService.deleteSchedule(scheduleId);
+      await service.deleteSchedule(scheduleId);
       return new Response(null, { status: 204, headers: getCorsHeaders() });
     }
 
@@ -2284,136 +2215,6 @@ async function handleClassrooms(
 }
 
 /**
- * 處理 Google Sheets 同步
- */
-async function handleSync(
-  request: Request,
-  env: Env,
-  session: any,
-): Promise<Response> {
-  const url = new URL(request.url);
-  const action = url.searchParams.get("action");
-
-  try {
-    // 只有初始化不需要 session
-    if (action !== "init" && !session) {
-      return jsonResponse({ error: "Unauthorized: Missing token" }, 401);
-    }
-
-    const sheetsSync = new TutionSheetsSync({
-      apiKey: env.GOOGLE_SHEETS_API_KEY,
-      spreadsheetId: env.GOOGLE_SHEETS_SPREADSHEET_ID,
-      serviceAccountEmail: env.GOOGLE_SERVICE_ACCOUNT_EMAIL,
-      serviceAccountPrivateKey: env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY,
-      serviceAccountPrivateKeyId: env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY_ID,
-      sheetNames: {
-        classes: env.GOOGLE_SHEETS_SHEET_CLASSES,
-        roster: env.GOOGLE_SHEETS_SHEET_ROSTER,
-        attendance: env.GOOGLE_SHEETS_SHEET_ATTENDANCE,
-      },
-    });
-
-    const kvService = new TutionKVService(
-      env.TUTION_CLASS_KV,
-      env.TUTION_ROSTER_KV,
-      env.TUTION_ATTENDANCE_KV,
-      env.TUTION_SCHEDULE_KV,
-    );
-
-    if (action === "init") {
-      // 初始化 Google Sheet 結構
-      await sheetsSync.initializeSheets();
-      return jsonResponse({
-        success: true,
-        message: "Google Sheet initialized with 3 worksheets",
-      }, 200);
-    }
-
-    if (action === "sync-all") {
-      // 同步所有數據到 Google Sheet
-      const classesResult = await env.TUTION_CLASS_KV.list({
-        prefix: "class_",
-      });
-      const rosterResult = await env.TUTION_ROSTER_KV.list({
-        prefix: "roster_",
-      });
-      const attendanceResult = await env.TUTION_ATTENDANCE_KV.list({
-        prefix: "attendance_",
-      });
-
-      // 讀取所有數據
-      const classes = await Promise.all(
-        classesResult.keys.map((k) =>
-          env.TUTION_CLASS_KV.get(k.name).then((v) =>
-            v ? JSON.parse(v) : null,
-          ),
-        ),
-      );
-      const roster = await Promise.all(
-        rosterResult.keys.map((k) =>
-          env.TUTION_ROSTER_KV.get(k.name).then((v) =>
-            v ? JSON.parse(v) : null,
-          ),
-        ),
-      );
-      const attendance = await Promise.all(
-        attendanceResult.keys.map((k) =>
-          env.TUTION_ATTENDANCE_KV.get(k.name).then((v) =>
-            v ? JSON.parse(v) : null,
-          ),
-        ),
-      );
-
-      // 同步到 Google Sheet
-      await Promise.all([
-        sheetsSync.syncClasses(classes.filter(Boolean)),
-        sheetsSync.syncRoster(roster.filter(Boolean)),
-        sheetsSync.syncAttendance(attendance.filter(Boolean)),
-      ]);
-
-      return jsonResponse({
-        success: true,
-        message: "All data synced to Google Sheet",
-        stats: {
-          classes: classes.length,
-          roster: roster.length,
-          attendance: attendance.length,
-        },
-      }, 200);
-    }
-
-    if (action === "sync-classes") {
-      // 同步補習班主表
-      const classesResult = await env.TUTION_CLASS_KV.list({
-        prefix: "class_",
-      });
-      const classes = await Promise.all(
-        classesResult.keys.map((k) =>
-          env.TUTION_CLASS_KV.get(k.name).then((v) =>
-            v ? JSON.parse(v) : null,
-          ),
-        ),
-      );
-      await sheetsSync.syncClasses(classes.filter(Boolean));
-
-      return jsonResponse({
-        success: true,
-        message: "Classes synced to Google Sheet",
-        count: classes.length,
-      }, 200);
-    }
-
-    return jsonResponse({
-      error: "Invalid action",
-      validActions: ["init", "sync-all", "sync-classes"],
-    }, 400);
-  } catch (error) {
-    console.error("Sync error:", error);
-    return jsonResponse({ error: String(error) }, 500);
-  }
-}
-
-/**
  * 管理員專用：教師密碼狀態查詢 / 重設密碼
  *
  * GET  /api/admin/teachers                       - 列出所有教師（不含密碼哈希，僅回傳是否已設定密碼）
@@ -2460,9 +2261,17 @@ async function handleAdminTeachers(
     }
 
     if (method === "POST" && teacherId && action === "reset-password") {
+      // 重設後該帳號回到「設定密碼」狀態，知道 email 的人都能搶先設定，所以只限 super_admin 操作，
+      // 且不能重設其他 super_admin（避免互相接管）
+      if (session.permission !== "super_admin") {
+        return jsonResponse({ error: "Forbidden: only super_admin can reset passwords" }, 403);
+      }
       const teacher = await teacherManager.getTeacher(teacherId);
       if (!teacher) {
         return jsonResponse({ error: "Teacher not found" }, 404);
+      }
+      if (teacher.permission === "super_admin" && teacher.teacher_id !== session.teacher_id) {
+        return jsonResponse({ error: "Forbidden: cannot reset another super_admin" }, 403);
       }
 
       const updated = { ...teacher };
