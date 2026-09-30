@@ -20,6 +20,14 @@ import { formatDisplayDate } from "@/utils/validators";
 import { AttendanceOverview, isEnrolledByDate } from "@/components/attendance/AttendanceOverviewTable";
 import "./attendance-sheet.css";
 
+/** 後端點名儲存的錯誤碼 → 翻譯 key */
+const SAVE_ERROR_KEY: Record<string, string> = {
+  FUTURE_DATE: "attendanceSheet.errorFutureDate",
+  NOT_A_SESSION_DATE: "attendanceSheet.errorNotSessionDate",
+  STUDENT_NOT_ON_ROSTER: "attendanceSheet.errorNotOnRoster",
+  CLASS_NOT_APPROVED: "attendanceSheet.errorClassNotApproved",
+};
+
 interface DraftEntry {
   status: AttendanceStatusCode;
   /** 僅 status = "excuse" 時有意義：選中的理由選項（"其他" 時要另外看 reasonOther） */
@@ -237,7 +245,9 @@ export const AttendanceSheet: React.FC = () => {
       await attendanceQueryService.saveBulk(classId, selectedDate, records);
       await refreshAttendance();
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("attendanceSheet.errorSaveFailed"));
+      const code = (err as any)?.response?.data?.error as string | undefined;
+      const key = code ? SAVE_ERROR_KEY[code] : undefined;
+      setError(key ? t(key) : err instanceof Error ? err.message : t("attendanceSheet.errorSaveFailed"));
     } finally {
       setSaving(false);
     }

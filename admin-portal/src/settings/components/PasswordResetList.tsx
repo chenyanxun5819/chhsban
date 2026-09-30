@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { adminService, type TeacherPasswordStatus } from "@/tution/services/adminService";
+import { useAuth } from "@/shared/auth/AuthContext";
 
 function formatDate(timestamp?: number): string {
   if (!timestamp) return "-";
@@ -13,6 +14,10 @@ function formatDate(timestamp?: number): string {
 }
 
 export const PasswordResetList: React.FC = () => {
+  const { user } = useAuth();
+  // 重設後帳號回到「設定密碼」狀態，知道 email 的人都能搶先設定，所以後端只允許 super_admin 操作，
+  // 且不能重設其他 super_admin；這裡同步隱藏按鈕
+  const canReset = user?.permission === "super_admin";
   const [teachers, setTeachers] = useState<TeacherPasswordStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -97,6 +102,7 @@ export const PasswordResetList: React.FC = () => {
         </button>
       </div>
 
+      {!canReset && <div className="error-banner">只有超級管理員可以重設密碼，這裡僅供查看。</div>}
       {error && <div className="error-banner">⚠️ {error}</div>}
 
       {loading && teachers.length === 0 ? (
@@ -123,14 +129,18 @@ export const PasswordResetList: React.FC = () => {
                 {formatDate(teacher.passwordUpdatedAt)}
               </span>
               <span>
-                <button
-                  type="button"
-                  className="btn btn-small btn--danger"
-                  disabled={resettingId === teacher.teacher_id}
-                  onClick={() => handleReset(teacher)}
-                >
-                  {resettingId === teacher.teacher_id ? "重設中..." : "🔑 重設密碼"}
-                </button>
+                {canReset && (teacher.permission !== "super_admin" || teacher.teacher_id === user?.teacherId) ? (
+                  <button
+                    type="button"
+                    className="btn btn-small btn--danger"
+                    disabled={resettingId === teacher.teacher_id}
+                    onClick={() => handleReset(teacher)}
+                  >
+                    {resettingId === teacher.teacher_id ? "重設中..." : "🔑 重設密碼"}
+                  </button>
+                ) : (
+                  "-"
+                )}
               </span>
             </div>
           ))}

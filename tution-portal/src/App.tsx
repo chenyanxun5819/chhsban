@@ -11,7 +11,6 @@ import "./styles/legacy-admin-globals.css";
 import ScheduleManagement from "@/pages/ScheduleManagement/ScheduleManagement";
 import AttendanceSheet from "@/pages/AttendanceSheet/AttendanceSheet";
 import RosterManagementPage from "@/pages/RosterManagement/RosterManagement";
-import AttendanceStatsPage from "@/pages/AttendanceStats/AttendanceStats";
 import { useEffect, useState } from "react";
 import { TutionClass } from "@/types";
 import apiClient from "@/utils/api";
@@ -221,14 +220,6 @@ const AppRoutes = () => {
         element={
           <ProtectedRoute>
             <AttendanceSheet />
-          </ProtectedRoute>
-        }
-      />
-      <Route
-        path="/classes/:id/stats"
-        element={
-          <ProtectedRoute>
-            <AttendanceStatsPage />
           </ProtectedRoute>
         }
       />
