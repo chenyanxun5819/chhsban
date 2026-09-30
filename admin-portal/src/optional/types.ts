@@ -149,3 +149,32 @@ export interface AttendanceSummary {
   today: string;
   courses: CourseAttendanceSummary[];
 }
+
+// ===== 各課程開課報表（GET /v1/reports/course-summary，欄位對齊補習班的開課報表，沒有結束日期） =====
+
+export interface CourseReportRow {
+  course_id: string;
+  course_no: string;
+  teacher_id?: string;
+  teacher_name_cn?: string;
+  subject: string;
+  window_status: CourseWindowStatus;
+  day_of_week: Weekday | null;
+  expected_count: number;
+  actual_held_count: number;
+  cancelled_count: number;
+  unconfirmed_attendance_count: number;
+  active_roster_count: number;
+  withdrawn_roster_count: number;
+  /** 百分比 0-100（到課+遲到 / 已點名總筆數）；尚無任何點名紀錄時為 null */
+  attendance_rate: number | null;
+  absent_count: number;
+  excuse_count: number;
+  late_count: number;
+}
+
+export interface CourseReportSummary {
+  calendar_ready: boolean;
+  generated_at: number;
+  rows: CourseReportRow[];
+}

@@ -34,6 +34,7 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
       { label: "選修課總覽", path: "/optional/courses" },
       { label: "選修課行事曆", path: "/optional/calendar" },
       { label: "選修課點名追蹤", path: "/optional/attendance" },
+      { label: "選修課開課報表", path: "/optional/course-report" },
     ],
   },
   {

@@ -994,6 +994,101 @@ async function handleCourseSessions(
   });
 }
 
+/**
+ * GET /api/v1/reports/course-summary?year=YYYY - 「各課程開課報表」（super_admin／督察員）
+ *
+ * 欄位與 tution 的 course-report.ts 對齊（沒有結束日期），但上課日由學校行事曆統一推算：
+ * - 應開課數：開課期間內、到今天為止按上課星期應上課的日子（含停課）
+ * - 停課數：其中被課程級停課的日子；實際開課數 = 應開課數 - 停課數
+ * - 未點名：與「選修課點名追蹤」同一套規則（窗口開放後、今天以前、沒有點名紀錄）
+ *
+ * 出勤數字讀 stats:{course_id}（老師儲存點名時已更新好），不逐日讀點名紀錄，
+ * 每門課只要讀名冊、排課例外、出勤統計 3 次 KV，所以可以即時計算、不需要像 tution 每日存快照。
+ */
+async function handleCourseReport(
+  request: Request,
+  env: Env,
+  session: AuthSessionData,
+): Promise<Response> {
+  if (request.method !== "GET") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+  if (!canViewAllCourses(session)) {
+    return jsonResponse({ error: "Forbidden" }, 403);
+  }
+  const year = parseYearParam(new URL(request.url));
+  if (year === null) {
+    return jsonResponse({ error: "INVALID_YEAR" }, 400);
+  }
+
+  const service = buildService(env);
+  const [calendar, courses] = await Promise.all([service.getCalendar(year), service.listCoursesByYear(year)]);
+  // 尚未開放窗口（未綁定老師）的課不列入，與點名追蹤一致
+  const active = courses.filter((c) => c.window_status !== CourseWindowStatus.PENDING);
+  const today = todayMYT();
+
+  const rows = await Promise.all(
+    active.map(async (course) => {
+      const [schedules, roster, stats] = await Promise.all([
+        service.listSchedulesByCourse(course.course_id),
+        service.getRoster(course.course_id),
+        service.getAttendanceStats(course.course_id),
+      ]);
+
+      // 不帶例外記錄 = 原訂的所有上課日
+      const regularDates = listCourseSessions(calendar, course, [])
+        .map((s) => s.date)
+        .filter((d) => d <= today);
+      const regular = new Set(regularDates);
+      const cancelledCount = schedules.filter(
+        (s) => s.status === CourseScheduleStatus.CANCELLED && regular.has(s.scheduled_date),
+      ).length;
+
+      const due = dueRange(course);
+      const unconfirmedCount = due
+        ? listCourseSessions(calendar, course, schedules).filter(
+            (s) => s.date >= due.from && s.date <= due.to && !stats.by_date[s.date],
+          ).length
+        : 0;
+
+      const counts = { present: 0, absent: 0, late: 0, excuse: 0 };
+      for (const day of Object.values(stats.by_date)) {
+        counts.present += day.present;
+        counts.absent += day.absent;
+        counts.late += day.late;
+        counts.excuse += day.excuse;
+      }
+      const totalMarked = counts.present + counts.absent + counts.late + counts.excuse;
+
+      return {
+        course_id: course.course_id,
+        course_no: course.course_no,
+        teacher_id: course.teacher_id,
+        teacher_name_cn: course.teacher_name_cn,
+        subject: course.subject,
+        window_status: course.window_status,
+        day_of_week: course.day_of_week || null,
+        expected_count: regularDates.length,
+        actual_held_count: regularDates.length - cancelledCount,
+        cancelled_count: cancelledCount,
+        unconfirmed_attendance_count: unconfirmedCount,
+        active_roster_count: roster.filter((r) => r.is_active).length,
+        withdrawn_roster_count: roster.filter((r) => !r.is_active).length,
+        // 百分比 0-100（到課+遲到 / 已點名總筆數）；尚無任何點名紀錄時為 null
+        attendance_rate: totalMarked > 0 ? Math.round(((counts.present + counts.late) / totalMarked) * 100) : null,
+        absent_count: counts.absent,
+        excuse_count: counts.excuse,
+        late_count: counts.late,
+      };
+    }),
+  );
+
+  return jsonResponse({
+    success: true,
+    data: { calendar_ready: isCalendarReady(calendar), generated_at: Date.now(), rows },
+  });
+}
+
 // ============================================
 // 學校行事曆
 // ============================================
@@ -1295,6 +1390,10 @@ export default {
 
       if (pathname === "/api/v1/attendance/summary") {
         return await handleAttendanceSummary(request, env, session);
+      }
+
+      if (pathname === "/api/v1/reports/course-summary") {
+        return await handleCourseReport(request, env, session);
       }
 
       return jsonResponse({ error: "Not found" }, 404);

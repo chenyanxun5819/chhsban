@@ -20,6 +20,7 @@ export const PAGE_ACCESS: Record<string, Permission[]> = {
   "/optional/courses": ["super_admin", "admin"],
   "/optional/calendar": ["super_admin", "admin"],
   "/optional/attendance": ["super_admin", "admin"],
+  "/optional/course-report": ["super_admin", "admin"],
   "/settings/teachers": ["super_admin"],
   "/settings/password-reset": ["super_admin"],
   "/settings/classrooms": ["super_admin"],

@@ -19,6 +19,7 @@ import Calendar from "@/optional/pages/Calendar";
 import AttendanceTracking from "@/optional/pages/AttendanceTracking";
 import CourseSchedule from "@/optional/pages/CourseSchedule";
 import OptionalCourseAttendance from "@/optional/pages/CourseAttendance";
+import OptionalCourseReport from "@/optional/pages/CourseReport";
 import Teachers from "@/settings/pages/Teachers";
 import PasswordReset from "@/settings/pages/PasswordReset";
 import Classrooms from "@/settings/pages/Classrooms";
@@ -113,6 +114,7 @@ const AppRoutes = () => (
     <Route path="/optional/courses/:id/attendance" element={page(<OptionalCourseAttendance />, "/optional/courses")} />
     <Route path="/optional/calendar" element={page(<Calendar />)} />
     <Route path="/optional/attendance" element={page(<AttendanceTracking />)} />
+    <Route path="/optional/course-report" element={page(<OptionalCourseReport />)} />
 
     {/* 共用設定（老師、教室資料，tution-system Worker） */}
     <Route path="/settings/teachers" element={page(<Teachers />)} />

@@ -11,6 +11,8 @@
 // - OPTIONAL_COURSE_SCHEDULE_KV   schedule:{course_id}           整門課的排課例外（陣列）
 //                                 calendar:{year}                該年度的學校行事曆（SchoolCalendar）
 // - OPTIONAL_COURSE_ATTENDANCE_KV attendance:{course_id}:{date}  一堂課的點名紀錄（陣列）
+//                                 stats:{course_id}              整門課各日的出勤統計（AttendanceStats），
+//                                                                老師儲存點名時一併更新，開課報表只讀這一筆
 //
 // 同一個值由同一門課的授課老師（或行政）修改，同時編輯的機會很低，接受「後寫覆蓋」的風險。
 // ============================================
@@ -39,6 +41,28 @@ const scheduleKey = (courseId: string) => `schedule:${courseId}`;
 const calendarKey = (year: number) => `calendar:${year}`;
 const attendancePrefix = (courseId: string) => `attendance:${courseId}:`;
 const attendanceKey = (courseId: string, classDate: string) => `${attendancePrefix(courseId)}${classDate}`;
+const attendanceStatsKey = (courseId: string) => `stats:${courseId}`;
+
+export interface DayAttendanceCounts {
+  present: number;
+  absent: number;
+  late: number;
+  excuse: number;
+}
+
+/** 整門課的出勤統計：每個有點名紀錄的日期一筆（已收斂成每位學生最新狀態後的計數） */
+export interface AttendanceStats {
+  by_date: Record<string, DayAttendanceCounts>;
+}
+
+function countByDate(records: OptionalCourseAttendance[]): Record<string, DayAttendanceCounts> {
+  const byDate: Record<string, DayAttendanceCounts> = {};
+  for (const record of dedupeToLatestAttendance(records)) {
+    const counts = (byDate[record.class_date] ??= { present: 0, absent: 0, late: 0, excuse: 0 });
+    if (record.status in counts) counts[record.status as keyof DayAttendanceCounts]++;
+  }
+  return byDate;
+}
 const courseNoCounterKey = (year: number) => `counter:course_no:${year}`;
 const COURSE_NO_PATTERN = /^optional-\d{2}-(\d+)$/;
 
@@ -249,8 +273,33 @@ export class OptionalCourseService {
       course_id: courseId,
       class_date: classDate,
     }));
-    await this.attendanceKV.put(key, JSON.stringify([...existing, ...saved]));
+    const merged = [...existing, ...saved];
+    await this.attendanceKV.put(key, JSON.stringify(merged));
+
+    // 順便更新整門課的出勤統計（只改這一天），開課報表就不用逐日讀點名紀錄
+    const stats = await getJson<AttendanceStats>(this.attendanceKV, attendanceStatsKey(courseId));
+    const byDate = stats ? stats.by_date : await this.countOtherDates(courseId, classDate);
+    byDate[classDate] = countByDate(merged)[classDate] ?? { present: 0, absent: 0, late: 0, excuse: 0 };
+    await this.attendanceKV.put(attendanceStatsKey(courseId), JSON.stringify({ by_date: byDate }));
     return saved;
+  }
+
+  /** 從點名紀錄重算統計（略過 skipDate：剛寫入的那天由呼叫端以記憶體中的資料補上） */
+  private async countOtherDates(courseId: string, skipDate?: string): Promise<Record<string, DayAttendanceCounts>> {
+    const records = await this.listAttendanceByCourse(courseId);
+    return countByDate(records.filter((r) => r.class_date !== skipDate));
+  }
+
+  /**
+   * 整門課的出勤統計（1 次 KV 讀取）。舊課程還沒有統計時，從點名紀錄重算一次並存起來，
+   * 之後由 recordAttendance 維護。
+   */
+  async getAttendanceStats(courseId: string): Promise<AttendanceStats> {
+    const stats = await getJson<AttendanceStats>(this.attendanceKV, attendanceStatsKey(courseId));
+    if (stats) return stats;
+    const rebuilt: AttendanceStats = { by_date: await this.countOtherDates(courseId) };
+    await this.attendanceKV.put(attendanceStatsKey(courseId), JSON.stringify(rebuilt));
+    return rebuilt;
   }
 
   async listAttendanceByCourse(courseId: string): Promise<OptionalCourseAttendance[]> {
@@ -303,6 +352,7 @@ export class OptionalCourseService {
     const attendanceKeys = await listAllKeys(this.attendanceKV, attendancePrefix(courseId));
     await Promise.all([
       ...attendanceKeys.map((k) => this.attendanceKV.delete(k)),
+      this.attendanceKV.delete(attendanceStatsKey(courseId)),
       this.rosterKV.delete(rosterKey(courseId)),
       this.scheduleKV.delete(scheduleKey(courseId)),
     ]);
