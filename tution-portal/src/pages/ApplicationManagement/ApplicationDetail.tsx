@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Layout } from "@/components/common/Layout";
 import { TutionClass, TutionRosterSnapshot } from "@/types";
 import apiClient from "@/utils/api";
-import { validateStudent, updateRoster } from "@/services/classService";
+import { validateStudent, updateRoster, StudentLeftSchoolError } from "@/services/classService";
 import { FORMS, DAYS_OF_WEEK, formatDisplayDate, formatDisplayDateTime } from "@/utils/validators";
 import { useGradeLabel, useDayLabel } from "@/i18n/labels";
 import "./application-detail.css";
@@ -176,7 +176,11 @@ const ApplicationDetail: React.FC = () => {
       setRoster((prev) => [...prev, student]);
       setNewStudentId("");
     } catch (err) {
-      setRosterError(t("applicationDetail.errorVerifyFailed"));
+      setRosterError(
+        err instanceof StudentLeftSchoolError
+          ? t("applicationDetail.errorStudentLeftSchool", { id: newStudentId })
+          : t("applicationDetail.errorVerifyFailed")
+      );
     } finally {
       setAddingStudent(false);
     }

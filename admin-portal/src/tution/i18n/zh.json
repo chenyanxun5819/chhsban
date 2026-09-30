@@ -370,7 +370,8 @@
     "pageInfo": "第 {{current}} / {{total}} 頁",
     "nextPage": "下一頁 →",
     "totalRecords": "共 {{count}} 筆記錄",
-    "searchResultSuffix": " (搜尋結果)"
+    "searchResultSuffix": " (搜尋結果)",
+    "leftSchool": "已離校"
   },
   "attendanceStatus": {
     "present": "到課",

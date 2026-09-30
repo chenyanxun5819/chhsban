@@ -17,6 +17,17 @@ export * from "./teacher-verify.js";
 // Student Manager
 export { StudentKVManager, createStudentKVManager } from "./student/index.js";
 
+// Student Directory（students_by_no，student-sync 同步的全校學生名錄；新程式請用這個，StudentKVManager 讀的是舊資料）
+export {
+  StudentDirectory,
+  createStudentDirectory,
+  studentStatus,
+  isLeftSchool,
+  type DirectoryStudent,
+  type DirectoryHistoryEntry,
+  type StudentStatus,
+} from "./student/directory.js";
+
 // Teacher Manager
 export { TeacherKVManager, createTeacherKVManager } from "./teacher/index.js";
 

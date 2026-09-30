@@ -59,7 +59,14 @@ const RosterManagement: React.FC = () => {
       const student = await lookupStudent(studentQuery.trim());
       setFoundStudent(student);
     } catch (err: any) {
-      setError(err.response?.data?.error === "Student not found" ? t("roster.studentNotFound") : t("roster.searchFailed"));
+      const code = err.response?.data?.error;
+      setError(
+        code === "Student not found"
+          ? t("roster.studentNotFound")
+          : code === "STUDENT_LEFT_SCHOOL"
+            ? t("roster.studentLeftSchool")
+            : t("roster.searchFailed"),
+      );
     } finally {
       setSearching(false);
     }
@@ -81,6 +88,8 @@ const RosterManagement: React.FC = () => {
       const code = err.response?.data?.error;
       if (code === "STUDENT_ALREADY_IN_ROSTER") {
         setError(t("roster.alreadyInRoster"));
+      } else if (code === "STUDENT_LEFT_SCHOOL") {
+        setError(t("roster.studentLeftSchool"));
       } else {
         setError(code || t("roster.addFailed"));
       }
@@ -201,7 +210,12 @@ const RosterManagement: React.FC = () => {
                     >
                       <td>{r.student_no || r.student_id}</td>
                       <td>
-                        <div>{r.student_name_cn}</div>
+                        <div>
+                          {r.student_name_cn}
+                          {r.student_status === "left" && (
+                            <span className="badge badge--missing roster-left-badge">{t("roster.leftSchool")}</span>
+                          )}
+                        </div>
                         <div className="name-en">{r.student_name_en}</div>
                       </td>
                       <td>{r.student_class}</td>

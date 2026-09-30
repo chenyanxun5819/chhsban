@@ -16,6 +16,8 @@ export interface BoardingStudentRow {
   name_en: string;
   real_class_name: string;
   gender_boarding: string;
+  /** 學生名錄的在校狀態：active 在校／left 已離校／excluded 不計入（STAR 班） */
+  student_status?: "active" | "left" | "excluded" | null;
   /** null：尚未點名（停課／調離當天也是 null，不需點名） */
   status: AttendanceStatusCode | null;
   absence_reason?: string;
@@ -49,6 +51,8 @@ export interface StudentInfo {
   name_en: string;
   real_class_name: string;
   gender_boarding: string;
+  /** 學生名錄的在校狀態：active 在校／left 已離校／excluded 不計入（STAR 班） */
+  student_status?: "active" | "left" | "excluded" | null;
 }
 
 export interface StudentSessionRow {

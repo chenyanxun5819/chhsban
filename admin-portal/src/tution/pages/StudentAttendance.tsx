@@ -103,6 +103,7 @@ const StudentAttendance: React.FC = () => {
           <strong>{student.student_no}</strong>
           <span>{student.real_class_name}</span>
           <strong>{student.name_cn}</strong>
+          {student.student_status === "left" && <span className="badge badge--missing">已離校</span>}
           <span>{student.gender_boarding}</span>
           <span>{student.name_en}</span>
         </div>

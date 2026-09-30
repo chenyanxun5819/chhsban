@@ -38,8 +38,15 @@ export async function updateRoster(
   return response.data.data;
 }
 
+/** 學生已離校（後端回 410），不能加入名單 */
+export class StudentLeftSchoolError extends Error {
+  constructor(public studentId: string) {
+    super(`Student ${studentId} has left the school`);
+  }
+}
+
 /**
- * 驗證學生並取得其詳細信息
+ * 驗證學生並取得其詳細信息；查無此學生回 null，已離校丟 StudentLeftSchoolError
  */
 export async function validateStudent(
   studentId: string
@@ -57,7 +64,10 @@ export async function validateStudent(
         gender_boarding: student.gender_boarding || "-",
       };
     }
-  } catch (error) {
+  } catch (error: any) {
+    if (error?.response?.status === 410) {
+      throw new StudentLeftSchoolError(studentId);
+    }
     console.error(`Failed to validate student ${studentId}:`, error);
   }
   return null;
@@ -71,18 +81,28 @@ export async function validateStudents(
 ): Promise<{
   valid: TutionRosterSnapshot[];
   invalid: string[];
+  left: string[];
 }> {
   const valid: TutionRosterSnapshot[] = [];
   const invalid: string[] = [];
+  const left: string[] = [];
 
   for (const id of studentIds) {
-    const student = await validateStudent(id);
-    if (student) {
-      valid.push(student);
-    } else {
-      invalid.push(id);
+    try {
+      const student = await validateStudent(id);
+      if (student) {
+        valid.push(student);
+      } else {
+        invalid.push(id);
+      }
+    } catch (error) {
+      if (error instanceof StudentLeftSchoolError) {
+        left.push(id);
+      } else {
+        throw error;
+      }
     }
   }
 
-  return { valid, invalid };
+  return { valid, invalid, left };
 }

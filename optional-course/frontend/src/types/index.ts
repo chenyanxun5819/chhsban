@@ -67,6 +67,8 @@ export interface OptionalCourseRoster {
   is_active: boolean;
   created_at: number;
   updated_at: number;
+  /** 學生名錄的在校狀態（GET 名冊時附上）：active 在校／left 已離校／excluded 不計入（STAR 班） */
+  student_status?: "active" | "left" | "excluded" | null;
 }
 
 export type CourseScheduleStatus = "cancelled" | "rescheduled";

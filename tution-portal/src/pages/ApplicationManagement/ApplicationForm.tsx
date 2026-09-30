@@ -154,6 +154,8 @@ const ApplicationForm: React.FC = () => {
         } else {
           setManualInputError(t("applicationForm.errorStudentDuplicate"));
         }
+      } else if (result.left.length > 0) {
+        setManualInputError(t("applicationDetail.errorStudentLeftSchool", { id: newStudentId }));
       } else {
         setManualInputError(t("applicationDetail.errorStudentNotFound", { id: newStudentId }));
       }
@@ -225,6 +227,13 @@ const ApplicationForm: React.FC = () => {
           t("applicationForm.errorInvalidStudentsList", {
             count: result.invalid.length,
             list: result.invalid.join(", "),
+          })
+        );
+      } else if (result.left.length > 0) {
+        setError(
+          t("applicationForm.errorLeftStudentsList", {
+            count: result.left.length,
+            list: result.left.join(", "),
           })
         );
       }

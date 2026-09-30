@@ -25,6 +25,7 @@ import Classrooms from "@/settings/pages/Classrooms";
 import StudentSync from "@/data/pages/StudentSync";
 import StudentExport from "@/data/pages/StudentExport";
 import OfficialRoster from "@/data/pages/OfficialRoster";
+import LegacyCleanup from "@/data/pages/LegacyCleanup";
 
 // 行政管理站：super_admin（全部）、admin（督察員，只能查看）、classroom_manager（教室管理員）、dorm_supervisor（舍監）。
 // 路由依系統分前綴：/data/*（學生資料）、/tution/*（補習班）、/optional/*（選修課）、/settings/*（共用設定）；
@@ -117,6 +118,9 @@ const AppRoutes = () => (
     <Route path="/settings/teachers" element={page(<Teachers />)} />
     <Route path="/settings/password-reset" element={page(<PasswordReset />)} />
     <Route path="/settings/classrooms" element={page(<Classrooms />)} />
+
+    {/* 一次性工具：舊學生資料清理（清完即可移除，見 LegacyCleanup.tsx 的提示語） */}
+    <Route path="/maintenance/legacy-cleanup" element={page(<LegacyCleanup />)} />
 
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes>

@@ -20,7 +20,7 @@
  * - 建立記錄: 1 PUT 
  */
 
-import { createAuthKVManager, createTeacherKVManager, createStudentKVManager, createClassroomKVManager, TutionClassStatus, AttendanceStatus, createPendingToken, verifyPendingToken, hashPassword, verifyPassword, generateStrongPassword, validatePasswordStrength, type TutionClass, type TutionSchedule } from "@chhsban/kv-utils";
+import { createAuthKVManager, createTeacherKVManager, createStudentDirectory, isLeftSchool, studentStatus, createClassroomKVManager, TutionClassStatus, AttendanceStatus, createPendingToken, verifyPendingToken, hashPassword, verifyPassword, generateStrongPassword, validatePasswordStrength, type TutionClass, type TutionSchedule } from "@chhsban/kv-utils";
 import { KV_NAMESPACES } from "@chhsban/cloudflare-config";
 import { TutionSheetsSync } from "./sheets-sync";
 import { TutionKVService } from "./tution-service";
@@ -39,6 +39,7 @@ import {
 } from "./boarding-attendance";
 import { logAudit } from "./audit";
 import { handleStudentSync, type StudentSyncService } from "./student-sync";
+import { handleLegacyCleanup } from "./legacy-cleanup"; // 一次性工具，舊學生資料清完即可移除
 
 interface Env {
   STUDENT_KV: KVNamespace;
@@ -84,16 +85,16 @@ async function buildRosterSnapshots(
   kvService: TutionKVService,
   classId: string,
 ): Promise<IncomingRosterSnapshot[]> {
-  const studentManager = createStudentKVManager(env.STUDENT_KV);
+  const directory = createStudentDirectory(env.STUDENT_KV);
   const rosterEntries = await kvService.listRosterByClass(classId);
 
   return Promise.all(
     rosterEntries.map(async (entry) => {
-      const student = await studentManager.getStudent(entry.student_id);
+      const student = (await directory.getById(entry.student_id)) || (await directory.getStudent(entry.student_id));
 
       return {
         student_id: entry.student_id,
-        student_no: student?.student_id || entry.student_id,
+        student_no: student?.student_no || (entry as any).student_no || entry.student_id,
         name_cn: entry.student_name_cn,
         name_en: entry.student_name_en,
         real_class_name: entry.student_class,
@@ -585,6 +586,11 @@ export default {
         return handleStudentSync(request, env, session, getCorsHeaders());
       }
 
+      // 一次性工具：舊學生資料清理（清完即可移除，見 legacy-cleanup.ts）
+      if (pathname.startsWith("/api/admin/legacy-cleanup")) {
+        return handleLegacyCleanup(request, env, session, getCorsHeaders());
+      }
+
       return jsonResponse({ error: "Not found" }, 404);
     } catch (error) {
       console.error("Error:", error);
@@ -650,22 +656,17 @@ async function handleStudents(
   }
 
   try {
-    const studentManager = createStudentKVManager(env.STUDENT_KV);
-    let student = null;
-    
-    // 先嘗試作為 student_id 查詢
-    student = await studentManager.getStudent(studentIdentifier);
-    
-    // 如果沒找到，嘗試作為 student_no 查詢（通過索引）
-    if (!student) {
-      const studentIdFromIndex = await env.STUDENT_KV.get(`student_no:${studentIdentifier}`);
-      if (studentIdFromIndex) {
-        student = await studentManager.getStudent(studentIdFromIndex);
-      }
-    }
+    // 學生名錄（students_by_no）：學號或 SMS 內部編號都可以查
+    const directory = createStudentDirectory(env.STUDENT_KV);
+    const student = await directory.getStudent(studentIdentifier);
 
     if (!student) {
       return jsonResponse({ error: "Student not found" }, 404);
+    }
+
+    // 查這支 API 是為了把學生加進名單（申請開課／加人），已離校的學生不能再加
+    if (isLeftSchool(student)) {
+      return jsonResponse({ error: "該學生已離校", student_status: "left" }, 410);
     }
 
     // 確保返回格式包含所有必要欄位
@@ -674,6 +675,7 @@ async function handleStudents(
       name_en: student.name_en || "-",
       real_class_name: student.real_class_name || "-",
       gender_boarding: student.gender_boarding || "-",
+      student_status: studentStatus(student),
     };
 
     return jsonResponse({ data: studentData }, 200);
@@ -1052,12 +1054,12 @@ async function handleClasses(
       }
 
       const entries = await kvService.listRosterByClass(classId);
-      const studentManager = createStudentKVManager(env.STUDENT_KV);
+      const directory = createStudentDirectory(env.STUDENT_KV);
 
-      // 學號／真實班級／住宿代碼的來源優先順序見 resolveRosterStudentInfo（STUDENT_KV 有兩種 key 慣例）
+      // 學號／真實班級／住宿代碼／在校狀態以學生名錄為準（見 resolveRosterStudentInfo）
       const hydrated = await Promise.all(
         entries.map(async (entry) => {
-          const info = await resolveRosterStudentInfo(entry, tutionClass, studentManager);
+          const info = await resolveRosterStudentInfo(entry, tutionClass, directory);
           return {
             roster_id: entry.roster_id,
             class_id: entry.class_id,
@@ -1095,18 +1097,14 @@ async function handleClasses(
         return jsonResponse({ error: "Missing student_id" }, 400);
       }
 
-      // 跟 handleStudents 一樣做雙重查詢：先當 student_no 直接查（完整資料通常存在這裡），
-      // 找不到再透過索引反查 student_id。
-      const studentManager = createStudentKVManager(env.STUDENT_KV);
-      let student: any = await studentManager.getStudent(body.student_id);
-      if (!student) {
-        const studentIdFromIndex = await env.STUDENT_KV.get(`student_no:${body.student_id}`);
-        if (studentIdFromIndex) {
-          student = await studentManager.getStudent(studentIdFromIndex);
-        }
-      }
+      // 學生名錄（students_by_no）：body.student_id 可以是學號或 SMS 內部編號
+      const directory = createStudentDirectory(env.STUDENT_KV);
+      const student: any = await directory.getStudent(body.student_id);
       if (!student) {
         return jsonResponse({ error: "Student not found" }, 404);
+      }
+      if (isLeftSchool(student)) {
+        return jsonResponse({ error: "該學生已離校，無法加入名單" }, 409);
       }
 
       const resolvedStudentId = student.student_id || body.student_id;
@@ -1779,7 +1777,7 @@ async function handleBoardingAttendance(
     env.TUTION_ATTENDANCE_KV,
     env.TUTION_SCHEDULE_KV,
   );
-  const studentManager = createStudentKVManager(env.STUDENT_KV);
+  const directory = createStudentDirectory(env.STUDENT_KV);
 
   try {
     if (url.pathname === "/api/v1/boarding-attendance") {
@@ -1787,7 +1785,7 @@ async function handleBoardingAttendance(
       if (!isValidDateString(date)) {
         return jsonResponse({ error: "Invalid or missing query param: date (YYYY-MM-DD)" }, 400);
       }
-      const result = await computeBoardingAttendance(kvService, studentManager, date);
+      const result = await computeBoardingAttendance(kvService, directory, date);
       return jsonResponse({ data: result }, 200);
     }
 
@@ -1796,7 +1794,7 @@ async function handleBoardingAttendance(
       if (!studentNo) {
         return jsonResponse({ error: "Missing required query param: student_no" }, 400);
       }
-      const result = await computeStudentAttendance(kvService, studentManager, env.STUDENT_KV, studentNo);
+      const result = await computeStudentAttendance(kvService, directory, studentNo);
       if (!result.student && result.classes.length === 0) {
         return jsonResponse({ error: "Student not found" }, 404);
       }

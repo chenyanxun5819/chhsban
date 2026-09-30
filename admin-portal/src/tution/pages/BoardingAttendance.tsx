@@ -155,7 +155,10 @@ const BoardingAttendance: React.FC = () => {
                         </Link>
                       </td>
                       <td>{s.real_class_name}</td>
-                      <td>{s.name_cn}</td>
+                      <td>
+                        {s.name_cn}
+                        {s.student_status === "left" && <span className="badge badge--missing ba-left-badge">已離校</span>}
+                      </td>
                       <td>{s.gender_boarding}</td>
                       <td className="ba-col-en">{s.name_en}</td>
                       <td>

@@ -122,7 +122,9 @@
     "reasonRequired": "请输入退出原因",
     "invalidWithdrawDate": "退出日期不正确（不能晚于今天）",
     "withdrawFailed": "退出名册失败",
-    "confirmWithdraw": "确认退出"
+    "confirmWithdraw": "确认退出",
+    "studentLeftSchool": "这位学生已离校，不能加入名册",
+    "leftSchool": "已离校"
   },
   "batch": {
     "title": "批量加入（Excel）",
@@ -148,7 +150,8 @@
       "added": "已加入",
       "already_in_roster": "已在名册中",
       "not_found": "查无此学号",
-      "duplicate_in_file": "档案内重复"
+      "duplicate_in_file": "档案内重复",
+      "left_school": "已离校"
     }
   },
   "schedule": {

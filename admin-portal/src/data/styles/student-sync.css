@@ -144,3 +144,13 @@
   font-size: 14px;
   margin-top: 12px;
 }
+
+.ss-prompt {
+  background: #f6f7f9;
+  border-radius: 6px;
+  padding: 12px;
+  font-size: 13px;
+  white-space: pre-wrap;
+  line-height: 1.6;
+  margin: 8px 0 12px;
+}

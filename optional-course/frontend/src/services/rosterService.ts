@@ -39,7 +39,7 @@ export const withdrawRosterEntry = async (
   return res.data.data;
 };
 
-export type RosterBatchStatus = "ok" | "added" | "already_in_roster" | "not_found" | "duplicate_in_file";
+export type RosterBatchStatus = "ok" | "added" | "already_in_roster" | "not_found" | "left_school" | "duplicate_in_file";
 
 export interface RosterBatchResult {
   student_no: string;

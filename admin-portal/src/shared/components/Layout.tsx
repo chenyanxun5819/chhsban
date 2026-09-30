@@ -44,6 +44,11 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
       { label: "教室管理", path: "/settings/classrooms" },
     ],
   },
+  // 一次性工具：舊學生資料清完即可移除（見 LegacyCleanup.tsx 的提示語）
+  {
+    title: "維護",
+    items: [{ label: "舊學生資料清理", path: "/maintenance/legacy-cleanup" }],
+  },
 ];
 
 const PERMISSION_LABEL: Partial<Record<Permission, string>> = {

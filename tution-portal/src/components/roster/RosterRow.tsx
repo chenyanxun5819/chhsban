@@ -63,6 +63,12 @@ const RosterRow: React.FC<RosterRowProps> = ({
           <span className={`status-badge ${student.is_active ? "success" : "danger"}`}>
             {student.is_active ? t("roster.active") : t("roster.statusWithdrawn")}
           </span>
+          {student.student_status === "left" && (
+            <>
+              <span className="separator-tab"></span>
+              <span className="status-badge danger">{t("roster.leftSchool")}</span>
+            </>
+          )}
           {student.is_active && !readOnly && !form && (
             <button
               className="btn btn-outline-danger btn-withdraw"

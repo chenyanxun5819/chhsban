@@ -11,7 +11,15 @@
  * 出勤只取同一 class_id+student_id+class_date 最新一筆（dedupeToLatestAttendance）。
  */
 
-import type { StudentKVManager, TutionAttendance, TutionClass, TutionRoster, TutionSchedule } from "@chhsban/kv-utils";
+import {
+  studentStatus,
+  type StudentDirectory,
+  type StudentStatus,
+  type TutionAttendance,
+  type TutionClass,
+  type TutionRoster,
+  type TutionSchedule,
+} from "@chhsban/kv-utils";
 import { dedupeToLatestAttendance, type TutionKVService } from "./tution-service";
 import { generateScheduleRows, type GeneratedScheduleRow } from "./course-report";
 
@@ -45,46 +53,41 @@ export interface RosterStudentInfo {
   name_en: string;
   real_class_name: string;
   gender_boarding: string;
+  /** 學生名錄的狀態：active 在校／left 離校／excluded 不計入（STAR 班）；名錄查不到為 null */
+  student_status: StudentStatus | null;
 }
 
 /**
- * 補齊名單學生的學號、真實班級、住宿代碼。
+ * 補齊名單學生的學號、真實班級、住宿代碼、在校狀態。
  *
- * STUDENT_KV 對同一位學生存在兩種 key 慣例：
- * - student:{student_no} 是原始完整資料（含 gender_boarding / real_class_name）
- * - student:{student_id} 是後來另一批只含核心欄位的精簡資料（沒有 gender_boarding）
- * 用 student_id 直接查通常只會查到精簡版。申請當下驗證名單時是用 student_no
- * 查到完整版並存進 class 的 initial_roster 快照，這裡優先拿名單條目本身、再來是那份快照，
- * 都沒有才查 STUDENT_KV。
+ * 以學生名錄（students_KV 的 students_by_no，student-sync 定期同步＋官方名單核對）為準，
+ * 學生調班、住宿變動都會即時反映；名錄查不到（極少數舊資料）才退回名單條目本身與開課時的 initial_roster 快照。
  */
 export async function resolveRosterStudentInfo(
   entry: TutionRoster,
   tutionClass: TutionClass | null,
-  studentManager: StudentKVManager,
+  directory: StudentDirectory,
 ): Promise<RosterStudentInfo> {
   const initialRoster: any[] = Array.isArray((tutionClass as any)?.initial_roster)
     ? (tutionClass as any).initial_roster
     : [];
   const snapshot = initialRoster.find((s) => s.student_id === entry.student_id);
+  const savedNo: string | undefined = (entry as any).student_no || snapshot?.student_no;
 
-  let genderBoarding: string | undefined = (entry as any).gender_boarding || snapshot?.gender_boarding;
-  let studentNo: string | undefined = (entry as any).student_no || snapshot?.student_no;
-  let realClassName: string | undefined = snapshot?.real_class_name || entry.student_class;
-
-  if (!genderBoarding) {
-    const student: any = await studentManager.getStudent(entry.student_id);
-    genderBoarding = student?.gender_boarding;
-    studentNo = studentNo || student?.student_no;
-    realClassName = student?.real_class_name || realClassName;
-  }
+  // 名冊的 student_id 通常是 SMS 內部編號；少數舊條目存的是學號，所以兩種都試
+  const student =
+    (await directory.getById(entry.student_id)) ||
+    (savedNo ? await directory.getByNo(savedNo) : null) ||
+    (await directory.getStudent(entry.student_id));
 
   return {
     student_id: entry.student_id,
-    student_no: studentNo || entry.student_id,
+    student_no: student?.student_no || savedNo || entry.student_id,
     name_cn: entry.student_name_cn,
     name_en: entry.student_name_en,
-    real_class_name: realClassName || "",
-    gender_boarding: genderBoarding || "-",
+    real_class_name: student?.real_class_name || snapshot?.real_class_name || entry.student_class || "",
+    gender_boarding: student?.gender_boarding || (entry as any).gender_boarding || snapshot?.gender_boarding || "-",
+    student_status: studentStatus(student),
   };
 }
 
@@ -199,7 +202,7 @@ function sessionOnDate(
 
 export async function computeBoardingAttendance(
   kvService: TutionKVService,
-  studentManager: StudentKVManager,
+  directory: StudentDirectory,
   date: string,
 ): Promise<BoardingAttendanceResult> {
   const [allClasses, allSchedules] = await Promise.all([
@@ -254,7 +257,7 @@ export async function computeBoardingAttendance(
       const uniqueEntries = Array.from(new Map(entries.map((e) => [e.student_id, e])).values());
 
       const students = (
-        await Promise.all(uniqueEntries.map((entry) => resolveRosterStudentInfo(entry, cls, studentManager)))
+        await Promise.all(uniqueEntries.map((entry) => resolveRosterStudentInfo(entry, cls, directory)))
       )
         .filter((s) => isBoarder(s.gender_boarding))
         .sort(compareStudents)
@@ -344,13 +347,12 @@ export interface StudentAttendanceResult {
 
 export async function computeStudentAttendance(
   kvService: TutionKVService,
-  studentManager: StudentKVManager,
-  studentKV: KVNamespace,
+  directory: StudentDirectory,
   studentNo: string,
 ): Promise<StudentAttendanceResult> {
-  // 學號 → student_id（STUDENT_KV 的 student_no:{no} 索引）；名單條目有的存 student_id、有的也存了 student_no，兩者都比對
-  const indexedId = await studentKV.get(`student_no:${studentNo}`);
-  const matchIds = new Set([studentNo, ...(indexedId ? [indexedId] : [])]);
+  // 學號 → SMS 內部編號（名冊的 student_id）；名單條目有的存 student_id、有的也存了 student_no，兩者都比對
+  const dirStudent = await directory.getByNo(studentNo);
+  const matchIds = new Set([studentNo, ...(dirStudent?.student_id ? [String(dirStudent.student_id)] : [])]);
 
   const allRoster = await kvService.listAllRoster();
   const entries = allRoster.filter(
@@ -359,18 +361,16 @@ export async function computeStudentAttendance(
 
   if (entries.length === 0) {
     // 沒參加任何補習班：仍回傳學生基本資料，讓前端顯示「查無補習紀錄」而不是「查無此學號」
-    const student: any =
-      (await studentManager.getStudent(studentNo)) ||
-      (indexedId ? await studentManager.getStudent(indexedId) : null);
     return {
-      student: student
+      student: dirStudent
         ? {
-            student_id: indexedId || studentNo,
-            student_no: student.student_no || studentNo,
-            name_cn: student.name_cn || "",
-            name_en: student.name_en || "",
-            real_class_name: student.real_class_name || "",
-            gender_boarding: student.gender_boarding || "-",
+            student_id: String(dirStudent.student_id || studentNo),
+            student_no: dirStudent.student_no || studentNo,
+            name_cn: dirStudent.name_cn || "",
+            name_en: dirStudent.name_en || "",
+            real_class_name: dirStudent.real_class_name || "",
+            gender_boarding: dirStudent.gender_boarding || "-",
+            student_status: studentStatus(dirStudent),
           }
         : null,
       classes: [],
@@ -402,7 +402,7 @@ export async function computeStudentAttendance(
   const student = await resolveRosterStudentInfo(
     latestEntry,
     classById.get(latestEntry.class_id) || null,
-    studentManager,
+    directory,
   );
 
   const today = todayString();

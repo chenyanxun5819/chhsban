@@ -35,7 +35,7 @@ import {
   type HolidayType,
   type Weekday,
 } from "./types";
-import { findStudentByNo, getStudentClass } from "./student-lookup";
+import { findStudentByNo, getStudentClass, isLeftSchool, studentStatus } from "./student-lookup";
 import { currentYear, isQueryableYear } from "./year";
 import {
   dueRange,
@@ -349,6 +349,10 @@ async function handleStudentLookup(
   if (!student) {
     return jsonResponse({ error: "Student not found" }, 404);
   }
+  // 查這支 API 是為了把學生加進名冊，已離校的學生不能再加
+  if (isLeftSchool(student)) {
+    return jsonResponse({ error: "STUDENT_LEFT_SCHOOL" }, 410);
+  }
 
   return jsonResponse({ success: true, data: { ...student, class: getStudentClass(student) } });
 }
@@ -591,10 +595,10 @@ async function handleMyCourses(
   return jsonResponse({ success: true, data: courses });
 }
 
-// 每位學生 1 次 KV 讀取（查 STUDENT_KV），名冊整批只寫 1 次；限制筆數避免超過 Worker 單次請求的 KV 操作上限
+// 學生名錄整份只讀 1 次 KV（見 student-lookup.ts），名冊整批只寫 1 次；限制筆數避免名冊過大
 const ROSTER_BATCH_MAX = 200;
 
-type RosterBatchStatus = "ok" | "added" | "already_in_roster" | "not_found" | "duplicate_in_file";
+type RosterBatchStatus = "ok" | "added" | "already_in_roster" | "not_found" | "left_school" | "duplicate_in_file";
 
 /**
  * POST /api/v1/courses/{id}/roster/batch
@@ -660,6 +664,11 @@ async function handleRosterBatch(
       student_class: getStudentClass(student),
     };
 
+    if (isLeftSchool(student)) {
+      results.push({ ...info, status: "left_school" as RosterBatchStatus });
+      continue;
+    }
+
     if (enrolledIds.has(student.student_id)) {
       results.push({ ...info, status: "already_in_roster" as RosterBatchStatus });
       continue;
@@ -717,7 +726,15 @@ async function handleRoster(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
       const roster = await service.getRoster(course.course_id);
-      return jsonResponse({ success: true, data: roster });
+      // 附上學生名錄的在校狀態（active／left／excluded），讓老師知道名冊裡有學生已離校；
+      // 名冊本身的姓名、班級是加入當時的快照，不改
+      const statuses = await Promise.all(
+        roster.map(async (r) => studentStatus(await findStudentByNo(env.STUDENT_KV, r.student_no))),
+      );
+      return jsonResponse({
+        success: true,
+        data: roster.map((r, i) => ({ ...r, student_status: statuses[i] })),
+      });
     }
 
     if (method === "POST") {
@@ -736,6 +753,9 @@ async function handleRoster(
       const student = await findStudentByNo(env.STUDENT_KV, studentNo);
       if (!student) {
         return jsonResponse({ error: "Student not found" }, 404);
+      }
+      if (isLeftSchool(student)) {
+        return jsonResponse({ error: "STUDENT_LEFT_SCHOOL" }, 409);
       }
 
       // 同一個學生若已經在這門課的名冊裡（且尚未退出），不重複加入

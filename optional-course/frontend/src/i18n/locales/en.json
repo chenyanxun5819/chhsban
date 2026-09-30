@@ -122,7 +122,9 @@
     "reasonRequired": "Please enter a reason",
     "invalidWithdrawDate": "Invalid withdrawal date (cannot be later than today)",
     "withdrawFailed": "Failed to withdraw",
-    "confirmWithdraw": "Confirm"
+    "confirmWithdraw": "Confirm",
+    "studentLeftSchool": "This student has left the school and cannot be added",
+    "leftSchool": "Left school"
   },
   "batch": {
     "title": "Batch Import (Excel)",
@@ -148,7 +150,8 @@
       "added": "Added",
       "already_in_roster": "Already in roster",
       "not_found": "ID not found",
-      "duplicate_in_file": "Duplicate in file"
+      "duplicate_in_file": "Duplicate in file",
+      "left_school": "Left school"
     }
   },
   "schedule": {

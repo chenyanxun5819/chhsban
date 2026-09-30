@@ -67,6 +67,12 @@ const RosterRow: React.FC<{ student: ClassRosterEntry }> = ({ student }) => {
           <span className={`status-badge ${student.is_active ? "success" : "danger"}`}>
             {student.is_active ? t("roster.active") : t("roster.statusWithdrawn")}
           </span>
+          {student.student_status === "left" && (
+            <>
+              <span className="separator-tab"></span>
+              <span className="status-badge danger">{t("roster.leftSchool")}</span>
+            </>
+          )}
         </div>
 
         <div className="student-line-3">

@@ -241,7 +241,12 @@ const AttendanceSheet: React.FC = () => {
               {roster.map((entry) => (
                 <tr key={entry.roster_id}>
                   <td>{entry.student_no || entry.student_id}</td>
-                  <td>{entry.student_name_cn}</td>
+                  <td>
+                    {entry.student_name_cn}
+                    {entry.student_status === "left" && (
+                      <span className="badge badge--missing roster-left-badge">{t("roster.leftSchool")}</span>
+                    )}
+                  </td>
                   <td>
                     {readOnly ? (
                       alreadyRecorded ? t(`attendanceStatus.${statusMap[entry.student_id] || "present"}`) : "-"

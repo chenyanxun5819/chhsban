@@ -153,3 +153,7 @@
     display: none;
   }
 }
+
+.ba-left-badge {
+  margin-left: 6px;
+}

@@ -610,3 +610,8 @@ body {
   height: 18px;
   display: block;
 }
+
+.roster-left-badge {
+  margin-left: 6px;
+  vertical-align: middle;
+}

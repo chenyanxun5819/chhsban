@@ -111,6 +111,8 @@ export interface ClassRosterEntry {
   name_en: string;
   real_class_name: string;
   gender_boarding: string;
+  /** 學生名錄的在校狀態：active 在校／left 已離校／excluded 不計入（STAR 班） */
+  student_status?: "active" | "left" | "excluded" | null;
   enrollment_date: string;
   withdrawal_date: string | null;
   withdrawal_reason: string | null;

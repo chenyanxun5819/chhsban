@@ -233,7 +233,8 @@
     "errorStudentNotFound": "學生 {{id}} 不存在",
     "errorVerifyFailed": "驗證失敗，請重試",
     "confirmDelete": "確認要刪除此申請嗎？",
-    "errorDeleteFailed": "刪除失敗，請重試"
+    "errorDeleteFailed": "刪除失敗，請重試",
+    "errorStudentLeftSchool": "學生 {{id}} 已離校，不能加入名單"
   },
   "applicationForm": {
     "title": "提出新申請",
@@ -277,7 +278,8 @@
     "errorNoValidStudent": "請選擇至少一名學生",
     "errorMaxStudents": "已達每堂課最多 {{max}} 人上限，無法再新增",
     "errorMaxStudentsCsv": "名單共 {{count}} 人，超過每堂課最多 {{max}} 人上限，請調整名單後重新上傳",
-    "errorSubmitFailed": "提交失敗，請重試"
+    "errorSubmitFailed": "提交失敗，請重試",
+    "errorLeftStudentsList": "{{count}} 名學生已離校: {{list}}"
   },
   "schedule": {
     "readOnlyTitle": "排課狀態",
@@ -376,7 +378,8 @@
     "pageInfo": "第 {{current}} / {{total}} 頁",
     "nextPage": "下一頁 →",
     "totalRecords": "共 {{count}} 筆記錄",
-    "searchResultSuffix": " (搜尋結果)"
+    "searchResultSuffix": " (搜尋結果)",
+    "leftSchool": "已離校"
   },
   "attendanceStatus": {
     "present": "到課",
