@@ -27,26 +27,6 @@ export const KV_NAMESPACES = {
     id: "8ddeccbeeae9440fafba384d35205a81",
     description: "驗證身份用（session tokens，配合 TEACHER_KV）",
   },
-  TUTION_CLASS_KV: {
-    binding: "TUTION_CLASS_KV",
-    id: "16fbdfd4c5e2444ebea8c55d313e00f8",
-    description: "補習班系統 - 補習班開課記錄（主表）",
-  },
-  TUTION_ROSTER_KV: {
-    binding: "TUTION_ROSTER_KV",
-    id: "ab63a42d9b6643e3ae5b17e7f807da03",
-    description: "補習班系統 - 補習班學生名單（子表1）",
-  },
-  TUTION_ATTENDANCE_KV: {
-    binding: "TUTION_ATTENDANCE_KV",
-    id: "d16847622dd244bb9d1d235cdfce6d1c",
-    description: "補習班系統 - 學生出勤紀錄（子表2）",
-  },
-  TUTION_SCHEDULE_KV: {
-    binding: "TUTION_SCHEDULE_KV",
-    id: "f95d69ef1fc347f29c9936605e9ccfde",
-    description: "補習班系統 - 排課例外記錄（無開課/調課，子表3）",
-  },
   CLASSROOM_KV: {
     binding: "CLASSROOM_KV",
     id: "43882431a6344d929976a1281ffca873",

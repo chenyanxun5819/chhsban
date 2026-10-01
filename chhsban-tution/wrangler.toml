@@ -1,6 +1,9 @@
-# Cloudflare Worker 配置 - 自動生成
-# 由 packages/cloudflare-config 管理
-# 勿直接編輯此文件！修改請見: packages/cloudflare-config/src/
+# Cloudflare Worker 配置 - tution-system（手動維護）
+# 註：packages/cloudflare-config 的產生器早已與此檔脫節，不要用它重新產生。
+#
+# ⚠️ 部署一律用不帶 --env 的 `npx wrangler deploy`。
+#    2026-10-01 已刪除從未承接流量的 [env.production] 區段（曾造成部署到錯誤 Worker 的事故），
+#    現在誤打 --env production 只會直接報錯。
 
 name = "tution-system"
 account_id = "82d225cda80f37208228877b32268b26"
@@ -8,7 +11,7 @@ workers_dev = true
 main = "src/index.ts"
 compatibility_date = "2026-06-30"
 
-# KV 綁定配置
+# KV 綁定：跨系統共用的資料（登入 session、教師、學生名錄、教室）與本系統的資產、審計紀錄
 [[kv_namespaces]]
 binding = "STUDENT_KV"
 id = "9d870e2344c84c74a1ed2f2851c93408"
@@ -20,22 +23,6 @@ id = "8892dc8c30984f4591850521a1b57ed8"
 [[kv_namespaces]]
 binding = "AUTH_KV"
 id = "8ddeccbeeae9440fafba384d35205a81"
-
-[[kv_namespaces]]
-binding = "TUTION_CLASS_KV"
-id = "16fbdfd4c5e2444ebea8c55d313e00f8"
-
-[[kv_namespaces]]
-binding = "TUTION_ROSTER_KV"
-id = "ab63a42d9b6643e3ae5b17e7f807da03"
-
-[[kv_namespaces]]
-binding = "TUTION_ATTENDANCE_KV"
-id = "d16847622dd244bb9d1d235cdfce6d1c"
-
-[[kv_namespaces]]
-binding = "TUTION_SCHEDULE_KV"
-id = "f95d69ef1fc347f29c9936605e9ccfde"
 
 [[kv_namespaces]]
 binding = "CLASSROOM_KV"
@@ -49,15 +36,15 @@ id = "3159009d636640369959187fb7f85eee"
 binding = "AUDIT_LOG_KV"
 id = "b04b855097f848cebbb8d71207f4159c"
 
-# D1 資料庫：補習班的班級、名單、排課例外、點名、設定（2026-09-30 由 KV 遷移，資料表見 migrations/）
-# 上面 TUTION_CLASS/ROSTER/ATTENDANCE/SCHEDULE_KV 保留綁定只為了遷移腳本與回滾，程式已不再讀寫
+# D1 資料庫：補習班的班級、名單、排課例外、點名、設定（2026-10-01 由 KV 遷移上線，資料表見 migrations/）
+# 原本的 TUTION_CLASS/ROSTER/ATTENDANCE/SCHEDULE_KV 已於 2026-10-01 刪除
 [[d1_databases]]
 binding = "DB"
 database_name = "tution-db"
 database_id = "6f097da0-b5d2-441a-b5bf-e431e02ad327"
 migrations_dir = "migrations"
 
-# R2 綁定配置（簽核紙本掃描檔存檔備份用）
+# R2 綁定配置（簽核紙本掃描檔、收據存檔）
 [[r2_buckets]]
 binding = "SIGNED_FORMS_BUCKET"
 bucket_name = "tution-signed-forms"
@@ -69,61 +56,10 @@ binding = "STUDENT_SYNC"
 service = "student-sync"
 entrypoint = "SyncService"
 
-# 生產環境配置
-# 註：曾規劃掛在自訂網域 api.chhsban.tution.mybazaar.my，但 mybazaar.my 的
-# nameserver 從未指向 Cloudflare（該網域仍在使用中的網站+Google Workspace 信箱，
-# 且子網域委派需要企業方案才能自助設定），此路由設定從未真正生效過。
-# 正式環境實際使用的是 Workers 預設網址 tution-system.astcws.workers.dev。
-[env.production]
-
-# KV 綁定配置（生產環境）
-[[env.production.kv_namespaces]]
-binding = "STUDENT_KV"
-id = "9d870e2344c84c74a1ed2f2851c93408"
-
-[[env.production.kv_namespaces]]
-binding = "TEACHER_KV"
-id = "8892dc8c30984f4591850521a1b57ed8"
-
-[[env.production.kv_namespaces]]
-binding = "AUTH_KV"
-id = "8ddeccbeeae9440fafba384d35205a81"
-
-[[env.production.kv_namespaces]]
-binding = "TUTION_CLASS_KV"
-id = "16fbdfd4c5e2444ebea8c55d313e00f8"
-
-[[env.production.kv_namespaces]]
-binding = "TUTION_ROSTER_KV"
-id = "ab63a42d9b6643e3ae5b17e7f807da03"
-
-[[env.production.kv_namespaces]]
-binding = "TUTION_ATTENDANCE_KV"
-id = "d16847622dd244bb9d1d235cdfce6d1c"
-
-[[env.production.kv_namespaces]]
-binding = "ASSETS_KV"
-id = "25e53baf7822443ca6c3bc0ec0045fc8"
-
-[[env.production.kv_namespaces]]
-binding = "TUTION_SCHEDULE_KV"
-id = "f95d69ef1fc347f29c9936605e9ccfde"
-
-[[env.production.kv_namespaces]]
-binding = "AUDIT_LOG_KV"
-id = "04c9aeb5a82147f7a354e99d9dc56670"
-
-# 環境變數
-[env.production.vars]
-GOOGLE_SHEETS_SPREADSHEET_ID = "18Fq3eWpf6Z1kx_-ihB0Hs38O3IomBzxJQne8QYHoYJI"
-GOOGLE_SHEETS_SHEET_CLASSES = "Classes"
-GOOGLE_SHEETS_SHEET_ROSTER = "Roster"
-GOOGLE_SHEETS_SHEET_ATTENDANCE = "Attendance"
-
-# Cron 觸發器：每日 UTC 16:00（= 馬來西亞時間 00:00）重新計算「各課程開課報表」快取
+# Cron 觸發器：每日 UTC 16:00（= 馬來西亞時間 00:00）清理超過保留年限的班級、重新計算「各課程開課報表」
 [triggers]
 crons = ["0 16 * * *"]
 
-# 敏感資訊一律用 wrangler secret 設置，絕不寫在此文件中（正式環境是不帶 --env 的預設 Worker）：
-# wrangler secret put AUTH_PENDING_SECRET
-# wrangler secret put GOOGLE_VISION_API_KEY
+# 敏感資訊一律用 wrangler secret 設置，絕不寫在此文件中：
+# npx wrangler secret put AUTH_PENDING_SECRET
+# npx wrangler secret put GOOGLE_VISION_API_KEY
