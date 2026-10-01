@@ -123,9 +123,11 @@ async function handleAuthVerify(request: Request, env: Env): Promise<Response> {
       return jsonResponse({ error: "Email not registered in system" }, 401);
     }
 
-    const purpose: "password_setup" | "password_login" = teacher.password_hash
-      ? "password_login"
-      : "password_setup";
+    // 2026-10-01 起關閉「憑 email 首次設定密碼」（與 chhsban-tution 一致，見其 handleAuthVerify 說明）
+    if (!teacher.password_hash) {
+      return jsonResponse({ error: PASSWORD_SETUP_DISABLED_MESSAGE, code: "PASSWORD_SETUP_DISABLED" }, 403);
+    }
+    const purpose = "password_login" as const;
 
     const pendingToken = await createPendingToken(
       { teacherId: teacher.teacher_id, email: teacher.email, purpose },
@@ -173,7 +175,15 @@ async function finalizeLogin(env: Env, teacher: TeacherRecord): Promise<Response
   });
 }
 
+// 首次設定密碼已於 2026-10-01 停用（改用私人 Google 帳號登入）
+const PASSWORD_SETUP_ENABLED = false;
+const PASSWORD_SETUP_DISABLED_MESSAGE =
+  "此帳號尚未設定密碼。系統已停用首次設定密碼，請改用私人 Google 帳號登入（如尚未綁定，請聯絡管理員）。";
+
 async function handleAuthGeneratePassword(request: Request, env: Env): Promise<Response> {
+  if (!PASSWORD_SETUP_ENABLED) {
+    return jsonResponse({ error: PASSWORD_SETUP_DISABLED_MESSAGE, code: "PASSWORD_SETUP_DISABLED" }, 410);
+  }
   try {
     if (request.method !== "POST") {
       return jsonResponse({ error: "Method not allowed" }, 405);
@@ -198,6 +208,9 @@ async function handleAuthGeneratePassword(request: Request, env: Env): Promise<R
 }
 
 async function handleAuthSetPassword(request: Request, env: Env): Promise<Response> {
+  if (!PASSWORD_SETUP_ENABLED) {
+    return jsonResponse({ error: PASSWORD_SETUP_DISABLED_MESSAGE, code: "PASSWORD_SETUP_DISABLED" }, 410);
+  }
   try {
     if (request.method !== "POST") {
       return jsonResponse({ error: "Method not allowed" }, 405);

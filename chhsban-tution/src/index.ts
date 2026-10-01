@@ -242,12 +242,12 @@ async function handleAuthVerify(request: Request, env: Env): Promise<Response> {
       );
     }
 
-    console.log(`[AUTH] Found teacher: ${teacher.teacher_id}`);
-
-    // 密碼作為強制第二關卡：依該教師是否已設定密碼，決定下一步是「設定密碼」還是「輸入密碼」
-    const purpose: "password_setup" | "password_login" = teacher.password_hash
-      ? "password_login"
-      : "password_setup";
+    // 2026-10-01 起關閉「憑 email 首次設定密碼」：只憑 email 就能設密碼，知道別人 email 就能搶先登入。
+    // 已設過密碼的帳號在過渡期間照常用密碼登入；其他人改用私人 Google 帳號登入（由管理員綁定）。
+    if (!teacher.password_hash) {
+      return jsonResponse({ error: PASSWORD_SETUP_DISABLED_MESSAGE, code: "PASSWORD_SETUP_DISABLED" }, 403);
+    }
+    const purpose = "password_login" as const;
 
     const pendingToken = await createPendingToken(
       { teacherId: teacher.teacher_id, email: teacher.email, purpose },
@@ -312,10 +312,20 @@ async function finalizeLogin(
   });
 }
 
+// 首次設定密碼開關（見 handleAuthVerify 的說明）；改用 Google 登入後不再開啟
+const PASSWORD_SETUP_ENABLED = false;
+
+const PASSWORD_SETUP_DISABLED_MESSAGE =
+  "此帳號尚未設定密碼。系統已停用首次設定密碼，請改用私人 Google 帳號登入（如尚未綁定，請聯絡管理員）。";
+
 /**
  * 讓系統產生一組符合強度規則的密碼，顯示給使用者一次（不寫入任何儲存）
+ * 2026-10-01 起停用（首次設定密碼已關閉），保留程式碼以免舊版前端呼叫時出現難懂的錯誤
  */
 async function handleAuthGeneratePassword(request: Request, env: Env): Promise<Response> {
+  if (!PASSWORD_SETUP_ENABLED) {
+    return jsonResponse({ error: PASSWORD_SETUP_DISABLED_MESSAGE, code: "PASSWORD_SETUP_DISABLED" }, 410);
+  }
   try {
     if (request.method !== "POST") {
       return jsonResponse({ error: "Method not allowed" }, 405);
@@ -346,6 +356,9 @@ async function handleAuthGeneratePassword(request: Request, env: Env): Promise<R
  * 首次登入：設定密碼（自訂或系統產生皆走這個端點），成功後直接完成登入
  */
 async function handleAuthSetPassword(request: Request, env: Env): Promise<Response> {
+  if (!PASSWORD_SETUP_ENABLED) {
+    return jsonResponse({ error: PASSWORD_SETUP_DISABLED_MESSAGE, code: "PASSWORD_SETUP_DISABLED" }, 410);
+  }
   try {
     if (request.method !== "POST") {
       return jsonResponse({ error: "Method not allowed" }, 405);
