@@ -48,7 +48,8 @@ id = "6ca37192e83249a0913de69dcfd0d531"
 crons = ["0 19 * * *"]
 
 [vars]
-# 目前無需額外環境變數
+# Google 登入（私人 Gmail）的 OAuth 用戶端 ID（公開值，與 chhsban-tution 相同）
+GOOGLE_CLIENT_ID = "491731246647-gf63vkq4vso6uji4dilcd84g5aedocsf.apps.googleusercontent.com"
 
 # 敏感資訊使用 wrangler secret 設置（不寫在此文件中）：
 # wrangler secret put AUTH_PENDING_SECRET

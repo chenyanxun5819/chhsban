@@ -7,8 +7,10 @@ import {
   generateSystemPassword,
   setPassword,
   loginWithPassword,
+  loginWithGoogle,
   type AuthVerifyResponse,
 } from "@/services/authService";
+import { GoogleSignInButton } from "@/components/common/GoogleSignInButton";
 import eyeIcon from "@/assets/eye.svg";
 import eyeClosedIcon from "@/assets/eye-closed.svg";
 import { LanguageToggle } from "@/components/common/LanguageToggle";
@@ -37,6 +39,18 @@ const Login: React.FC = () => {
   const handleAuthDone = (authData: AuthVerifyResponse) => {
     completeLogin(authData);
     navigate("/");
+  };
+
+  const handleGoogleCredential = async (credential: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      handleAuthDone(await loginWithGoogle(credential));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : t("login.googleFailed"));
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleIdentify = async (e: React.FormEvent) => {
@@ -126,7 +140,15 @@ const Login: React.FC = () => {
         {error && <p className="error-text">{error}</p>}
 
         {step.kind === "identify" && (
+          <div style={{ marginBottom: 24 }}>
+            <p>{t("login.googleHint")}</p>
+            <GoogleSignInButton onCredential={handleGoogleCredential} onError={setError} />
+          </div>
+        )}
+
+        {step.kind === "identify" && (
           <form onSubmit={handleIdentify}>
+            <p style={{ color: "#666", fontSize: 14 }}>{t("login.passwordFallbackHint")}</p>
             <div className="form-row">
               <label htmlFor="email">{t("login.email")}</label>
               <input

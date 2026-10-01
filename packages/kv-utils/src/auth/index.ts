@@ -7,6 +7,7 @@ import type { SessionToken, AuthSessionData, KVNamespace, LockoutStatus } from "
 import { KV_CONFIG } from "../types/index.js";
 
 export * from "./pending-token.js";
+export * from "./google.js";
 
 /**
  * Auth KV 管理类

@@ -16,6 +16,7 @@ import {
   createTeacherKVManager,
   createPendingToken,
   verifyPendingToken,
+  verifyGoogleIdToken,
   hashPassword,
   verifyPassword,
   generateStrongPassword,
@@ -61,6 +62,7 @@ interface Env {
   OPTIONAL_COURSE_SCHEDULE_KV: KVNamespace;
   OPTIONAL_COURSE_ATTENDANCE_KV: KVNamespace;
   AUTH_PENDING_SECRET: string;
+  GOOGLE_CLIENT_ID?: string; // Google 登入的 OAuth 用戶端 ID（公開值，見 wrangler.toml [vars]）
 }
 
 function getCorsHeaders(): Record<string, string> {
@@ -173,6 +175,34 @@ async function finalizeLogin(env: Env, teacher: TeacherRecord): Promise<Response
     },
     timestamp: new Date().toISOString(),
   });
+}
+
+/** 私人 Google 帳號登入（與 chhsban-tution 的 handleAuthGoogle 相同） */
+async function handleAuthGoogle(request: Request, env: Env): Promise<Response> {
+  if (request.method !== "POST") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+  if (!env.GOOGLE_CLIENT_ID) {
+    return jsonResponse({ error: "Google 登入尚未設定（缺少 GOOGLE_CLIENT_ID）" }, 500);
+  }
+  try {
+    const body = (await request.json().catch(() => ({}))) as { credential?: string };
+    const identity = await verifyGoogleIdToken(body.credential || "", env.GOOGLE_CLIENT_ID);
+    if (!identity) {
+      return jsonResponse({ error: "Google 登入驗證失敗，請重新登入" }, 401);
+    }
+    const teacher = await createTeacherKVManager(env.TEACHER_KV).findTeacherByGoogleEmail(identity.email);
+    if (!teacher) {
+      return jsonResponse(
+        { error: `此 Google 帳號（${identity.email}）尚未綁定教師資料，請聯絡管理員`, code: "GOOGLE_NOT_BOUND" },
+        403,
+      );
+    }
+    return finalizeLogin(env, teacher);
+  } catch (error) {
+    console.error("[AUTH] Error in google login:", error);
+    return jsonResponse({ error: "Google 登入失敗，請稍後再試" }, 500);
+  }
 }
 
 // 首次設定密碼已於 2026-10-01 停用（改用私人 Google 帳號登入）
@@ -1400,6 +1430,7 @@ export default {
     }
 
     // 公開的登入流程端點
+    if (pathname === "/api/auth/google") return handleAuthGoogle(request, env);
     if (pathname === "/api/auth/verify") return handleAuthVerify(request, env);
     if (pathname === "/api/auth/generate-password") return handleAuthGeneratePassword(request, env);
     if (pathname === "/api/auth/set-password") return handleAuthSetPassword(request, env);

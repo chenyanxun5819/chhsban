@@ -9,7 +9,7 @@
 export * from "./types/index.js";
 
 // Auth Manager（含 pending token 簽發/驗證）
-export { AuthKVManager, createAuthKVManager, createPendingToken, verifyPendingToken } from "./auth/index.js";
+export { AuthKVManager, createAuthKVManager, createPendingToken, verifyPendingToken, verifyGoogleIdToken, type GoogleIdentity } from "./auth/index.js";
 
 // Teacher Email Verification (OAuth Helper)
 export * from "./teacher-verify.js";

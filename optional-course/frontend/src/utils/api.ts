@@ -6,6 +6,7 @@ const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8788/api";
 
 const AUTH_FLOW_PATHS = [
+  "/auth/google",
   "/auth/verify",
   "/auth/set-password",
   "/auth/login-password",

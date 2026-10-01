@@ -9,7 +9,7 @@
  * - D1 免費版單次請求最多 50 次查詢：列表類端點一律批次查詢，不要逐筆查。
  */
 
-import { createAuthKVManager, createTeacherKVManager, createStudentDirectory, isLeftSchool, studentStatus, createClassroomKVManager, TutionClassStatus, AttendanceStatus, createPendingToken, verifyPendingToken, hashPassword, verifyPassword, generateStrongPassword, validatePasswordStrength, type TutionClass, type TutionSchedule } from "@chhsban/kv-utils";
+import { createAuthKVManager, createTeacherKVManager, createStudentDirectory, isLeftSchool, studentStatus, createClassroomKVManager, TutionClassStatus, AttendanceStatus, createPendingToken, verifyPendingToken, verifyGoogleIdToken, hashPassword, verifyPassword, generateStrongPassword, validatePasswordStrength, type TutionClass, type TutionSchedule } from "@chhsban/kv-utils";
 import { TutionService } from "./tution-service";
 import { generatePDFResponse } from "./pdf-generator";
 import { buildSignedFormKey, getSignedFormResponse, isAllowedContentType } from "./signed-form";
@@ -39,6 +39,7 @@ interface Env {
   SIGNED_FORMS_BUCKET: R2Bucket;
   STUDENT_SYNC: StudentSyncService;
   GOOGLE_VISION_API_KEY?: string;
+  GOOGLE_CLIENT_ID?: string; // Google 登入的 OAuth 用戶端 ID（公開值，見 wrangler.toml [vars]）
   AUTH_PENDING_SECRET: string;
 }
 
@@ -312,6 +313,38 @@ async function finalizeLogin(
   });
 }
 
+/**
+ * 私人 Google 帳號登入：前端 Google 按鈕取得的 ID token（credential）交給後端驗證簽章與用戶端 ID，
+ * 再以教師資料裡綁定的 google_email 找到教師，直接建立 session（不需要密碼）。
+ * 學校網域不開放第三方登入，所以綁定的是老師的私人 Gmail（由管理員在教師管理系統設定）。
+ */
+async function handleAuthGoogle(request: Request, env: Env): Promise<Response> {
+  if (request.method !== "POST") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+  if (!env.GOOGLE_CLIENT_ID) {
+    return jsonResponse({ error: "Google 登入尚未設定（缺少 GOOGLE_CLIENT_ID）" }, 500);
+  }
+  try {
+    const body = (await request.json().catch(() => ({}))) as { credential?: string };
+    const identity = await verifyGoogleIdToken(body.credential || "", env.GOOGLE_CLIENT_ID);
+    if (!identity) {
+      return jsonResponse({ error: "Google 登入驗證失敗，請重新登入" }, 401);
+    }
+    const teacher = await createTeacherKVManager(env.TEACHER_KV).findTeacherByGoogleEmail(identity.email);
+    if (!teacher) {
+      return jsonResponse(
+        { error: `此 Google 帳號（${identity.email}）尚未綁定教師資料，請聯絡管理員`, code: "GOOGLE_NOT_BOUND" },
+        403,
+      );
+    }
+    return finalizeLogin(env, teacher);
+  } catch (error) {
+    console.error("[AUTH] Error in google login:", error);
+    return jsonResponse({ error: "Google 登入失敗，請稍後再試" }, 500);
+  }
+}
+
 // 首次設定密碼開關（見 handleAuthVerify 的說明）；改用 Google 登入後不再開啟
 const PASSWORD_SETUP_ENABLED = false;
 
@@ -484,6 +517,9 @@ export default {
     }
 
     // 認證端點不需要 token（密碼二階段流程的憑證是 pendingToken，放在 body 裡）
+    if (pathname === "/api/auth/google") {
+      return handleAuthGoogle(request, env);
+    }
     if (pathname === "/api/auth/verify") {
       return handleAuthVerify(request, env);
     }

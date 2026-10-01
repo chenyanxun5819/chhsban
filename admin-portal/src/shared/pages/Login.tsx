@@ -6,8 +6,10 @@ import {
   generateSystemPassword,
   setPassword,
   loginWithPassword,
+  loginWithGoogle,
   type AuthVerifyResponse,
 } from "@/shared/auth/authService";
+import { GoogleSignInButton } from "@/shared/components/GoogleSignInButton";
 
 type LoginStep =
   | { kind: "identify" }
@@ -31,6 +33,18 @@ const Login: React.FC = () => {
   const handleAuthDone = (authData: AuthVerifyResponse) => {
     completeLogin(authData);
     navigate("/");
+  };
+
+  const handleGoogleCredential = async (credential: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      handleAuthDone(await loginWithGoogle(credential));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Google 登入失敗，請稍後再試");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleIdentify = async (e: React.FormEvent) => {
@@ -119,9 +133,17 @@ const Login: React.FC = () => {
         {error && <p className="error-text">{error}</p>}
 
         {step.kind === "identify" && (
+          <div style={{ marginBottom: 24 }}>
+            <p>請使用管理員為您綁定的私人 Google 帳號登入：</p>
+            <GoogleSignInButton onCredential={handleGoogleCredential} onError={setError} />
+          </div>
+        )}
+
+        {step.kind === "identify" && (
           <form onSubmit={handleIdentify}>
+            <p style={{ color: "#666", fontSize: 14 }}>過渡期：已設定過密碼的老師，也可以用學校 Email 和密碼登入。</p>
             <div className="form-row">
-              <label htmlFor="email">Email</label>
+              <label htmlFor="email">學校 Email</label>
               <input
                 id="email"
                 type="email"
@@ -132,7 +154,7 @@ const Login: React.FC = () => {
               />
             </div>
             <button type="submit" className="btn btn--primary" disabled={loading} style={{ width: "100%" }}>
-              {loading ? "驗證中..." : "驗證並登入"}
+              {loading ? "驗證中..." : "下一步：輸入密碼"}
             </button>
           </form>
         )}

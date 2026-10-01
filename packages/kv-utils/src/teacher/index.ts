@@ -13,8 +13,11 @@ const EMAIL_DIRECTORY_REBUILD_MS = 30 * 60 * 1000;
 
 interface EmailDirectory {
   built_at: number;
-  emails: Record<string, string>;
+  emails: Record<string, string>; // 學校信箱 → teacher_id
+  google?: Record<string, string>; // 私人 Google 帳號 → teacher_id（舊版對照表沒有這欄，讀到時會重建）
 }
+
+type DirectoryField = "emails" | "google";
 
 /**
  * Teacher KV 管理类
@@ -31,17 +34,40 @@ export class TeacherKVManager {
    * 找到後一律比對教師資料裡現在的 email，教師改過 email 就不能再用舊 email 登入。
    */
   async findTeacherByEmail(email: string): Promise<TeacherRecord | null> {
+    return this.findInEmailDirectory(email, "emails", (t) => t.email);
+  }
+
+  /** 依私人 Google 帳號找教師（Google 登入用），快取與重建規則同 findTeacherByEmail */
+  async findTeacherByGoogleEmail(googleEmail: string): Promise<TeacherRecord | null> {
+    return this.findInEmailDirectory(googleEmail, "google", (t) => t.google_email);
+  }
+
+  /**
+   * 讓 email 對照表失效，下次登入查詢時重建。教師的學校信箱或 Google 帳號有變更時呼叫（teacher-management），
+   * 這樣剛綁定的老師馬上就能登入，不必等 30 分鐘。用 1 次寫入（不用刪除，免得佔用每日刪除額度）。
+   */
+  async invalidateEmailDirectory(): Promise<void> {
+    const stale: EmailDirectory = { built_at: 0, emails: {}, google: {} };
+    await this.kv.put(EMAIL_DIRECTORY_KEY, JSON.stringify(stale));
+  }
+
+  private async findInEmailDirectory(
+    email: string,
+    field: DirectoryField,
+    currentValue: (teacher: TeacherRecord) => string | undefined,
+  ): Promise<TeacherRecord | null> {
     const normalized = email.trim().toLowerCase();
+    if (!normalized) return null;
     const lookup = async (directory: EmailDirectory): Promise<TeacherRecord | null> => {
-      const teacherId = directory.emails[normalized];
+      const teacherId = directory[field]?.[normalized];
       if (!teacherId) return null;
       const teacher = await this.getTeacher(teacherId);
-      return teacher && teacher.email?.trim().toLowerCase() === normalized ? teacher : null;
+      return teacher && currentValue(teacher)?.trim().toLowerCase() === normalized ? teacher : null;
     };
 
     const raw = await this.kv.get(EMAIL_DIRECTORY_KEY);
     const cached: EmailDirectory | null = raw ? JSON.parse(raw) : null;
-    if (cached) {
+    if (cached && cached[field]) {
       const teacher = await lookup(cached);
       if (teacher || Date.now() - cached.built_at < EMAIL_DIRECTORY_REBUILD_MS) {
         return teacher;
@@ -49,11 +75,14 @@ export class TeacherKVManager {
     }
 
     const emails: Record<string, string> = {};
+    const google: Record<string, string> = {};
     for (const teacher of await this.getAllTeachers()) {
-      const key = teacher.email?.trim().toLowerCase();
-      if (key) emails[key] = teacher.teacher_id;
+      const schoolEmail = teacher.email?.trim().toLowerCase();
+      if (schoolEmail) emails[schoolEmail] = teacher.teacher_id;
+      const googleEmail = teacher.google_email?.trim().toLowerCase();
+      if (googleEmail) google[googleEmail] = teacher.teacher_id;
     }
-    const rebuilt: EmailDirectory = { built_at: Date.now(), emails };
+    const rebuilt: EmailDirectory = { built_at: Date.now(), emails, google };
     await this.kv.put(EMAIL_DIRECTORY_KEY, JSON.stringify(rebuilt));
     return lookup(rebuilt);
   }

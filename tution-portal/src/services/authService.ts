@@ -86,6 +86,23 @@ function persistSession(authData: AuthVerifyResponse): void {
 }
 
 /**
+ * 私人 Google 帳號登入：把 Google 按鈕取得的 ID token 交給後端驗證，成功直接建立 session
+ */
+export const loginWithGoogle = async (credential: string): Promise<AuthVerifyResponse> => {
+  try {
+    const response = await apiClient.post<{ success: boolean; data: AuthVerifyResponse }>(
+      "/auth/google",
+      { credential },
+    );
+    const authData = response.data.data;
+    persistSession(authData);
+    return authData;
+  } catch (error) {
+    throw new Error(extractErrorMessage(error, "Google 登入失敗，請稍後再試"));
+  }
+};
+
+/**
  * 讓系統產生一組符合強度規則的密碼，顯示給使用者一次
  */
 export const generateSystemPassword = async (

@@ -56,6 +56,11 @@ binding = "STUDENT_SYNC"
 service = "student-sync"
 entrypoint = "SyncService"
 
+# Google 登入（私人 Gmail）的 OAuth 用戶端 ID：Google Cloud 專案 CHHSBAN-ACADoc 的「CHHSBAN_ACA」。
+# 這是公開值（前端網頁本來就會帶），不是機密；後端用它確認 ID token 是發給我們網站的
+[vars]
+GOOGLE_CLIENT_ID = "491731246647-gf63vkq4vso6uji4dilcd84g5aedocsf.apps.googleusercontent.com"
+
 # Cron 觸發器：每日 UTC 16:00（= 馬來西亞時間 00:00）清理超過保留年限的班級、重新計算「各課程開課報表」
 [triggers]
 crons = ["0 16 * * *"]

@@ -50,6 +50,18 @@ function normalizeGoogleEmail(value: unknown): string | null | undefined {
   return EMAIL_RE.test(email) ? email : null;
 }
 
+/**
+ * 教師 email／Google 帳號有變更後，讓登入用的 email 對照表失效（見 kv-utils 的 findTeacherByGoogleEmail），
+ * 剛綁定的老師就能馬上登入。失敗只記錄，不影響教師資料本身已存檔。
+ */
+async function invalidateLoginDirectory(manager: TeacherKVManager): Promise<void> {
+  try {
+    await manager.invalidateEmailDirectory();
+  } catch (error) {
+    console.error("Failed to invalidate email directory:", error);
+  }
+}
+
 /** 檢查這個 Google 帳號有沒有被別的教師綁定；有的話回傳該教師 ID */
 function findGoogleEmailOwner(teachers: TeacherRecord[], googleEmail: string, exceptTeacherId?: string): string | null {
   const owner = teachers.find(
@@ -277,6 +289,7 @@ async function handleCreateTeacher(
     };
 
     await manager.saveTeacher(teacher);
+    await invalidateLoginDirectory(manager);
 
     return jsonResponse(
       {
@@ -345,6 +358,9 @@ async function handleUpdateTeacher(
     }
 
     await manager.saveTeacher(updated);
+    if (updated.email !== existing.email || updated.google_email !== existing.google_email) {
+      await invalidateLoginDirectory(manager);
+    }
 
     return successResponse(sanitizeTeacher(updated), "教師修改成功");
   } catch (error) {
@@ -373,6 +389,7 @@ async function handleDeleteTeacher(
     }
 
     await manager.deleteTeacher(id);
+    await invalidateLoginDirectory(manager);
 
     return successResponse({ teacher_id: id }, "教師刪除成功");
   } catch (error) {
@@ -480,6 +497,10 @@ async function handleBulkImportTeachers(
           error: String(error),
         });
       }
+    }
+
+    if (results.created > 0 || results.updated > 0) {
+      await invalidateLoginDirectory(manager);
     }
 
     return successResponse(results, "批量匯入完成");
