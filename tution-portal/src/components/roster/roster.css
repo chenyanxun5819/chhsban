@@ -34,6 +34,24 @@
   min-width: 200px;
 }
 
+.add-student-row {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.add-student-date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #666;
+  white-space: nowrap;
+}
+
+.add-student-row .add-student-date input {
+  min-width: 0;
+}
+
 .capacity-warning {
   margin: -8px 0 16px;
   padding: 8px 12px;
@@ -332,6 +350,36 @@
 }
 
 .withdraw-form .btn-withdraw {
+  margin-left: 0;
+}
+
+.enroll-date-form {
+  background: #f1f5f9;
+}
+
+.btn-edit-enroll {
+  width: auto !important;
+  min-width: 0 !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 3px 8px !important;
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  line-height: normal;
+  border: 1px solid #007bff !important;
+  background: transparent !important;
+  color: #007bff !important;
+  flex-shrink: 0;
+  white-space: nowrap;
+  margin-left: 6px;
+}
+
+.btn-edit-enroll:hover:not(:disabled) {
+  background: #007bff !important;
+  color: #fff !important;
+}
+
+.enroll-date-form .btn-edit-enroll {
   margin-left: 0;
 }
 

@@ -7,6 +7,7 @@
 export type AuditAction =
   | "roster.add"
   | "roster.withdraw"
+  | "roster.update_enrollment_date"
   | "class.approve"
   | "class.reject"
   | "class.delete"

@@ -13,12 +13,24 @@ export async function getClassRoster(classId: string): Promise<ClassRosterEntry[
 
 export async function addRosterStudent(
   classId: string,
-  studentId: string
+  studentId: string,
+  enrollmentDate: string
 ): Promise<ClassRosterEntry> {
   const response = await apiClient.post(`/v1/classes/${classId}/roster`, {
     student_id: studentId,
+    enrollment_date: enrollmentDate,
   });
   return response.data.data;
+}
+
+export async function updateRosterEnrollmentDate(
+  classId: string,
+  rosterId: string,
+  enrollmentDate: string
+): Promise<void> {
+  await apiClient.put(`/v1/classes/${classId}/roster/${rosterId}/enrollment-date`, {
+    enrollment_date: enrollmentDate,
+  });
 }
 
 export async function withdrawRosterStudent(

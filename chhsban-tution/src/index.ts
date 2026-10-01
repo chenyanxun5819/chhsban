@@ -125,6 +125,26 @@ function toRosterItem(classId: string, enrollmentDate: string, student: Incoming
   };
 }
 
+/**
+ * 檢查名單的加入日期：可事後補登（不一定是當天），否則補登前的上課日會點不到名；
+ * 但不能晚於今天（馬來西亞時間），也不能早於開課日期。回傳錯誤代碼，合法則回傳 null。
+ */
+function validateEnrollmentDate(enrollmentDate: string, todayMYT: string, classStartDate?: string): string | null {
+  const parsed = new Date(`${enrollmentDate}T00:00:00Z`);
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(enrollmentDate) ||
+    Number.isNaN(parsed.getTime()) ||
+    parsed.toISOString().split("T")[0] !== enrollmentDate ||
+    enrollmentDate > todayMYT
+  ) {
+    return "INVALID_ENROLLMENT_DATE";
+  }
+  if (classStartDate && enrollmentDate < classStartDate) {
+    return "ENROLLMENT_BEFORE_CLASS_START";
+  }
+  return null;
+}
+
 /** 刪除班級：先刪 R2 的簽核檔與收據，再刪 D1 的班級與所有關聯資料 */
 async function deleteClassWithFiles(env: Env, service: TutionService, tutionClass: any): Promise<void> {
   const fileKeys = [
@@ -834,9 +854,17 @@ async function handleClasses(
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      const body = (await request.json()) as { student_id?: string };
+      const body = (await request.json()) as { student_id?: string; enrollment_date?: string };
       if (!body.student_id) {
         return jsonResponse({ error: "Missing student_id" }, 400);
+      }
+
+      // 加入日期可事後補登，未指定時為今天（馬來西亞時間）
+      const todayMYT = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const enrollmentDate = body.enrollment_date || todayMYT;
+      const enrollmentError = validateEnrollmentDate(enrollmentDate, todayMYT, tutionClass.start_date);
+      if (enrollmentError) {
+        return jsonResponse({ error: enrollmentError }, 400);
       }
 
       // 學生名錄（students_by_no）：body.student_id 可以是學號或 SMS 內部編號
@@ -866,7 +894,6 @@ async function handleClasses(
         );
       }
 
-      const today = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().split("T")[0]; // 馬來西亞日期
       // 若學生先前已退出，重新加入時復用同一筆名冊紀錄（清除退出資訊、更新加入日期），
       // 避免「已退出」名單把同一位學生的每次進出都疊成一筆新紀錄、無限累加。
       const entry = existingEntry
@@ -876,7 +903,7 @@ async function handleClasses(
             student_class: student.real_class_name || student.class || "-",
             student_no: student.student_no || body.student_id,
             gender_boarding: student.gender_boarding || "-",
-            enrollment_date: today,
+            enrollment_date: enrollmentDate,
             withdrawal_date: undefined,
             withdrawal_reason: undefined,
           } as any)
@@ -886,7 +913,7 @@ async function handleClasses(
             student_name_cn: student.name_cn,
             student_name_en: student.name_en || "-",
             student_class: student.real_class_name || student.class || "-",
-            enrollment_date: today,
+            enrollment_date: enrollmentDate,
             is_active: true,
             student_no: student.student_no || body.student_id,
             gender_boarding: student.gender_boarding || "-",
@@ -976,6 +1003,63 @@ async function handleClasses(
 
 
       return jsonResponse({ success: true }, 200);
+    }
+
+    // PUT /api/v1/classes/{classId}/roster/{rosterId}/enrollment-date - 修改學生的加入日期（補登／更正）
+    if (method === "PUT" && classId && subAction === "roster" && subId && subSubAction === "enrollment-date") {
+      const tutionClass = await service.getClass(classId);
+      if (!tutionClass) {
+        return jsonResponse({ error: "Class not found" }, 404);
+      }
+
+      if (
+        tutionClass.teacher_id !== session.teacher_id &&
+        session.permission !== "admin" &&
+        session.permission !== "super_admin"
+      ) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const entry = await service.getRosterEntry(subId);
+      if (!entry || entry.class_id !== classId) {
+        return jsonResponse({ error: "Roster entry not found" }, 404);
+      }
+
+      const body = (await request.json().catch(() => ({}))) as { enrollment_date?: string };
+      const todayMYT = new Date(Date.now() + 8 * 60 * 60 * 1000).toISOString().split("T")[0];
+      const enrollmentDate = body.enrollment_date || "";
+      const enrollmentError = validateEnrollmentDate(enrollmentDate, todayMYT, tutionClass.start_date);
+      if (enrollmentError) {
+        return jsonResponse({ error: enrollmentError }, 400);
+      }
+      if (entry.withdrawal_date && enrollmentDate > entry.withdrawal_date) {
+        return jsonResponse({ error: "ENROLLMENT_AFTER_WITHDRAWAL" }, 400);
+      }
+
+      // 往後改時，新加入日期之前不能已有點名紀錄，否則那些紀錄會變成「當天不在名單上」的孤兒資料
+      if (entry.enrollment_date && enrollmentDate > entry.enrollment_date) {
+        const attendance = await service.listAttendanceByStudents([entry.student_id], [classId]);
+        if (attendance.some((record) => record.class_date < enrollmentDate)) {
+          return jsonResponse({ error: "ENROLLMENT_AFTER_ATTENDANCE" }, 409);
+        }
+      }
+
+      const updated = await service.updateRosterEntry(subId, { enrollment_date: enrollmentDate });
+
+      ctx.waitUntil(
+        logAudit(env, {
+          action: "roster.update_enrollment_date",
+          target_type: "roster",
+          target_id: subId,
+          actor_id: session.teacher_id,
+          actor_permission: session.permission,
+          metadata: { class_id: classId, student_id: entry.student_id },
+          before: { enrollment_date: entry.enrollment_date ?? null },
+          after: { enrollment_date: updated.enrollment_date },
+        }),
+      );
+
+      return jsonResponse({ data: { roster_id: subId, enrollment_date: updated.enrollment_date } }, 200);
     }
 
     // GET /api/v1/classes/{classId}/pdf - 套印申請表 PDF（供審核中階段列印紙本用）

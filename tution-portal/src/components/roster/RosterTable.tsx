@@ -4,9 +4,19 @@ import { ClassRosterEntry } from "@/types";
 import { MAX_STUDENTS_PER_CLASS } from "@/utils/validators";
 import RosterRow from "./RosterRow";
 
+function todayStr(): string {
+  const now = new Date();
+  return new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()))
+    .toISOString()
+    .slice(0, 10);
+}
+
 interface RosterTableProps {
   roster: ClassRosterEntry[];
-  onAddStudent: (studentId: string) => Promise<void>;
+  /** 開課日期：加入日期不能早於這一天。 */
+  classStartDate?: string;
+  onAddStudent: (studentId: string, enrollmentDate: string) => Promise<void>;
+  onUpdateEnrollmentDate: (student: ClassRosterEntry, enrollmentDate: string) => Promise<void>;
   onWithdraw: (student: ClassRosterEntry) => Promise<void>;
   onExport: () => void;
   onRefresh: () => Promise<void>;
@@ -19,7 +29,9 @@ type FilterStatus = "all" | "active" | "withdrawn";
 
 const RosterTable: React.FC<RosterTableProps> = ({
   roster,
+  classStartDate,
   onAddStudent,
+  onUpdateEnrollmentDate,
   onWithdraw,
   onExport,
   onRefresh,
@@ -32,6 +44,9 @@ const RosterTable: React.FC<RosterTableProps> = ({
   const [currentPage, setCurrentPage] = React.useState(1);
   const [newStudentId, setNewStudentId] = React.useState("");
   const [adding, setAdding] = React.useState(false);
+  // 加入日期可事後補登，預設今天；新增後保留所選日期，方便連續補登多位學生
+  const today = todayStr();
+  const [enrollmentDate, setEnrollmentDate] = React.useState(today);
 
   const ITEMS_PER_PAGE = 10;
 
@@ -72,11 +87,13 @@ const RosterTable: React.FC<RosterTableProps> = ({
   const atCapacity = activeCount >= MAX_STUDENTS_PER_CLASS;
 
   const handleAddStudent = async () => {
-    if (!newStudentId.trim() || atCapacity) return;
+    if (!newStudentId.trim() || !enrollmentDate || atCapacity) return;
     setAdding(true);
     try {
-      await onAddStudent(newStudentId.trim());
+      await onAddStudent(newStudentId.trim(), enrollmentDate);
       setNewStudentId("");
+    } catch {
+      // 錯誤訊息由上層顯示，保留輸入讓使用者修改
     } finally {
       setAdding(false);
     }
@@ -102,10 +119,21 @@ const RosterTable: React.FC<RosterTableProps> = ({
                 if (e.key === "Enter") handleAddStudent();
               }}
             />
+            <label className="add-student-date">
+              {t("roster.enrollDateLabel")}
+              <input
+                type="date"
+                value={enrollmentDate}
+                min={classStartDate || undefined}
+                max={today}
+                onChange={(e) => setEnrollmentDate(e.target.value)}
+                disabled={loading || adding || atCapacity}
+              />
+            </label>
             <button
               className="btn btn-primary"
               onClick={handleAddStudent}
-              disabled={loading || adding || atCapacity}
+              disabled={loading || adding || atCapacity || !enrollmentDate}
             >
               {adding ? t("roster.adding") : t("roster.addStudent")}
             </button>
@@ -178,6 +206,8 @@ const RosterTable: React.FC<RosterTableProps> = ({
               <RosterRow
                 key={student.roster_id}
                 student={student}
+                classStartDate={classStartDate}
+                onUpdateEnrollmentDate={onUpdateEnrollmentDate}
                 onWithdraw={onWithdraw}
                 loading={loading}
                 readOnly={readOnly}

@@ -12,6 +12,9 @@ function todayStr(): string {
 
 interface RosterRowProps {
   student: ClassRosterEntry;
+  /** 開課日期：加入日期不能早於這一天。 */
+  classStartDate?: string;
+  onUpdateEnrollmentDate: (student: ClassRosterEntry, enrollmentDate: string) => Promise<void>;
   onWithdraw: (student: ClassRosterEntry) => Promise<void>;
   loading?: boolean;
   /** 管理員（super_admin）只能檢視，不能操作退出。 */
@@ -20,12 +23,17 @@ interface RosterRowProps {
 
 const RosterRow: React.FC<RosterRowProps> = ({
   student,
+  classStartDate,
+  onUpdateEnrollmentDate,
   onWithdraw,
   loading = false,
   readOnly = false,
 }) => {
   const { t } = useTranslation();
   const [withdrawing, setWithdrawing] = React.useState(false);
+  // 正在修改的加入日期（補登／更正）；null 表示沒有在修改
+  const [enrollDate, setEnrollDate] = React.useState<string | null>(null);
+  const [savingEnroll, setSavingEnroll] = React.useState(false);
   // 正在填寫的退出資料；退出日期可事後補登，預設今天
   const [form, setForm] = React.useState<{ date: string; reason: string } | null>(null);
   const today = todayStr();
@@ -41,6 +49,24 @@ const RosterRow: React.FC<RosterRowProps> = ({
       // 錯誤訊息由上層顯示，保留表單讓使用者修改
     } finally {
       setWithdrawing(false);
+    }
+  };
+
+  const handleUpdateEnrollDate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!enrollDate) return;
+    if (enrollDate === student.enrollment_date) {
+      setEnrollDate(null);
+      return;
+    }
+    setSavingEnroll(true);
+    try {
+      await onUpdateEnrollmentDate(student, enrollDate);
+      setEnrollDate(null);
+    } catch {
+      // 錯誤訊息由上層顯示，保留表單讓使用者修改
+    } finally {
+      setSavingEnroll(false);
     }
   };
 
@@ -111,6 +137,28 @@ const RosterRow: React.FC<RosterRowProps> = ({
           </form>
         )}
 
+        {enrollDate !== null && (
+          <form className="withdraw-form enroll-date-form" onSubmit={handleUpdateEnrollDate}>
+            <label>
+              {t("roster.enrollDateLabel")}
+              <input
+                type="date"
+                value={enrollDate}
+                min={classStartDate || undefined}
+                max={today}
+                onChange={(e) => setEnrollDate(e.target.value)}
+                required
+              />
+            </label>
+            <button type="submit" className="btn btn-edit-enroll" disabled={loading || savingEnroll}>
+              {savingEnroll ? t("roster.savingEnrollDate") : t("roster.saveEnrollDate")}
+            </button>
+            <button type="button" className="btn btn-withdraw-cancel" onClick={() => setEnrollDate(null)} disabled={savingEnroll}>
+              {t("roster.withdrawCancel")}
+            </button>
+          </form>
+        )}
+
         <div className="student-line-3">
           <span className="date-info">
             {student.is_active
@@ -119,6 +167,16 @@ const RosterRow: React.FC<RosterRowProps> = ({
                   date: student.withdrawal_date ? formatDisplayDate(student.withdrawal_date) : "-",
                 })}
           </span>
+          {student.is_active && !readOnly && enrollDate === null && (
+            <button
+              className="btn btn-edit-enroll"
+              onClick={() => setEnrollDate(student.enrollment_date || today)}
+              disabled={loading}
+              aria-label={t("roster.editEnrollDateAriaLabel", { name: student.name_cn })}
+            >
+              {t("roster.editEnrollDateAction")}
+            </button>
+          )}
         </div>
       </div>
     </div>

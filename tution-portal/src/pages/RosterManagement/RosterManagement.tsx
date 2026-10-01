@@ -5,6 +5,7 @@ import apiClient from "@/utils/api";
 import {
   getClassRoster,
   addRosterStudent,
+  updateRosterEnrollmentDate,
   withdrawRosterStudent,
   exportRosterToXLSX,
 } from "@/services/rosterService";
@@ -76,19 +77,55 @@ const RosterManagement: React.FC = () => {
   // 的 list() 撈的，這個操作是最終一致性的，剛 put() 進去的新項目常常要等數十秒才會出現在
   // list() 結果裡，會讓使用者以為「新增後畫面沒更新」。這裡改成直接把後端回傳的新項目併入
   // 現有名單（樂觀更新），不必等 list() 追上。
-  const handleAddStudent = async (studentId: string) => {
+  const handleAddStudent = async (studentId: string, enrollmentDate: string) => {
     if (!classId) return;
     setState((prev) => ({ ...prev, saving: true, error: "" }));
     try {
-      const newEntry = await addRosterStudent(classId, studentId);
+      const newEntry = await addRosterStudent(classId, studentId, enrollmentDate);
       setState((prev) => ({
         ...prev,
         roster: [...prev.roster.filter((s) => s.roster_id !== newEntry.roster_id), newEntry],
       }));
     } catch (err: any) {
+      const code = err.response?.data?.error;
+      const codeLabel: Record<string, string> = {
+        INVALID_ENROLLMENT_DATE: t("roster.errorInvalidEnrollDate"),
+        ENROLLMENT_BEFORE_CLASS_START: t("roster.errorEnrollBeforeClassStart"),
+      };
       setState((prev) => ({
         ...prev,
-        error: err.response?.data?.error || err.message || t("roster.errorAddFailed"),
+        error: codeLabel[code] || code || err.message || t("roster.errorAddFailed"),
+        saving: false,
+      }));
+      throw err;
+    } finally {
+      setState((prev) => ({ ...prev, saving: false }));
+    }
+  };
+
+  // 修改加入日期（補登／更正）
+  const handleUpdateEnrollmentDate = async (student: ClassRosterEntry, enrollmentDate: string) => {
+    if (!classId) return;
+    setState((prev) => ({ ...prev, saving: true, error: "" }));
+    try {
+      await updateRosterEnrollmentDate(classId, student.roster_id, enrollmentDate);
+      setState((prev) => ({
+        ...prev,
+        roster: prev.roster.map((s) =>
+          s.roster_id === student.roster_id ? { ...s, enrollment_date: enrollmentDate } : s
+        ),
+      }));
+    } catch (err: any) {
+      const code = err.response?.data?.error;
+      const codeLabel: Record<string, string> = {
+        INVALID_ENROLLMENT_DATE: t("roster.errorInvalidEnrollDate"),
+        ENROLLMENT_BEFORE_CLASS_START: t("roster.errorEnrollBeforeClassStart"),
+        ENROLLMENT_AFTER_WITHDRAWAL: t("roster.errorEnrollAfterWithdraw"),
+        ENROLLMENT_AFTER_ATTENDANCE: t("roster.errorEnrollAfterAttendance"),
+      };
+      setState((prev) => ({
+        ...prev,
+        error: codeLabel[code] || code || err.message || t("roster.errorEditEnrollFailed"),
         saving: false,
       }));
       throw err;
@@ -207,7 +244,9 @@ const RosterManagement: React.FC = () => {
         ) : (
           <RosterTable
             roster={state.roster}
+            classStartDate={state.classInfo?.start_date}
             onAddStudent={handleAddStudent}
+            onUpdateEnrollmentDate={handleUpdateEnrollmentDate}
             onWithdraw={handleWithdraw}
             onExport={handleExport}
             onRefresh={fetchRoster}
