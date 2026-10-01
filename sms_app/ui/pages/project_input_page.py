@@ -7,16 +7,23 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, 
     QPushButton, QGroupBox, QTableWidget, QTableWidgetItem,
-    QRadioButton, QButtonGroup, QComboBox, QMessageBox, QProgressDialog, QHeaderView
+    QRadioButton, QButtonGroup, QComboBox, QMessageBox, QProgressDialog, QHeaderView,
+    QFileDialog
 )
 from PyQt6.QtGui import QFont
-from PyQt6.QtCore import Qt, QThread, pyqtSignal
+from PyQt6.QtCore import Qt, QThread, QTimer, pyqtSignal
 
 from core.config_manager import ConfigManager
 from core.cache_manager import ProjectCacheManager
 from core.constants import BASE_DOMAIN
+from core.project_similarity import (
+    ProjectNameIndex, likely_duplicates, CONFIRM_THRESHOLD, NOTE_OTHER_EDITION
+)
 import requests
+from html import escape
 from html.parser import HTMLParser
+from datetime import datetime
+from pathlib import Path
 import re
 import time
 
@@ -464,6 +471,8 @@ class ProjectInputPage:
         self.add_thread = None
         self.search_thread = None
         self.old_projects = []  # 存储旧项目列表
+        self._name_index = None  # 全部项目名称的相似度索引
+        self._name_index_mtime = None  # 建立索引时缓存文件的修改时间
         self._create_ui()
     
     def _create_ui(self):
@@ -558,7 +567,15 @@ class ProjectInputPage:
         # 旧项目列表仅用于显示，点击不改变项目代码
         # 项目代码只在单位和活动代码选择时生成一次
         left_layout.addWidget(self.old_projects_table)
-        
+
+        # 汇出按钮：把当前列表下载成 Excel
+        export_layout = QHBoxLayout()
+        export_btn = QPushButton("📥 汇出 Excel")
+        export_btn.clicked.connect(self.export_old_projects)
+        export_layout.addWidget(export_btn)
+        export_layout.addStretch()
+        left_layout.addLayout(export_layout)
+
         # ========== 右侧：输入表单区 ==========
         # ========== 输入表单区 ==========
         form_group = QGroupBox("新增项目")
@@ -582,7 +599,21 @@ class ProjectInputPage:
         self.name_input.setPlaceholderText("e.g., Malaysian Physics Olympiad")
         name_layout.addWidget(name_label)
         name_layout.addWidget(self.name_input)
-        
+
+        # 相似项目提示：输入名称时显示可能重复的旧项目
+        self.similar_label = QLabel()
+        self.similar_label.setWordWrap(True)
+        self.similar_label.setTextFormat(Qt.TextFormat.RichText)
+        self.similar_label.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.similar_label.hide()
+
+        # 停止输入一小段时间后才比对，避免每个字都算一次
+        self.similar_timer = QTimer()
+        self.similar_timer.setSingleShot(True)
+        self.similar_timer.setInterval(300)
+        self.similar_timer.timeout.connect(self._update_similar_hint)
+        self.name_input.textChanged.connect(lambda _: self.similar_timer.start())
+
         # 分数项目
         score_layout = QHBoxLayout()
         score_label = QLabel("分数项目:")
@@ -595,6 +626,7 @@ class ProjectInputPage:
         
         form_layout.addLayout(code_layout)
         form_layout.addLayout(name_layout)
+        form_layout.addWidget(self.similar_label)
         form_layout.addLayout(score_layout)
         
         # ========== 按钮 ==========
@@ -738,7 +770,128 @@ class ProjectInputPage:
         
         except Exception as e:
             self.console.log_warning(f"⚠️  加载项目失败: {e}")
-    
+
+    def export_old_projects(self):
+        """把当前显示的旧项目列表汇出成 Excel"""
+        if not self.old_projects:
+            self.console.log_warning("列表中没有项目可汇出，请先选择单位和活动代码或搜索")
+            return
+
+        prefix = getattr(self.search_thread, 'search_prefix', '') if self.search_thread else ''
+        prefix = re.sub(r'[\\/:*?"<>|\s]+', '', prefix)
+        file_name = f"项目列表_{prefix}_{datetime.now():%Y%m%d}.xlsx" if prefix else f"项目列表_{datetime.now():%Y%m%d}.xlsx"
+        downloads = Path.home() / "Downloads"
+        default_path = str(downloads / file_name) if downloads.exists() else file_name
+
+        save_path, _ = QFileDialog.getSaveFileName(
+            self.widget,
+            "汇出项目列表",
+            default_path,
+            "Excel Files (*.xlsx)"
+        )
+        if not save_path:
+            return
+
+        try:
+            from openpyxl import Workbook
+            from openpyxl.styles import Font
+
+            wb = Workbook()
+            ws = wb.active
+            ws.title = "项目列表"
+
+            headers = ['序号', '项目代码', '项目名称', '分数']
+            ws.append(headers)
+            for cell in ws[1]:
+                cell.font = Font(bold=True)
+
+            for project in self.old_projects:
+                seq_num = str(project.get('序号', '')).strip()
+                score = str(project.get('分数', '')).strip()
+                try:
+                    score = float(score)
+                except ValueError:
+                    pass
+                ws.append([
+                    int(seq_num) if seq_num.isdigit() else seq_num,
+                    str(project.get('项目代码', '')),
+                    str(project.get('项目名称', '')),
+                    score
+                ])
+
+            ws.freeze_panes = 'A2'
+            for column, width in zip('ABCD', (8, 18, 70, 8)):
+                ws.column_dimensions[column].width = width
+
+            wb.save(save_path)
+            wb.close()
+
+            self.console.log_success(f"[汇出] 已汇出 {len(self.old_projects)} 个项目到: {save_path}")
+        except PermissionError:
+            self.console.log_error(f"[汇出] 无法写入文件，请先关闭已打开的 Excel: {save_path}")
+        except Exception as e:
+            self.console.log_error(f"[汇出] 汇出失败: {str(e)}")
+
+    def _get_name_index(self) -> ProjectNameIndex:
+        """取得全部项目的名称索引（缓存文件有更新时才重建）"""
+        cache_manager = ProjectCacheManager()
+        try:
+            mtime = cache_manager.projects_cache.stat().st_mtime
+        except OSError:
+            mtime = None
+
+        if self._name_index is None or mtime != self._name_index_mtime:
+            projects, _ = cache_manager.load_cache() if mtime else (None, None)
+            self._name_index = ProjectNameIndex(projects or [])
+            self._name_index_mtime = mtime
+        return self._name_index
+
+    def _update_similar_hint(self):
+        """名称输入后，显示相似的旧项目"""
+        matches = self._get_name_index().find_similar(self.name_input.text())
+        if not matches:
+            self.similar_label.hide()
+            return
+
+        lines = ["<span style='color:#dcdcaa;'>⚠ 已有相似项目，请确认是否重复：</span>"]
+        for match in matches:
+            project = match['project']
+            # 年份/届数不同的多半是往年同一活动，用灰色显示
+            color = "#808080" if match['note'] == NOTE_OTHER_EDITION else "#f48771"
+            note = f"（{match['note']}）" if match['note'] else ""
+            lines.append(
+                f"<span style='color:{color};'>{match['score']:.0%} "
+                f"[{escape(str(project.get('项目代码', '')))}] "
+                f"{escape(str(project.get('项目名称', '')))}{note}</span>"
+            )
+        self.similar_label.setText("<br>".join(lines))
+        self.similar_label.show()
+
+    def _confirm_possible_duplicate(self, name: str) -> bool:
+        """名称与旧项目高度相似时询问是否仍要添加，返回 True 表示继续"""
+        matches = likely_duplicates(
+            self._get_name_index().find_similar(name, threshold=CONFIRM_THRESHOLD)
+        )
+        if not matches:
+            return True
+
+        lines = []
+        for match in matches:
+            project = match['project']
+            lines.append(
+                f"{match['score']:.0%}  [{project.get('项目代码', '')}] {project.get('项目名称', '')}"
+            )
+        self.console.log_warning(f"「{name}」与 {len(matches)} 个旧项目高度相似，可能重复新增")
+
+        reply = QMessageBox.warning(
+            self.widget,
+            "可能重复新增",
+            f"「{name}」与以下旧项目高度相似：\n\n" + "\n".join(lines) + "\n\n仍然要添加吗？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No
+        )
+        return reply == QMessageBox.StandardButton.Yes
+
     def _generate_new_code(self, selected_project: dict):
         """根据旧项目生成新的项目代码"""
         old_code = str(selected_project.get('项目代码', ''))
@@ -788,7 +941,12 @@ class ProjectInputPage:
         if not username or not password:
             self.console.log_warning("未找到保存的凭证，请先在【设定】页面保存凭证")
             return
-        
+
+        # 名称与旧项目高度相似时，先让输入者确认
+        if not self._confirm_possible_duplicate(name):
+            self.console.log_info("已取消添加")
+            return
+
         self.console.log_info(f"正在添加项目: {code} - {name}...", "#dcdcaa")
         self.console.log_info("🚀 使用纯 requests 方式（无需浏览器，速度更快）", "#90EE90")
         
