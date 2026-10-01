@@ -10,6 +10,12 @@ compatibility_date = "2026-07-08"
 binding = "KV_BINDING"
 id = "8892dc8c30984f4591850521a1b57ed8"
 
+# 登入 session（與 tution-system、optional-course-system 共用）：
+# 行政管理站（admin-portal）的 super_admin 用自己的登入 token 就能管理教師資料
+[[kv_namespaces]]
+binding = "AUTH_KV"
+id = "8ddeccbeeae9440fafba384d35205a81"
+
 # 環境變數
 [vars]
 ENVIRONMENT = "production"

@@ -9,10 +9,15 @@
  * - POST /api/teachers - 新增教師
  * - PUT  /api/teachers/:id - 修改教師
  * - DELETE /api/teachers/:id - 刪除教師
+ *
+ * 授權（二擇一，見 authorize）：
+ * - 行政管理站（admin-portal）登入後的 session token，且身分是 super_admin —— 平常都走這個
+ * - secret ADMIN_API_KEY —— 備用鑰匙（例如所有 super_admin 都登不進去時，用舊的教師管理 portal 救援）
  */
 
 import {
   TeacherKVManager,
+  createAuthKVManager,
   createTeacherKVManager,
   type TeacherRecord,
 } from "@chhsban/kv-utils";
@@ -22,9 +27,15 @@ import {
  */
 interface Env {
   KV_BINDING: KVNamespace;
+  AUTH_KV: KVNamespace;
   ENVIRONMENT: string;
-  // 管理用 API Key（wrangler secret put ADMIN_API_KEY）。未設定時所有 API 一律拒絕
+  // 備用管理 API Key（wrangler secret put ADMIN_API_KEY）。未設定時只能用 super_admin 的 session
   ADMIN_API_KEY?: string;
+}
+
+/** 通過授權的操作者：session 登入時是該教師的 ID；用 API Key 時為 null */
+interface Actor {
+  teacherId: string | null;
 }
 
 const PERMISSIONS = ["teacher", "viewer", "admin", "super_admin", "classroom_manager", "dorm_supervisor"];
@@ -108,19 +119,33 @@ const DEPARTMENT_PREFIX = "department:";
  * API Key 驗證：必須與 secret ADMIN_API_KEY 完全相同（定時比對，避免逐字元猜測）。
  * 2026-10-01 之前這裡只檢查「有沒有帶 key」，任何字串都會通過，等於整個教師資料庫對外公開。
  */
-function verifyApiKey(request: Request, env: Env): boolean {
+function verifyApiKey(provided: string, env: Env): boolean {
   const expected = env.ADMIN_API_KEY;
   if (!expected) return false;
-  const provided =
-    request.headers.get("X-API-Key") ||
-    request.headers.get("Authorization")?.replace("Bearer ", "") ||
-    "";
   const a = new TextEncoder().encode(provided);
   const b = new TextEncoder().encode(expected);
   if (a.length !== b.length) return false;
   let diff = 0;
   for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
   return diff === 0;
+}
+
+/**
+ * 授權檢查：回傳操作者，或直接回傳要送出的錯誤回應。
+ * session 有效但不是 super_admin 回 403（不是 401：admin-portal 收到 401 會把使用者登出）。
+ */
+async function authorize(request: Request, env: Env): Promise<Actor | Response> {
+  const provided =
+    request.headers.get("X-API-Key") ||
+    request.headers.get("Authorization")?.replace("Bearer ", "") ||
+    "";
+  if (!provided) return errorResponse("未授權：請先登入", 401);
+  if (verifyApiKey(provided, env)) return { teacherId: null };
+
+  const session = await createAuthKVManager(env.AUTH_KV).verifySession(provided);
+  if (!session) return errorResponse("未授權：登入已失效或 API Key 不正確", 401);
+  if (session.permission !== "super_admin") return errorResponse("只有超級管理員可以管理教師資料", 403);
+  return { teacherId: session.teacher_id };
 }
 
 /**
@@ -313,6 +338,7 @@ async function handleUpdateTeacher(
   manager: TeacherKVManager,
   request: Request,
   ctx: RequestContext,
+  actor: Actor,
 ): Promise<Response> {
   try {
     const id = decodeURIComponent(ctx.pathname.split("/").pop() || "").trim();
@@ -330,6 +356,10 @@ async function handleUpdateTeacher(
 
     if (body.permission && !PERMISSIONS.includes(body.permission)) {
       return errorResponse("權限值不正確");
+    }
+    // 不能改掉自己的超級管理員身分，避免手滑把自己鎖在外面
+    if (actor.teacherId === id && body.permission && body.permission !== existing.permission) {
+      return errorResponse("不能修改自己的權限，請由另一位超級管理員操作", 409);
     }
     // google_email：沒帶 = 不變；空字串 = 解除綁定；有值 = 綁定（不能與其他教師重複）
     const googleEmail = normalizeGoogleEmail(body.google_email);
@@ -375,11 +405,15 @@ async function handleUpdateTeacher(
 async function handleDeleteTeacher(
   manager: TeacherKVManager,
   ctx: RequestContext,
+  actor: Actor,
 ): Promise<Response> {
   try {
     const id = decodeURIComponent(ctx.pathname.split("/").pop() || "").trim();
     if (!id) {
       return errorResponse("缺少教師 ID");
+    }
+    if (actor.teacherId === id) {
+      return errorResponse("不能刪除自己的帳號", 409);
     }
 
     // 檢查教師是否存在
@@ -788,10 +822,9 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     return handleHealth();
   }
 
-  // 其餘所有端點都需要正確的 API Key
-  if (!verifyApiKey(request, env)) {
-    return errorResponse("未授權：API Key 不正確", 401);
-  }
+  // 其餘所有端點都需要 super_admin 的登入 session 或備用 API Key
+  const actor = await authorize(request, env);
+  if (actor instanceof Response) return actor;
 
   // 教師資料 API
   if (pathname === "/api/teachers" || pathname.startsWith("/api/teachers/")) {
@@ -813,9 +846,9 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
       if (method === "GET") {
         return handleGetTeacher(manager, ctx);
       } else if (method === "PUT") {
-        return handleUpdateTeacher(manager, request, ctx);
+        return handleUpdateTeacher(manager, request, ctx, actor);
       } else if (method === "DELETE") {
-        return handleDeleteTeacher(manager, ctx);
+        return handleDeleteTeacher(manager, ctx, actor);
       } else {
         return errorResponse("方法不允許", 405);
       }
