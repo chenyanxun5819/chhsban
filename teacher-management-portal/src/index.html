@@ -18,13 +18,9 @@
       
       <form id="loginForm" class="login-form">
         <div class="form-group">
-          <label for="loginEmail">帳號（Email）</label>
-          <input type="email" id="loginEmail" name="email" required placeholder="輸入帳號" autocomplete="email">
-        </div>
-        
-        <div class="form-group">
-          <label for="loginPassword">密碼</label>
-          <input type="password" id="loginPassword" name="password" required placeholder="輸入密碼" autocomplete="current-password">
+          <label for="loginPassword">管理 API Key</label>
+          <input type="password" id="loginPassword" name="password" required placeholder="輸入 API Key" autocomplete="current-password">
+          <small>由系統管理員提供（teacher-management 的 ADMIN_API_KEY）</small>
         </div>
         
         <div id="loginError" class="login-error" style="display: none;"></div>

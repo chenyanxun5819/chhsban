@@ -653,7 +653,9 @@ export class UIManager {
   private async testApiConnection() {
     try {
       await this.apiClient.health();
-      this.showToast("API 連接正常", "success");
+      // health 不需要 key；再呼叫一次需要授權的 API，才能確認 API Key 正確
+      await this.apiClient.getDepartments();
+      this.showToast("API 連接正常，API Key 正確", "success");
       this.setStatusIndicator(true);
     } catch (error) {
       this.showToast("API 連接失敗", "error");
@@ -672,9 +674,11 @@ export class UIManager {
       return;
     }
 
-    localStorage.setItem("apiBaseUrl", baseUrl);
-    localStorage.setItem("apiKey", apiKey);
-    this.showToast("設置已保存", "success");
+    localStorage.setItem("apiBaseUrl", baseUrl.trim());
+    localStorage.setItem("apiKey", apiKey.trim());
+    this.showToast("設置已保存，重新載入中...", "success");
+    // API 客戶端在頁面載入時就用舊設定建立好了，重新載入才會改用新的網址與 key
+    setTimeout(() => window.location.reload(), 800);
   }
 
   private loadSettings() {

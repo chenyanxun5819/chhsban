@@ -3,11 +3,11 @@ import { TeacherManager } from "./teacher-manager";
 import { DepartmentManager } from "./department-manager";
 import { UIManager } from "./ui-manager";
 
-// 登入憑證（硬編碼，生產環境應使用加密或伺服器驗證）
-const VALID_CREDENTIALS = {
-  email: "weschen@mybazaar.my",
-  password: "@Sidan49122",
-};
+// 登入方式：輸入管理 API Key，向後端實際呼叫一次需要 key 的 API 確認正確才放行。
+// （2026-10-01 前這裡是寫死在前端程式裡的帳號密碼，任何人看網頁原始碼就看得到，已移除）
+// 一律用建置時設定的網址（.env.production），不讀瀏覽器裡可能存著的舊網址
+const API_BASE_URL: string =
+  import.meta.env.VITE_API_BASE_URL || "https://teacher-management.astcws.workers.dev";
 
 export class App {
   private apiClient: ApiClient;
@@ -17,14 +17,8 @@ export class App {
   private isAuthenticated = false;
 
   constructor() {
-    // 從 localStorage 讀取 API 配置
-    const apiBaseUrl =
-      localStorage.getItem("apiBaseUrl") ||
-      import.meta.env.VITE_API_BASE_URL ||
-      "http://localhost:8787";
-    const apiKey = localStorage.getItem("apiKey") || "test_key";
-
-    this.apiClient = new ApiClient(apiBaseUrl, apiKey);
+    const apiKey = localStorage.getItem("apiKey") || "";
+    this.apiClient = new ApiClient(API_BASE_URL, apiKey);
     this.teacherManager = new TeacherManager(this.apiClient);
     this.departmentManager = new DepartmentManager(this.apiClient);
     this.uiManager = new UIManager(this.teacherManager, this.apiClient, this.departmentManager);
@@ -68,45 +62,39 @@ export class App {
     }
   }
 
-  private handleLogin(event: Event) {
+  private async handleLogin(event: Event) {
     event.preventDefault();
 
-    const emailInput = document.getElementById("loginEmail") as HTMLInputElement;
     const passwordInput = document.getElementById("loginPassword") as HTMLInputElement;
     const loginError = document.getElementById("loginError");
+    const apiKey = passwordInput.value.trim();
 
-    const email = emailInput.value.trim();
-    const password = passwordInput.value;
+    // 用輸入的 key 實際呼叫一次需要授權的 API，後端回 401 就代表 key 不對
+    const response = await fetch(`${API_BASE_URL}/api/departments`, {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    }).catch(() => null);
 
-    // 驗證憑證
-    if (email === VALID_CREDENTIALS.email && password === VALID_CREDENTIALS.password) {
-      // 保存登入狀態
+    if (response && response.ok) {
+      localStorage.setItem("apiKey", apiKey);
+      localStorage.setItem("apiBaseUrl", API_BASE_URL);
       sessionStorage.setItem("authenticated", "true");
       sessionStorage.setItem("loginTime", new Date().toISOString());
-      this.isAuthenticated = true;
-
-      // 隱藏登入頁面，顯示應用
-      const loginPage = document.getElementById("loginPage");
-      const app = document.getElementById("app");
-      if (loginPage) loginPage.style.display = "none";
-      if (app) app.style.display = "flex";
-
-      // 初始化應用
-      this.initialize();
-    } else {
-      // 顯示錯誤信息
-      if (loginError) {
-        loginError.textContent = "帳號或密碼不正確，請重試";
-        loginError.style.display = "block";
-      }
-      // 清空密碼欄位
-      passwordInput.value = "";
-      passwordInput.focus();
+      // API 客戶端在頁面載入時就建立好了，重新載入才會用新的 key
+      window.location.reload();
+      return;
     }
+
+    if (loginError) {
+      loginError.textContent = response ? "API Key 不正確，請重試" : "無法連線到教師管理服務，請檢查網路";
+      loginError.style.display = "block";
+    }
+    passwordInput.value = "";
+    passwordInput.focus();
   }
 
   private handleLogout() {
-    // 清除登入狀態
+    // 清除登入狀態（連同存在這台瀏覽器的 API Key）
+    localStorage.removeItem("apiKey");
     sessionStorage.removeItem("authenticated");
     sessionStorage.removeItem("loginTime");
     this.isAuthenticated = false;
@@ -128,9 +116,9 @@ export class App {
   }
 
   private checkAuthentication(): boolean {
-    // 檢查 sessionStorage 中的認證狀態
+    // 需要本次分頁已登入，且這台瀏覽器存有 API Key（真正的驗證在後端，key 錯了 API 會回 401）
     const authenticated = sessionStorage.getItem("authenticated");
-    this.isAuthenticated = authenticated === "true";
+    this.isAuthenticated = authenticated === "true" && !!localStorage.getItem("apiKey");
     return this.isAuthenticated;
   }
 
