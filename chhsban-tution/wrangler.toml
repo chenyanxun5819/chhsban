@@ -66,5 +66,4 @@ GOOGLE_CLIENT_ID = "491731246647-gf63vkq4vso6uji4dilcd84g5aedocsf.apps.googleuse
 crons = ["0 16 * * *"]
 
 # 敏感資訊一律用 wrangler secret 設置，絕不寫在此文件中：
-# npx wrangler secret put AUTH_PENDING_SECRET
 # npx wrangler secret put GOOGLE_VISION_API_KEY

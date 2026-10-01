@@ -24,7 +24,10 @@ const PERMISSION_LABEL: Record<Permission, string> = {
 // 表單可選的權限（viewer 目前沒有對應功能，不開放新設定；既有資料仍會照原樣顯示）
 const PERMISSION_OPTIONS: Permission[] = ["teacher", "classroom_manager", "dorm_supervisor", "admin", "super_admin"];
 
-type GoogleFilter = "all" | "bound" | "unbound";
+type LoginFilter = "all" | "enabled" | "disabled";
+
+/** 登得進去 = 已綁定 Google 帳號，且已開放登入 */
+const canLogin = (teacher: Teacher): boolean => !!teacher.google_email && teacher.login_enabled;
 
 const emptyForm: TeacherInput = {
   teacher_id: "",
@@ -33,6 +36,7 @@ const emptyForm: TeacherInput = {
   department: "",
   email: "",
   google_email: "",
+  login_enabled: false,
   permission: "teacher",
 };
 
@@ -69,8 +73,11 @@ async function parseTeacherXLSX(file: File): Promise<TeacherImportRow[]> {
 }
 
 /**
- * 老師管理（整合自原本獨立的教師管理系統）：教師資料、私人 Google 帳號綁定、部門主檔。
+ * 老師管理（整合自原本獨立的教師管理系統）：教師資料、私人 Google 帳號綁定、開放登入、部門主檔。
  * 只有 super_admin 能進這一頁，後端（teacher-management Worker）也只接受 super_admin 的登入 token。
+ *
+ * 登入規則：老師預設都不能登入。老師要開課（或舍監、教室管理員等需要使用系統）時告知管理員，
+ * 管理員在這裡填入對方的私人 Gmail 並開放登入；之後可隨時關閉。
  */
 export const TeacherManagement: React.FC = () => {
   const { user } = useAuth();
@@ -82,7 +89,7 @@ export const TeacherManagement: React.FC = () => {
 
   const [search, setSearch] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("");
-  const [googleFilter, setGoogleFilter] = useState<GoogleFilter>("all");
+  const [loginFilter, setLoginFilter] = useState<LoginFilter>("all");
 
   // 新增／編輯教師的表單；editingId 有值代表編輯
   const [formOpen, setFormOpen] = useState(false);
@@ -98,6 +105,9 @@ export const TeacherManagement: React.FC = () => {
   const [importError, setImportError] = useState<string | null>(null);
 
   const [busyDepartment, setBusyDepartment] = useState(false);
+
+  // 正在編輯自己：登入相關欄位鎖住（後端也會擋）
+  const isSelf = !!editingId && editingId === user?.teacherId;
 
   const load = async () => {
     try {
@@ -124,16 +134,16 @@ export const TeacherManagement: React.FC = () => {
     const keyword = search.trim().toLowerCase();
     return teachers.filter((t) => {
       if (departmentFilter && t.department?.trim() !== departmentFilter) return false;
-      if (googleFilter === "bound" && !t.google_email) return false;
-      if (googleFilter === "unbound" && t.google_email) return false;
+      if (loginFilter === "enabled" && !canLogin(t)) return false;
+      if (loginFilter === "disabled" && canLogin(t)) return false;
       if (!keyword) return true;
       return [t.teacher_id, t.name_cn, t.name_en, t.email, t.google_email, t.department].some((v) =>
         (v || "").toLowerCase().includes(keyword),
       );
     });
-  }, [teachers, search, departmentFilter, googleFilter]);
+  }, [teachers, search, departmentFilter, loginFilter]);
 
-  const boundCount = teachers.filter((t) => t.google_email).length;
+  const enabledCount = teachers.filter(canLogin).length;
 
   const teacherCountByDepartment = useMemo(() => {
     const counts = new Map<string, number>();
@@ -162,6 +172,7 @@ export const TeacherManagement: React.FC = () => {
       department: teacher.department?.trim() || "",
       email: teacher.email,
       google_email: teacher.google_email || "",
+      login_enabled: teacher.login_enabled,
       permission: teacher.permission || "teacher",
     });
     setFormError(null);
@@ -180,6 +191,10 @@ export const TeacherManagement: React.FC = () => {
     };
     if (!input.teacher_id || !input.name_cn || !input.department || !input.email) {
       setFormError("教師 ID、中文姓名、部門、學校 Email 都必須填寫");
+      return;
+    }
+    if (input.login_enabled && !input.google_email) {
+      setFormError("要開放登入，必須先填入私人 Google 帳號");
       return;
     }
 
@@ -230,7 +245,7 @@ export const TeacherManagement: React.FC = () => {
     XLSX.writeFile(workbook, "教師匯入範本.xlsx");
   };
 
-  // 匯出的欄位與匯入範本相同（多一欄權限供查看），填好 google_email 後可直接再匯入
+  // 匯出的欄位與匯入範本相同（多兩欄權限、登入狀態供查看），填好 google_email 後可直接再匯入
   const handleExport = () => {
     const rows = teachers.map((t) => [
       t.department,
@@ -239,9 +254,10 @@ export const TeacherManagement: React.FC = () => {
       t.email,
       t.google_email || "",
       PERMISSION_LABEL[t.permission] || t.permission,
+      canLogin(t) ? "已開放" : "未開放",
     ]);
-    const worksheet = XLSX.utils.aoa_to_sheet([[...IMPORT_HEADERS, "權限（僅供查看）"], ...rows]);
-    worksheet["!cols"] = [{ wch: 20 }, { wch: 12 }, { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 16 }];
+    const worksheet = XLSX.utils.aoa_to_sheet([[...IMPORT_HEADERS, "權限（僅供查看）", "登入（僅供查看）"], ...rows]);
+    worksheet["!cols"] = [{ wch: 20 }, { wch: 12 }, { wch: 15 }, { wch: 30 }, { wch: 30 }, { wch: 16 }, { wch: 16 }];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Teachers");
     XLSX.writeFile(workbook, `教師名單_${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -363,10 +379,10 @@ export const TeacherManagement: React.FC = () => {
                 </option>
               ))}
             </select>
-            <select className="filter-select" value={googleFilter} onChange={(e) => setGoogleFilter(e.target.value as GoogleFilter)}>
-              <option value="all">Google 帳號：全部</option>
-              <option value="unbound">尚未綁定（無法登入）</option>
-              <option value="bound">已綁定</option>
+            <select className="filter-select" value={loginFilter} onChange={(e) => setLoginFilter(e.target.value as LoginFilter)}>
+              <option value="all">登入：全部</option>
+              <option value="enabled">已開放登入</option>
+              <option value="disabled">未開放</option>
             </select>
             <button type="button" className="btn btn-primary" onClick={openAdd}>
               ➕ 新增教師
@@ -377,7 +393,7 @@ export const TeacherManagement: React.FC = () => {
             <h3>Excel 批量匯入／匯出</h3>
             <p className="batch-info">
               欄位：{IMPORT_HEADERS.join("、")}。既有教師只需填 School ID 與要更新的欄位（部門、google_email），留空代表不變更；
-              新教師需填 department、Name、email。最方便的做法：先「匯出教師名單」，填好 google_email 再匯入。
+              新教師需填 department、Name、email。匯入新的 google_email 會一併開放該教師登入。
             </p>
             <div className="batch-controls">
               <input
@@ -427,8 +443,8 @@ export const TeacherManagement: React.FC = () => {
           </div>
 
           <p className="classroom-count">
-            顯示 {filteredTeachers.length} / {teachers.length} 位教師｜已綁定 Google 帳號 {boundCount} 位、尚未綁定{" "}
-            {teachers.length - boundCount} 位
+            顯示 {filteredTeachers.length} / {teachers.length} 位教師｜已開放登入 {enabledCount} 位、未開放{" "}
+            {teachers.length - enabledCount} 位
           </p>
           <div className="classroom-table-container">
             <table className="classroom-table">
@@ -439,6 +455,7 @@ export const TeacherManagement: React.FC = () => {
                   <th>部門</th>
                   <th>學校 Email</th>
                   <th>私人 Google 帳號（登入用）</th>
+                  <th>登入</th>
                   <th>權限</th>
                   <th>操作</th>
                 </tr>
@@ -446,7 +463,7 @@ export const TeacherManagement: React.FC = () => {
               <tbody>
                 {filteredTeachers.length === 0 ? (
                   <tr>
-                    <td colSpan={7} className="empty-message">
+                    <td colSpan={8} className="empty-message">
                       找不到符合條件的教師
                     </td>
                   </tr>
@@ -460,11 +477,12 @@ export const TeacherManagement: React.FC = () => {
                       </td>
                       <td>{teacher.department}</td>
                       <td>{teacher.email}</td>
+                      <td>{teacher.google_email || <span style={{ color: "#999" }}>—</span>}</td>
                       <td>
-                        {teacher.google_email || (
-                          <span style={{ color: "#c33" }}>
-                            尚未綁定{teacher.has_password ? "（暫可用密碼登入）" : ""}
-                          </span>
+                        {canLogin(teacher) ? (
+                          <span style={{ color: "#2e7d32", fontWeight: 600 }}>已開放</span>
+                        ) : (
+                          <span style={{ color: "#999" }}>未開放</span>
                         )}
                       </td>
                       <td>{PERMISSION_LABEL[teacher.permission] || teacher.permission}</td>
@@ -630,13 +648,38 @@ export const TeacherManagement: React.FC = () => {
                   inputMode="email"
                   id="google_email"
                   value={form.google_email}
-                  onChange={(e) => setForm({ ...form, google_email: e.target.value })}
+                  // 第一次填入 Google 帳號時順手勾選開放登入（填 Gmail 通常就是要讓對方使用系統）
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      google_email: e.target.value,
+                      login_enabled: form.google_email === "" && e.target.value !== "" ? true : form.login_enabled,
+                    })
+                  }
+                  disabled={isSelf}
                   placeholder="your.email@gmail.com"
                 />
                 <p className="batch-info" style={{ marginTop: 6 }}>
-                  老師登入補習班、選修課、行政管理站時使用的私人 Gmail（學校信箱不能用於 Google 登入）。清空即解除綁定。
+                  老師登入補習班、選修課、行政管理站時使用的私人 Gmail（學校信箱不能用來登入）。
                 </p>
               </div>
+
+              <div className="form-group checkbox-group">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={form.login_enabled}
+                    disabled={isSelf}
+                    onChange={(e) => setForm({ ...form, login_enabled: e.target.checked })}
+                  />
+                  <span>開放登入</span>
+                </label>
+              </div>
+              <p className="batch-info" style={{ marginTop: -12 }}>
+                {isSelf
+                  ? "不能關閉自己的登入或更改自己的 Google 帳號（避免把自己鎖在外面），需要時請由另一位超級管理員操作。"
+                  : "勾選且已填 Google 帳號，對方才能登入。取消勾選後對方無法再登入（已登入的最多 24 小時後失效）。"}
+              </p>
 
               <div className="form-group">
                 <label htmlFor="permission">
@@ -648,7 +691,7 @@ export const TeacherManagement: React.FC = () => {
                   style={{ width: "100%" }}
                   value={form.permission}
                   // 不能改自己的權限（後端也會擋），避免把自己鎖在外面
-                  disabled={!!editingId && editingId === user?.teacherId}
+                  disabled={isSelf}
                   onChange={(e) => setForm({ ...form, permission: e.target.value as Permission })}
                 >
                   {(PERMISSION_OPTIONS.includes(form.permission) ? PERMISSION_OPTIONS : [...PERMISSION_OPTIONS, form.permission]).map(

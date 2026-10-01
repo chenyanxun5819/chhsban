@@ -22,7 +22,6 @@ import OptionalCourseAttendance from "@/optional/pages/CourseAttendance";
 import OptionalCourseReport from "@/optional/pages/CourseReport";
 import OptionalCourseRoster from "@/optional/pages/CourseRoster";
 import Teachers from "@/settings/pages/Teachers";
-import PasswordReset from "@/settings/pages/PasswordReset";
 import Classrooms from "@/settings/pages/Classrooms";
 import StudentSync from "@/data/pages/StudentSync";
 import StudentExport from "@/data/pages/StudentExport";
@@ -118,9 +117,8 @@ const AppRoutes = () => (
     <Route path="/optional/attendance" element={page(<AttendanceTracking />)} />
     <Route path="/optional/course-report" element={page(<OptionalCourseReport />)} />
 
-    {/* 共用設定（老師、教室資料，tution-system Worker） */}
+    {/* 共用設定（老師資料走 teacher-management Worker，教室資料走 tution-system Worker） */}
     <Route path="/settings/teachers" element={page(<Teachers />)} />
-    <Route path="/settings/password-reset" element={page(<PasswordReset />)} />
     <Route path="/settings/classrooms" element={page(<Classrooms />)} />
 
     {/* 一次性工具：舊學生資料清理（清完即可移除，見 LegacyCleanup.tsx 的提示語） */}

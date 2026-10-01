@@ -74,6 +74,9 @@ export interface TeacherRecord {
   email: string; // 學校工作信箱（顯示、聯絡用）
   // 私人 Google 帳號（小寫）。2026-10-01 起登入一律用這個帳號做 Google 驗證，學校網域不開放第三方登入
   google_email?: string;
+  // 是否開放登入：只有 true 才能登入（另外還要綁定 google_email）。老師要開課或需要使用系統時，
+  // 由管理員在行政管理站「老師管理」開放；沒有這個欄位的舊資料視為未開放
+  login_enabled?: boolean;
   permission: Permission;
   // 密码相关（缺省 = 尚未设定密码，需要走 password_setup 流程）
   password_hash?: string; // base64

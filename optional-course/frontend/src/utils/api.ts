@@ -5,13 +5,8 @@ import i18n from "@/i18n";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8788/api";
 
-const AUTH_FLOW_PATHS = [
-  "/auth/google",
-  "/auth/verify",
-  "/auth/set-password",
-  "/auth/login-password",
-  "/auth/generate-password",
-];
+// 登入請求本身回 401 時（Google 驗證失敗）要顯示錯誤訊息，不要當成 token 失效而跳回登入頁
+const AUTH_FLOW_PATHS = ["/auth/google"];
 
 function isAuthFlowRequest(url?: string): boolean {
   const target = url || "";

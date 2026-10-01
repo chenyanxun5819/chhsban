@@ -9,7 +9,7 @@
  * - D1 免費版單次請求最多 50 次查詢：列表類端點一律批次查詢，不要逐筆查。
  */
 
-import { createAuthKVManager, createTeacherKVManager, createStudentDirectory, isLeftSchool, studentStatus, createClassroomKVManager, TutionClassStatus, AttendanceStatus, createPendingToken, verifyPendingToken, verifyGoogleIdToken, hashPassword, verifyPassword, generateStrongPassword, validatePasswordStrength, type TutionClass, type TutionSchedule } from "@chhsban/kv-utils";
+import { createAuthKVManager, createTeacherKVManager, createStudentDirectory, isLeftSchool, studentStatus, createClassroomKVManager, TutionClassStatus, AttendanceStatus, verifyGoogleIdToken, type TutionClass, type TutionSchedule } from "@chhsban/kv-utils";
 import { TutionService } from "./tution-service";
 import { generatePDFResponse } from "./pdf-generator";
 import { buildSignedFormKey, getSignedFormResponse, isAllowedContentType } from "./signed-form";
@@ -40,7 +40,6 @@ interface Env {
   STUDENT_SYNC: StudentSyncService;
   GOOGLE_VISION_API_KEY?: string;
   GOOGLE_CLIENT_ID?: string; // Google 登入的 OAuth 用戶端 ID（公開值，見 wrangler.toml [vars]）
-  AUTH_PENDING_SECRET: string;
 }
 
 interface IncomingRosterSnapshot {
@@ -210,81 +209,6 @@ function jsonResponse(data: any, status: number = 200): Response {
 }
 
 /**
- * 處理認證驗證 (Email 驗證)
- */
-async function handleAuthVerify(request: Request, env: Env): Promise<Response> {
-  try {
-    if (request.method !== "POST") {
-      return new Response(JSON.stringify({ error: "Method not allowed" }), {
-        status: 405,
-        headers: getCorsHeaders(),
-      });
-    }
-
-    const body = (await request.json()) as { email?: string };
-
-    if (!body.email) {
-      return new Response(JSON.stringify({ error: "Missing email field" }), {
-        status: 400,
-        headers: getCorsHeaders(),
-      });
-    }
-
-    const email = String(body.email).trim().toLowerCase();
-
-    // 讀整份 email 對照表（1 次 KV 讀取），不掃描全部教師，見 kv-utils 的 findTeacherByEmail
-    const teacher = await createTeacherKVManager(env.TEACHER_KV).findTeacherByEmail(email);
-
-    if (!teacher) {
-      console.log(`[AUTH] Teacher not found for email: ${email}`);
-      return new Response(
-        JSON.stringify({ error: "Email not registered in system" }),
-        { status: 401, headers: getCorsHeaders() },
-      );
-    }
-
-    // 2026-10-01 起關閉「憑 email 首次設定密碼」：只憑 email 就能設密碼，知道別人 email 就能搶先登入。
-    // 已設過密碼的帳號在過渡期間照常用密碼登入；其他人改用私人 Google 帳號登入（由管理員綁定）。
-    if (!teacher.password_hash) {
-      return jsonResponse({ error: PASSWORD_SETUP_DISABLED_MESSAGE, code: "PASSWORD_SETUP_DISABLED" }, 403);
-    }
-    const purpose = "password_login" as const;
-
-    const pendingToken = await createPendingToken(
-      { teacherId: teacher.teacher_id, email: teacher.email, purpose },
-      env.AUTH_PENDING_SECRET,
-    );
-
-    return new Response(
-      JSON.stringify({
-        success: true,
-        data: {
-          stage: purpose,
-          pendingToken,
-          teacher_name: teacher.name_cn || teacher.name_en || "Unknown",
-          email: teacher.email,
-          expiresIn: 15 * 60,
-        },
-        timestamp: new Date().toISOString(),
-      }),
-      { status: 200, headers: getCorsHeaders() },
-    );
-  } catch (error) {
-    console.error("[AUTH] Error in auth verify:", error);
-    return new Response(
-      JSON.stringify({
-        error: "Authentication failed",
-        details: error instanceof Error ? error.message : "Unknown error"
-      }),
-      {
-        status: 500,
-        headers: getCorsHeaders(),
-      }
-    );
-  }
-}
-
-/**
  * 完成登入的共用收尾：建立正式 session，回傳與 /auth/verify 成功響應同構的資料
  */
 async function finalizeLogin(
@@ -313,10 +237,14 @@ async function finalizeLogin(
   });
 }
 
+const PASSWORD_LOGIN_REMOVED_MESSAGE =
+  "學校 Email 與密碼登入已停用，請重新整理頁面後改用私人 Google 帳號登入（需先由管理員開放）。";
+
 /**
- * 私人 Google 帳號登入：前端 Google 按鈕取得的 ID token（credential）交給後端驗證簽章與用戶端 ID，
- * 再以教師資料裡綁定的 google_email 找到教師，直接建立 session（不需要密碼）。
- * 學校網域不開放第三方登入，所以綁定的是老師的私人 Gmail（由管理員在教師管理系統設定）。
+ * 私人 Google 帳號登入（唯一的登入方式）：前端 Google 按鈕取得的 ID token（credential）交給後端驗證
+ * 簽章與用戶端 ID，再以教師資料裡綁定的 google_email 找到教師，且該教師已「開放登入」才建立 session。
+ * 學校網域不開放第三方登入，所以綁定的是老師的私人 Gmail：老師要開課或需要使用系統時告知管理員，
+ * 由管理員在行政管理站「老師管理」填入 Gmail 並開放登入。
  */
 async function handleAuthGoogle(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") {
@@ -338,168 +266,14 @@ async function handleAuthGoogle(request: Request, env: Env): Promise<Response> {
         403,
       );
     }
+    // 綁了 Google 帳號還要管理員「開放登入」才能進來（老師管理頁的開關）
+    if (teacher.login_enabled !== true) {
+      return jsonResponse({ error: "此帳號尚未開放登入，請聯絡管理員", code: "LOGIN_DISABLED" }, 403);
+    }
     return finalizeLogin(env, teacher);
   } catch (error) {
     console.error("[AUTH] Error in google login:", error);
     return jsonResponse({ error: "Google 登入失敗，請稍後再試" }, 500);
-  }
-}
-
-// 首次設定密碼開關（見 handleAuthVerify 的說明）；改用 Google 登入後不再開啟
-const PASSWORD_SETUP_ENABLED = false;
-
-const PASSWORD_SETUP_DISABLED_MESSAGE =
-  "此帳號尚未設定密碼。系統已停用首次設定密碼，請改用私人 Google 帳號登入（如尚未綁定，請聯絡管理員）。";
-
-/**
- * 讓系統產生一組符合強度規則的密碼，顯示給使用者一次（不寫入任何儲存）
- * 2026-10-01 起停用（首次設定密碼已關閉），保留程式碼以免舊版前端呼叫時出現難懂的錯誤
- */
-async function handleAuthGeneratePassword(request: Request, env: Env): Promise<Response> {
-  if (!PASSWORD_SETUP_ENABLED) {
-    return jsonResponse({ error: PASSWORD_SETUP_DISABLED_MESSAGE, code: "PASSWORD_SETUP_DISABLED" }, 410);
-  }
-  try {
-    if (request.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed" }, 405);
-    }
-
-    const body = (await request.json()) as { pendingToken?: string };
-    if (!body.pendingToken) {
-      return jsonResponse({ error: "Missing pendingToken field" }, 400);
-    }
-
-    const payload = await verifyPendingToken(body.pendingToken, env.AUTH_PENDING_SECRET);
-    if (!payload || payload.purpose !== "password_setup") {
-      return jsonResponse({ error: "Invalid or expired pendingToken" }, 400);
-    }
-
-    const password = generateStrongPassword();
-    return jsonResponse({ success: true, data: { password } });
-  } catch (error) {
-    console.error("[AUTH] Error in generate-password:", error);
-    return jsonResponse(
-      { error: "Failed to generate password", details: error instanceof Error ? error.message : "Unknown error" },
-      500,
-    );
-  }
-}
-
-/**
- * 首次登入：設定密碼（自訂或系統產生皆走這個端點），成功後直接完成登入
- */
-async function handleAuthSetPassword(request: Request, env: Env): Promise<Response> {
-  if (!PASSWORD_SETUP_ENABLED) {
-    return jsonResponse({ error: PASSWORD_SETUP_DISABLED_MESSAGE, code: "PASSWORD_SETUP_DISABLED" }, 410);
-  }
-  try {
-    if (request.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed" }, 405);
-    }
-
-    const body = (await request.json()) as { pendingToken?: string; password?: string };
-    if (!body.pendingToken || !body.password) {
-      return jsonResponse({ error: "Missing pendingToken or password field" }, 400);
-    }
-
-    const payload = await verifyPendingToken(body.pendingToken, env.AUTH_PENDING_SECRET);
-    if (!payload || payload.purpose !== "password_setup") {
-      return jsonResponse({ error: "Invalid or expired pendingToken" }, 400);
-    }
-
-    const teacherManager = createTeacherKVManager(env.TEACHER_KV);
-    const teacher = await teacherManager.getTeacher(payload.teacherId);
-    if (!teacher) {
-      return jsonResponse({ error: "Teacher not found" }, 404);
-    }
-    if (teacher.password_hash) {
-      // 競態防護：例如使用者開了兩個分頁，其中一個已經設定過密碼
-      return jsonResponse({ error: "PASSWORD_ALREADY_SET" }, 409);
-    }
-
-    const validation = validatePasswordStrength(body.password);
-    if (!validation.valid) {
-      return jsonResponse({ error: "WEAK_PASSWORD", details: validation.errors }, 400);
-    }
-
-    const hashed = await hashPassword(body.password);
-    const now = Date.now();
-    await teacherManager.saveTeacher({
-      ...teacher,
-      password_hash: hashed.hash,
-      password_salt: hashed.salt,
-      password_algorithm: hashed.algorithm,
-      password_iterations: hashed.iterations,
-      password_created_at: now,
-      password_updated_at: now,
-    });
-
-    return finalizeLogin(env, teacher);
-  } catch (error) {
-    console.error("[AUTH] Error in set-password:", error);
-    return jsonResponse(
-      { error: "Failed to set password", details: error instanceof Error ? error.message : "Unknown error" },
-      500,
-    );
-  }
-}
-
-/**
- * 已設定密碼的教師：輸入密碼完成登入
- */
-async function handleAuthLoginPassword(request: Request, env: Env): Promise<Response> {
-  try {
-    if (request.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed" }, 405);
-    }
-
-    const body = (await request.json()) as { pendingToken?: string; password?: string };
-    if (!body.pendingToken || !body.password) {
-      return jsonResponse({ error: "Missing pendingToken or password field" }, 400);
-    }
-
-    const payload = await verifyPendingToken(body.pendingToken, env.AUTH_PENDING_SECRET);
-    if (!payload || payload.purpose !== "password_login") {
-      return jsonResponse({ error: "Invalid or expired pendingToken" }, 400);
-    }
-
-    const authManager = createAuthKVManager(env.AUTH_KV);
-    const lockout = await authManager.checkLockout(payload.teacherId);
-    if (lockout.locked) {
-      return jsonResponse(
-        { error: "TOO_MANY_ATTEMPTS", retryAfterSeconds: lockout.retryAfterSeconds },
-        429,
-      );
-    }
-
-    const teacherManager = createTeacherKVManager(env.TEACHER_KV);
-    const teacher = await teacherManager.getTeacher(payload.teacherId);
-    if (!teacher || !teacher.password_hash || !teacher.password_salt || !teacher.password_algorithm || !teacher.password_iterations) {
-      return jsonResponse({ error: "PASSWORD_NOT_SET" }, 409);
-    }
-
-    const isValid = await verifyPassword(body.password, {
-      hash: teacher.password_hash,
-      salt: teacher.password_salt,
-      algorithm: teacher.password_algorithm,
-      iterations: teacher.password_iterations,
-    });
-
-    if (!isValid) {
-      const status = await authManager.recordFailedAttempt(payload.teacherId);
-      return jsonResponse(
-        { error: "INVALID_PASSWORD", remainingAttempts: status.remainingAttempts },
-        401,
-      );
-    }
-
-    return finalizeLogin(env, teacher);
-  } catch (error) {
-    console.error("[AUTH] Error in login-password:", error);
-    return jsonResponse(
-      { error: "Failed to login", details: error instanceof Error ? error.message : "Unknown error" },
-      500,
-    );
   }
 }
 
@@ -516,21 +290,13 @@ export default {
       });
     }
 
-    // 認證端點不需要 token（密碼二階段流程的憑證是 pendingToken，放在 body 裡）
+    // 登入端點不需要 token：唯一的登入方式是私人 Google 帳號
     if (pathname === "/api/auth/google") {
       return handleAuthGoogle(request, env);
     }
-    if (pathname === "/api/auth/verify") {
-      return handleAuthVerify(request, env);
-    }
-    if (pathname === "/api/auth/generate-password") {
-      return handleAuthGeneratePassword(request, env);
-    }
-    if (pathname === "/api/auth/set-password") {
-      return handleAuthSetPassword(request, env);
-    }
-    if (pathname === "/api/auth/login-password") {
-      return handleAuthLoginPassword(request, env);
+    // 學校 Email + 密碼登入已於 2026-10-01 停用（舊版前端若還在快取中，會看到這個訊息）
+    if (pathname.startsWith("/api/auth/")) {
+      return jsonResponse({ error: PASSWORD_LOGIN_REMOVED_MESSAGE, code: "PASSWORD_LOGIN_REMOVED" }, 410);
     }
 
     // 健康檢查不需要 token
@@ -599,10 +365,6 @@ export default {
 
       if (pathname.startsWith("/api/v1/classrooms") || pathname.startsWith("/api/classrooms")) {
         return handleClassrooms(request, env, session);
-      }
-
-      if (pathname.startsWith("/api/admin/teachers")) {
-        return handleAdminTeachers(request, env, session, ctx);
       }
 
       if (pathname.startsWith("/api/admin/student-sync")) {
@@ -2260,94 +2022,5 @@ async function handleClassrooms(
       error: "Internal server error",
       details: error instanceof Error ? error.message : String(error)
     }, 500);
-  }
-}
-
-/**
- * 管理員專用：教師密碼狀態查詢 / 重設密碼
- *
- * GET  /api/admin/teachers                       - 列出所有教師（不含密碼哈希，僅回傳是否已設定密碼）
- * POST /api/admin/teachers/{teacherId}/reset-password - 清空該教師的密碼欄位，下次登入會自動回到「設定密碼」流程
- *
- * 僅 admin/super_admin 可用。既有的正式 session token（若該教師目前已登入）不會被這個操作撤銷，
- * 會維持到自然過期（24 小時）為止——這裡刻意不做額外的 session 掃描清除，保持實作簡單。
- */
-async function handleAdminTeachers(
-  request: Request,
-  env: Env,
-  session: any,
-  ctx: ExecutionContext,
-): Promise<Response> {
-  if (session.permission !== "admin" && session.permission !== "super_admin") {
-    return jsonResponse({ error: "Forbidden" }, 403);
-  }
-
-  const url = new URL(request.url);
-  const method = request.method;
-  const pathParts = url.pathname.split("/");
-  const teacherId = pathParts[4]; // /api/admin/teachers/{teacherId}/reset-password
-  const action = pathParts[5];
-
-  const teacherManager = createTeacherKVManager(env.TEACHER_KV);
-
-  try {
-    if (method === "GET" && !teacherId) {
-      const teachers = await teacherManager.getAllTeachers();
-      const data = teachers
-        .map((t) => ({
-          teacher_id: t.teacher_id,
-          name_cn: t.name_cn,
-          name_en: t.name_en,
-          department: t.department,
-          email: t.email,
-          permission: t.permission,
-          hasPassword: Boolean(t.password_hash),
-          passwordUpdatedAt: t.password_updated_at,
-        }))
-        .sort((a, b) => a.teacher_id.localeCompare(b.teacher_id));
-
-      return jsonResponse({ success: true, data });
-    }
-
-    if (method === "POST" && teacherId && action === "reset-password") {
-      // 重設後該帳號回到「設定密碼」狀態，知道 email 的人都能搶先設定，所以只限 super_admin 操作，
-      // 且不能重設其他 super_admin（避免互相接管）
-      if (session.permission !== "super_admin") {
-        return jsonResponse({ error: "Forbidden: only super_admin can reset passwords" }, 403);
-      }
-      const teacher = await teacherManager.getTeacher(teacherId);
-      if (!teacher) {
-        return jsonResponse({ error: "Teacher not found" }, 404);
-      }
-      if (teacher.permission === "super_admin" && teacher.teacher_id !== session.teacher_id) {
-        return jsonResponse({ error: "Forbidden: cannot reset another super_admin" }, 403);
-      }
-
-      const updated = { ...teacher };
-      delete updated.password_hash;
-      delete updated.password_salt;
-      delete updated.password_algorithm;
-      delete updated.password_iterations;
-      delete updated.password_created_at;
-      delete updated.password_updated_at;
-      await teacherManager.saveTeacher(updated);
-
-      ctx.waitUntil(
-        logAudit(env, {
-          action: "teacher.password_reset",
-          target_type: "teacher",
-          target_id: teacherId,
-          actor_id: session.teacher_id,
-          actor_permission: session.permission,
-        }),
-      );
-
-      return jsonResponse({ success: true, data: { teacher_id: teacherId } });
-    }
-
-    return jsonResponse({ error: "Not found" }, 404);
-  } catch (error) {
-    console.error("Admin teachers handler error:", error);
-    return jsonResponse({ error: String(error) }, 500);
   }
 }

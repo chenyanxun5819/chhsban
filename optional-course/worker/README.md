@@ -6,7 +6,7 @@
 
 ## 首次設置（已完成，2026-09-09）
 
-4 個專屬 KV namespace、`AUTH_PENDING_SECRET` 密鑰、正式部署都已經處理好，
+4 個專屬 KV namespace、正式部署都已經處理好，
 `wrangler.toml` 裡已經是真實的 KV id。以下指令留存供日後在其他機器/帳號重建時參考：
 
 ```bash
@@ -18,13 +18,10 @@ wrangler kv:namespace create OPTIONAL_COURSE_ROSTER_KV
 wrangler kv:namespace create OPTIONAL_COURSE_SCHEDULE_KV
 wrangler kv:namespace create OPTIONAL_COURSE_ATTENDANCE_KV
 
-# 設定正式環境的密鑰（用來簽署兩階段登入的 pending token，只在本 Worker 內部使用，
-# 不需要跟 chhsban-tution 的 AUTH_PENDING_SECRET 相同）
-wrangler secret put AUTH_PENDING_SECRET
-
-# 本機開發：複製 .dev.vars.example 為 .dev.vars 並填入任意字串
-cp .dev.vars.example .dev.vars
 ```
+
+登入只有私人 Google 帳號（`/api/auth/google`，用戶端 ID 在 `wrangler.toml` 的 `[vars]`），
+本 Worker 不需要任何 secret。學校 Email + 密碼登入已於 2026-10-01 移除。
 
 ## 開發
 

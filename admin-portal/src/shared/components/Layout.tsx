@@ -41,7 +41,6 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
     title: "共用設定",
     items: [
       { label: "老師管理", path: "/settings/teachers" },
-      { label: "申請人密碼重設", path: "/settings/password-reset" },
       { label: "教室管理", path: "/settings/classrooms" },
     ],
   },

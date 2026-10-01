@@ -15,8 +15,9 @@ export interface Teacher {
   email: string;
   /** 私人 Google 帳號：老師登入各系統用的帳號 */
   google_email?: string;
+  /** 是否開放登入；要「已綁定 Google 帳號」且「開放」才登得進去 */
+  login_enabled: boolean;
   permission: Permission;
-  has_password: boolean;
 }
 
 export interface Department {
@@ -26,11 +27,14 @@ export interface Department {
   updated_at: number;
 }
 
-export type TeacherInput = Pick<Teacher, "teacher_id" | "name_cn" | "name_en" | "department" | "email" | "permission"> & {
+export type TeacherInput = Pick<
+  Teacher,
+  "teacher_id" | "name_cn" | "name_en" | "department" | "email" | "permission" | "login_enabled"
+> & {
   google_email: string;
 };
 
-/** Excel 批量匯入的一列；既有教師只需 teacher_id，其餘欄位留空代表不變更 */
+/** Excel 批量匯入的一列；既有教師只需 teacher_id，其餘欄位留空代表不變更。匯入新的 Google 帳號會一併開放登入 */
 export interface TeacherImportRow {
   teacher_id: string;
   name_cn?: string;

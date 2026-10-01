@@ -51,10 +51,7 @@ crons = ["0 19 * * *"]
 # Google 登入（私人 Gmail）的 OAuth 用戶端 ID（公開值，與 chhsban-tution 相同）
 GOOGLE_CLIENT_ID = "491731246647-gf63vkq4vso6uji4dilcd84g5aedocsf.apps.googleusercontent.com"
 
-# 敏感資訊使用 wrangler secret 設置（不寫在此文件中）：
-# wrangler secret put AUTH_PENDING_SECRET
-# （用來簽署兩階段登入的 pending token，只在本 Worker 內部使用，
-#   不需要跟 chhsban-tution 的 AUTH_PENDING_SECRET 相同，自行產生一組新的即可）
+# 本 Worker 目前不需要任何 secret（登入只有 Google，密碼登入已於 2026-10-01 移除）
 
 # 部署陷阱警告（沿用 chhsban-tution 的教訓，見 chhsban-tution/wrangler.toml 第 64-68 行）：
 # 正式上線一律使用「不帶 --env」的預設 wrangler deploy，本檔案刻意不定義 [env.production]。

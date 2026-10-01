@@ -41,16 +41,21 @@ interface Actor {
 const PERMISSIONS = ["teacher", "viewer", "admin", "super_admin", "classroom_manager", "dorm_supervisor"];
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** 回傳給前端的教師資料一律拿掉密碼相關欄位 */
-function sanitizeTeacher(teacher: TeacherRecord): Omit<TeacherRecord, "password_hash" | "password_salt"> & { has_password: boolean } {
+/**
+ * 回傳給前端的教師資料：拿掉密碼相關欄位（密碼登入已於 2026-10-01 移除，舊資料裡可能還留著雜湊），
+ * login_enabled 一律給明確的 true／false（舊資料沒有這個欄位，視為未開放）
+ */
+function sanitizeTeacher(teacher: TeacherRecord) {
   const {
-    password_hash,
-    password_salt,
+    password_hash: _hash,
+    password_salt: _salt,
     password_algorithm: _algorithm,
     password_iterations: _iterations,
+    password_created_at: _createdAt,
+    password_updated_at: _updatedAt,
     ...rest
   } = teacher;
-  return { ...rest, has_password: Boolean(password_hash && password_salt) };
+  return { ...rest, login_enabled: teacher.login_enabled === true };
 }
 
 /** 私人 Google 帳號：去空白轉小寫；空字串代表清除；格式錯誤回傳 null */
@@ -310,6 +315,8 @@ async function handleCreateTeacher(
       department: String(body.department).trim(),
       email: String(body.email).trim(),
       ...(googleEmail ? { google_email: googleEmail } : {}),
+      // 開放登入：沒指定時，有填 Google 帳號就視為要開放
+      login_enabled: typeof body.login_enabled === "boolean" ? body.login_enabled : !!googleEmail,
       permission: body.permission || "teacher",
     };
 
@@ -361,6 +368,10 @@ async function handleUpdateTeacher(
     if (actor.teacherId === id && body.permission && body.permission !== existing.permission) {
       return errorResponse("不能修改自己的權限，請由另一位超級管理員操作", 409);
     }
+    // 同理，不能關閉自己的登入、不能解除自己的 Google 帳號（那是唯一的登入方式）
+    if (actor.teacherId === id && (body.login_enabled === false || body.google_email === "")) {
+      return errorResponse("不能關閉自己的登入或解除自己的 Google 帳號", 409);
+    }
     // google_email：沒帶 = 不變；空字串 = 解除綁定；有值 = 綁定（不能與其他教師重複）
     const googleEmail = normalizeGoogleEmail(body.google_email);
     if (googleEmail === null) {
@@ -386,6 +397,13 @@ async function handleUpdateTeacher(
       if (googleEmail) updated.google_email = googleEmail;
       else delete updated.google_email;
     }
+    // 開放登入：有明確指定就照指定；沒指定時，第一次綁上 Google 帳號視為要開放。沒有 Google 帳號一律關閉
+    if (typeof body.login_enabled === "boolean") {
+      updated.login_enabled = body.login_enabled;
+    } else if (googleEmail && !existing.google_email) {
+      updated.login_enabled = true;
+    }
+    if (!updated.google_email) updated.login_enabled = false;
 
     await manager.saveTeacher(updated);
     if (updated.email !== existing.email || updated.google_email !== existing.google_email) {
@@ -497,7 +515,8 @@ async function handleBulkImportTeachers(
             const updated: TeacherRecord = {
               ...existing,
               ...(department ? { department } : {}),
-              ...(googleEmail ? { google_email: googleEmail } : {}),
+              // 匯入新的 Google 帳號 = 管理員要讓這位老師使用系統，一併開放登入
+              ...(googleChanged ? { google_email: googleEmail as string, login_enabled: true } : {}),
             };
             await manager.saveTeacher(updated);
             if (googleEmail) googleOwners.set(googleEmail, teacherId);
@@ -519,6 +538,7 @@ async function handleBulkImportTeachers(
             department,
             email: String(data.email).trim(),
             ...(googleEmail ? { google_email: googleEmail } : {}),
+            login_enabled: !!googleEmail,
             permission: "teacher",
           };
           if (googleEmail) googleOwners.set(googleEmail, teacherId);

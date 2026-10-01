@@ -7,20 +7,14 @@
  *
  * 身分驗證直接沿用 chhsban-tution 共用的 @chhsban/kv-utils：
  * - AUTH_KV/TEACHER_KV/STUDENT_KV/CLASSROOM_KV 綁定同一組 namespace id，
- *   session token、教師密碼、學生資料完全共用，不重複建立一套帳號系統。
- * - /api/auth/* 系列端點的邏輯直接照抄 chhsban-tution/src/index.ts。
+ *   session token、教師資料、學生資料完全共用，不重複建立一套帳號系統。
+ * - 登入只有 /api/auth/google（私人 Google 帳號），邏輯與 chhsban-tution/src/index.ts 相同。
  */
 
 import {
   createAuthKVManager,
   createTeacherKVManager,
-  createPendingToken,
-  verifyPendingToken,
   verifyGoogleIdToken,
-  hashPassword,
-  verifyPassword,
-  generateStrongPassword,
-  validatePasswordStrength,
   type AuthSessionData,
   type TeacherRecord,
 } from "@chhsban/kv-utils";
@@ -61,7 +55,6 @@ interface Env {
   OPTIONAL_COURSE_ROSTER_KV: KVNamespace;
   OPTIONAL_COURSE_SCHEDULE_KV: KVNamespace;
   OPTIONAL_COURSE_ATTENDANCE_KV: KVNamespace;
-  AUTH_PENDING_SECRET: string;
   GOOGLE_CLIENT_ID?: string; // Google 登入的 OAuth 用戶端 ID（公開值，見 wrangler.toml [vars]）
 }
 
@@ -105,57 +98,6 @@ function canEditCourse(session: AuthSessionData, teacherId: string | undefined):
 // 認證端點（直接照抄 chhsban-tution/src/index.ts，純粹操作共用的 TEACHER_KV/AUTH_KV）
 // ============================================
 
-async function handleAuthVerify(request: Request, env: Env): Promise<Response> {
-  try {
-    if (request.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed" }, 405);
-    }
-
-    const body = (await request.json()) as { email?: string };
-    if (!body.email) {
-      return jsonResponse({ error: "Missing email field" }, 400);
-    }
-
-    const email = String(body.email).trim().toLowerCase();
-
-    // 讀整份 email 對照表（1 次 KV 讀取），不掃描全部教師，見 kv-utils 的 findTeacherByEmail
-    const teacher = await createTeacherKVManager(env.TEACHER_KV).findTeacherByEmail(email);
-
-    if (!teacher) {
-      return jsonResponse({ error: "Email not registered in system" }, 401);
-    }
-
-    // 2026-10-01 起關閉「憑 email 首次設定密碼」（與 chhsban-tution 一致，見其 handleAuthVerify 說明）
-    if (!teacher.password_hash) {
-      return jsonResponse({ error: PASSWORD_SETUP_DISABLED_MESSAGE, code: "PASSWORD_SETUP_DISABLED" }, 403);
-    }
-    const purpose = "password_login" as const;
-
-    const pendingToken = await createPendingToken(
-      { teacherId: teacher.teacher_id, email: teacher.email, purpose },
-      env.AUTH_PENDING_SECRET,
-    );
-
-    return jsonResponse({
-      success: true,
-      data: {
-        stage: purpose,
-        pendingToken,
-        teacher_name: teacher.name_cn || teacher.name_en || "Unknown",
-        email: teacher.email,
-        expiresIn: 15 * 60,
-      },
-      timestamp: new Date().toISOString(),
-    });
-  } catch (error) {
-    console.error("[AUTH] Error in auth verify:", error);
-    return jsonResponse(
-      { error: "Authentication failed", details: error instanceof Error ? error.message : "Unknown error" },
-      500,
-    );
-  }
-}
-
 async function finalizeLogin(env: Env, teacher: TeacherRecord): Promise<Response> {
   const authManager = createAuthKVManager(env.AUTH_KV);
   const session = await authManager.createSession(
@@ -177,7 +119,10 @@ async function finalizeLogin(env: Env, teacher: TeacherRecord): Promise<Response
   });
 }
 
-/** 私人 Google 帳號登入（與 chhsban-tution 的 handleAuthGoogle 相同） */
+const PASSWORD_LOGIN_REMOVED_MESSAGE =
+  "學校 Email 與密碼登入已停用，請重新整理頁面後改用私人 Google 帳號登入（需先由管理員開放）。";
+
+/** 私人 Google 帳號登入，唯一的登入方式（與 chhsban-tution 的 handleAuthGoogle 相同，說明見該處） */
 async function handleAuthGoogle(request: Request, env: Env): Promise<Response> {
   if (request.method !== "POST") {
     return jsonResponse({ error: "Method not allowed" }, 405);
@@ -198,156 +143,13 @@ async function handleAuthGoogle(request: Request, env: Env): Promise<Response> {
         403,
       );
     }
+    if (teacher.login_enabled !== true) {
+      return jsonResponse({ error: "此帳號尚未開放登入，請聯絡管理員", code: "LOGIN_DISABLED" }, 403);
+    }
     return finalizeLogin(env, teacher);
   } catch (error) {
     console.error("[AUTH] Error in google login:", error);
     return jsonResponse({ error: "Google 登入失敗，請稍後再試" }, 500);
-  }
-}
-
-// 首次設定密碼已於 2026-10-01 停用（改用私人 Google 帳號登入）
-const PASSWORD_SETUP_ENABLED = false;
-const PASSWORD_SETUP_DISABLED_MESSAGE =
-  "此帳號尚未設定密碼。系統已停用首次設定密碼，請改用私人 Google 帳號登入（如尚未綁定，請聯絡管理員）。";
-
-async function handleAuthGeneratePassword(request: Request, env: Env): Promise<Response> {
-  if (!PASSWORD_SETUP_ENABLED) {
-    return jsonResponse({ error: PASSWORD_SETUP_DISABLED_MESSAGE, code: "PASSWORD_SETUP_DISABLED" }, 410);
-  }
-  try {
-    if (request.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed" }, 405);
-    }
-    const body = (await request.json()) as { pendingToken?: string };
-    if (!body.pendingToken) {
-      return jsonResponse({ error: "Missing pendingToken field" }, 400);
-    }
-    const payload = await verifyPendingToken(body.pendingToken, env.AUTH_PENDING_SECRET);
-    if (!payload || payload.purpose !== "password_setup") {
-      return jsonResponse({ error: "Invalid or expired pendingToken" }, 400);
-    }
-    const password = generateStrongPassword();
-    return jsonResponse({ success: true, data: { password } });
-  } catch (error) {
-    console.error("[AUTH] Error in generate-password:", error);
-    return jsonResponse(
-      { error: "Failed to generate password", details: error instanceof Error ? error.message : "Unknown error" },
-      500,
-    );
-  }
-}
-
-async function handleAuthSetPassword(request: Request, env: Env): Promise<Response> {
-  if (!PASSWORD_SETUP_ENABLED) {
-    return jsonResponse({ error: PASSWORD_SETUP_DISABLED_MESSAGE, code: "PASSWORD_SETUP_DISABLED" }, 410);
-  }
-  try {
-    if (request.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed" }, 405);
-    }
-    const body = (await request.json()) as { pendingToken?: string; password?: string };
-    if (!body.pendingToken || !body.password) {
-      return jsonResponse({ error: "Missing pendingToken or password field" }, 400);
-    }
-    const payload = await verifyPendingToken(body.pendingToken, env.AUTH_PENDING_SECRET);
-    if (!payload || payload.purpose !== "password_setup") {
-      return jsonResponse({ error: "Invalid or expired pendingToken" }, 400);
-    }
-
-    const teacherManager = createTeacherKVManager(env.TEACHER_KV);
-    const teacher = await teacherManager.getTeacher(payload.teacherId);
-    if (!teacher) {
-      return jsonResponse({ error: "Teacher not found" }, 404);
-    }
-    if (teacher.password_hash) {
-      return jsonResponse({ error: "PASSWORD_ALREADY_SET" }, 409);
-    }
-
-    const validation = validatePasswordStrength(body.password);
-    if (!validation.valid) {
-      return jsonResponse({ error: "WEAK_PASSWORD", details: validation.errors }, 400);
-    }
-
-    const hashed = await hashPassword(body.password);
-    const now = Date.now();
-    await teacherManager.saveTeacher({
-      ...teacher,
-      password_hash: hashed.hash,
-      password_salt: hashed.salt,
-      password_algorithm: hashed.algorithm,
-      password_iterations: hashed.iterations,
-      password_created_at: now,
-      password_updated_at: now,
-    });
-
-    return finalizeLogin(env, teacher);
-  } catch (error) {
-    console.error("[AUTH] Error in set-password:", error);
-    return jsonResponse(
-      { error: "Failed to set password", details: error instanceof Error ? error.message : "Unknown error" },
-      500,
-    );
-  }
-}
-
-async function handleAuthLoginPassword(request: Request, env: Env): Promise<Response> {
-  try {
-    if (request.method !== "POST") {
-      return jsonResponse({ error: "Method not allowed" }, 405);
-    }
-    const body = (await request.json()) as { pendingToken?: string; password?: string };
-    if (!body.pendingToken || !body.password) {
-      return jsonResponse({ error: "Missing pendingToken or password field" }, 400);
-    }
-    const payload = await verifyPendingToken(body.pendingToken, env.AUTH_PENDING_SECRET);
-    if (!payload || payload.purpose !== "password_login") {
-      return jsonResponse({ error: "Invalid or expired pendingToken" }, 400);
-    }
-
-    const authManager = createAuthKVManager(env.AUTH_KV);
-    const lockout = await authManager.checkLockout(payload.teacherId);
-    if (lockout.locked) {
-      return jsonResponse(
-        { error: "TOO_MANY_ATTEMPTS", retryAfterSeconds: lockout.retryAfterSeconds },
-        429,
-      );
-    }
-
-    const teacherManager = createTeacherKVManager(env.TEACHER_KV);
-    const teacher = await teacherManager.getTeacher(payload.teacherId);
-    if (
-      !teacher ||
-      !teacher.password_hash ||
-      !teacher.password_salt ||
-      !teacher.password_algorithm ||
-      !teacher.password_iterations
-    ) {
-      return jsonResponse({ error: "PASSWORD_NOT_SET" }, 409);
-    }
-
-    const isValid = await verifyPassword(body.password, {
-      hash: teacher.password_hash,
-      salt: teacher.password_salt,
-      algorithm: teacher.password_algorithm,
-      iterations: teacher.password_iterations,
-    });
-
-    if (!isValid) {
-      const status = await authManager.recordFailedAttempt(payload.teacherId);
-      return jsonResponse(
-        { error: "INVALID_PASSWORD", remainingAttempts: status.remainingAttempts },
-        401,
-      );
-    }
-
-    await authManager.clearLockout(payload.teacherId);
-    return finalizeLogin(env, teacher);
-  } catch (error) {
-    console.error("[AUTH] Error in login-password:", error);
-    return jsonResponse(
-      { error: "Failed to login", details: error instanceof Error ? error.message : "Unknown error" },
-      500,
-    );
   }
 }
 
@@ -1431,10 +1233,10 @@ export default {
 
     // 公開的登入流程端點
     if (pathname === "/api/auth/google") return handleAuthGoogle(request, env);
-    if (pathname === "/api/auth/verify") return handleAuthVerify(request, env);
-    if (pathname === "/api/auth/generate-password") return handleAuthGeneratePassword(request, env);
-    if (pathname === "/api/auth/set-password") return handleAuthSetPassword(request, env);
-    if (pathname === "/api/auth/login-password") return handleAuthLoginPassword(request, env);
+    // 學校 Email + 密碼登入已於 2026-10-01 停用（舊版前端若還在快取中，會看到這個訊息）
+    if (pathname.startsWith("/api/auth/")) {
+      return jsonResponse({ error: PASSWORD_LOGIN_REMOVED_MESSAGE, code: "PASSWORD_LOGIN_REMOVED" }, 410);
+    }
 
     // 其他端點需要身份驗證
     const token = request.headers.get("Authorization")?.replace("Bearer ", "");

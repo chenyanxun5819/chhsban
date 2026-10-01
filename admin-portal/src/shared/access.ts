@@ -22,7 +22,6 @@ export const PAGE_ACCESS: Record<string, Permission[]> = {
   "/optional/attendance": ["super_admin", "admin"],
   "/optional/course-report": ["super_admin", "admin"],
   "/settings/teachers": ["super_admin"],
-  "/settings/password-reset": ["super_admin"],
   "/settings/classrooms": ["super_admin"],
   "/maintenance/legacy-cleanup": ["super_admin"], // 一次性工具，舊學生資料清完即可移除
 };
