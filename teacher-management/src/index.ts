@@ -23,6 +23,39 @@ import {
 interface Env {
   KV_BINDING: KVNamespace;
   ENVIRONMENT: string;
+  // 管理用 API Key（wrangler secret put ADMIN_API_KEY）。未設定時所有 API 一律拒絕
+  ADMIN_API_KEY?: string;
+}
+
+const PERMISSIONS = ["teacher", "viewer", "admin", "super_admin", "classroom_manager", "dorm_supervisor"];
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/** 回傳給前端的教師資料一律拿掉密碼相關欄位 */
+function sanitizeTeacher(teacher: TeacherRecord): Omit<TeacherRecord, "password_hash" | "password_salt"> & { has_password: boolean } {
+  const {
+    password_hash,
+    password_salt,
+    password_algorithm: _algorithm,
+    password_iterations: _iterations,
+    ...rest
+  } = teacher;
+  return { ...rest, has_password: Boolean(password_hash && password_salt) };
+}
+
+/** 私人 Google 帳號：去空白轉小寫；空字串代表清除；格式錯誤回傳 null */
+function normalizeGoogleEmail(value: unknown): string | null | undefined {
+  if (value === undefined) return undefined;
+  const email = String(value ?? "").trim().toLowerCase();
+  if (email === "") return "";
+  return EMAIL_RE.test(email) ? email : null;
+}
+
+/** 檢查這個 Google 帳號有沒有被別的教師綁定；有的話回傳該教師 ID */
+function findGoogleEmailOwner(teachers: TeacherRecord[], googleEmail: string, exceptTeacherId?: string): string | null {
+  const owner = teachers.find(
+    (t) => t.teacher_id !== exceptTeacherId && t.google_email?.trim().toLowerCase() === googleEmail,
+  );
+  return owner ? owner.teacher_id : null;
 }
 
 /**
@@ -60,71 +93,22 @@ interface DepartmentRecord {
 const DEPARTMENT_PREFIX = "department:";
 
 /**
- * 簡單的 API Key 驗證（後續可改為 JWT）
+ * API Key 驗證：必須與 secret ADMIN_API_KEY 完全相同（定時比對，避免逐字元猜測）。
+ * 2026-10-01 之前這裡只檢查「有沒有帶 key」，任何字串都會通過，等於整個教師資料庫對外公開。
  */
-function verifyApiKey(request: Request): boolean {
-  const apiKey =
+function verifyApiKey(request: Request, env: Env): boolean {
+  const expected = env.ADMIN_API_KEY;
+  if (!expected) return false;
+  const provided =
     request.headers.get("X-API-Key") ||
-    request.headers.get("Authorization")?.replace("Bearer ", "");
-
-  // 簡單驗證：檢查 API Key 是否存在
-  // 在生產環境中應該對比真實的 API Key
-  return !!apiKey;
-}
-
-/**
- * 生成簡單的 JWT-like token
- * 格式: Base64(email:timestamp:secret)
- */
-function generateToken(
-  email: string,
-  secret: string = "chhsban-secret",
-): string {
-  const payload = `${email}:${Date.now()}:${secret}`;
-  return Buffer.from(payload).toString("base64");
-}
-
-/**
- * 處理認證驗證 (Email 驗證)
- */
-async function handleAuthVerify(
-  manager: TeacherKVManager,
-  request: Request,
-): Promise<Response> {
-  try {
-    const body = (await request.json()) as { email?: string };
-
-    if (!body.email) {
-      return errorResponse("缺少 email 欄位");
-    }
-
-    const email = String(body.email).trim().toLowerCase();
-
-    // 從 KV 查詢所有教師
-    const allTeachers = await manager.getAllTeachers();
-    const teacher = allTeachers.find((t) => t.email.toLowerCase() === email);
-
-    if (!teacher) {
-      return errorResponse("Email 未在系統中註冊", 401);
-    }
-
-    // 生成 token
-    const token = generateToken(email);
-
-    return successResponse(
-      {
-        token,
-        teacher_id: teacher.teacher_id,
-        teacher_name: teacher.name_cn || teacher.name_en || "Unknown",
-        email: teacher.email,
-        permission: teacher.permission || "teacher",
-      },
-      "驗證成功",
-    );
-  } catch (error) {
-    console.error("Error in auth verify:", error);
-    return errorResponse("驗證失敗", 500);
-  }
+    request.headers.get("Authorization")?.replace("Bearer ", "") ||
+    "";
+  const a = new TextEncoder().encode(provided);
+  const b = new TextEncoder().encode(expected);
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a[i] ^ b[i];
+  return diff === 0;
 }
 
 /**
@@ -212,7 +196,7 @@ async function handleGetAllTeachers(
       teachers = await manager.getAllTeachers();
     }
 
-    return successResponse(teachers, `取得 ${teachers.length} 位教師`);
+    return successResponse(teachers.map(sanitizeTeacher), `取得 ${teachers.length} 位教師`);
   } catch (error) {
     console.error("Error getting teachers:", error);
     return errorResponse("取得教師列表失敗", 500);
@@ -237,7 +221,7 @@ async function handleGetTeacher(
       return errorResponse("教師不存在", 404);
     }
 
-    return successResponse(teacher);
+    return successResponse(sanitizeTeacher(teacher));
   } catch (error) {
     console.error("Error getting teacher:", error);
     return errorResponse("取得教師失敗", 500);
@@ -269,6 +253,18 @@ async function handleCreateTeacher(
       return errorResponse("教師已存在", 409);
     }
 
+    if (body.permission && !PERMISSIONS.includes(body.permission)) {
+      return errorResponse("權限值不正確");
+    }
+    const googleEmail = normalizeGoogleEmail(body.google_email);
+    if (googleEmail === null) {
+      return errorResponse("私人 Google 帳號格式不正確");
+    }
+    if (googleEmail) {
+      const owner = findGoogleEmailOwner(await manager.getAllTeachers(), googleEmail);
+      if (owner) return errorResponse(`此 Google 帳號已綁定給教師 ${owner}`, 409);
+    }
+
     // 新增教師
     const teacher: TeacherRecord = {
       teacher_id: teacherId,
@@ -276,6 +272,7 @@ async function handleCreateTeacher(
       name_en: body.name_en ? String(body.name_en).trim() : "",
       department: String(body.department).trim(),
       email: String(body.email).trim(),
+      ...(googleEmail ? { google_email: googleEmail } : {}),
       permission: body.permission || "teacher",
     };
 
@@ -284,7 +281,7 @@ async function handleCreateTeacher(
     return jsonResponse(
       {
         success: true,
-        data: teacher,
+        data: sanitizeTeacher(teacher),
         message: "教師新增成功",
         timestamp: new Date().toISOString(),
       },
@@ -318,6 +315,19 @@ async function handleUpdateTeacher(
 
     const body = await request.json();
 
+    if (body.permission && !PERMISSIONS.includes(body.permission)) {
+      return errorResponse("權限值不正確");
+    }
+    // google_email：沒帶 = 不變；空字串 = 解除綁定；有值 = 綁定（不能與其他教師重複）
+    const googleEmail = normalizeGoogleEmail(body.google_email);
+    if (googleEmail === null) {
+      return errorResponse("私人 Google 帳號格式不正確");
+    }
+    if (googleEmail) {
+      const owner = findGoogleEmailOwner(await manager.getAllTeachers(), googleEmail, id);
+      if (owner) return errorResponse(`此 Google 帳號已綁定給教師 ${owner}`, 409);
+    }
+
     // 合併更新
     const updated: TeacherRecord = {
       ...existing,
@@ -329,10 +339,14 @@ async function handleUpdateTeacher(
       email: body.email ? String(body.email).trim() : existing.email,
       permission: body.permission || existing.permission,
     };
+    if (googleEmail !== undefined) {
+      if (googleEmail) updated.google_email = googleEmail;
+      else delete updated.google_email;
+    }
 
     await manager.saveTeacher(updated);
 
-    return successResponse(updated, "教師修改成功");
+    return successResponse(sanitizeTeacher(updated), "教師修改成功");
   } catch (error) {
     console.error("Error updating teacher:", error);
     return errorResponse("修改教師失敗", 500);
@@ -390,43 +404,62 @@ async function handleBulkImportTeachers(
       errors: [] as { teacher_id: string; error: string }[],
     };
 
+    // 私人 Google 帳號重複檢查：以目前資料為底，匯入過程中新綁定的也要算進去
+    const allTeachers = await manager.getAllTeachers();
+    const googleOwners = new Map<string, string>();
+    for (const t of allTeachers) {
+      if (t.google_email) googleOwners.set(t.google_email.trim().toLowerCase(), t.teacher_id);
+    }
+
     for (const data of body.teachers) {
       try {
-        // 驗證必填欄位
-        if (
-          !data.teacher_id ||
-          !data.name_cn ||
-          !data.email ||
-          !data.department
-        ) {
-          results.errors.push({
-            teacher_id: data.teacher_id || "未知",
-            error: "缺少必填欄位",
-          });
+        // 必填：teacher_id；新教師另外需要 name_cn、email、department（既有教師可只填要更新的欄位）
+        if (!data.teacher_id) {
+          results.errors.push({ teacher_id: "未知", error: "缺少 School ID" });
           continue;
         }
 
         const teacherId = String(data.teacher_id).trim();
-        const department = String(data.department).trim();
+        const department = data.department ? String(data.department).trim() : "";
+
+        // 私人 Google 帳號（選填）：空白 = 不變更
+        const googleEmail = normalizeGoogleEmail(data.google_email);
+        if (googleEmail === null) {
+          results.errors.push({ teacher_id: teacherId, error: "私人 Google 帳號格式不正確" });
+          continue;
+        }
+        if (googleEmail) {
+          const owner = googleOwners.get(googleEmail);
+          if (owner && owner !== teacherId) {
+            results.errors.push({ teacher_id: teacherId, error: `Google 帳號已綁定給教師 ${owner}` });
+            continue;
+          }
+        }
 
         // 檢查教師是否已存在
         const existing = await manager.getTeacher(teacherId);
 
         if (existing) {
-          // 檢查 department 是否變更
-          if (existing.department !== department) {
-            // 更新 department
+          const departmentChanged = !!department && existing.department !== department;
+          const googleChanged = !!googleEmail && existing.google_email !== googleEmail;
+          if (departmentChanged || googleChanged) {
             const updated: TeacherRecord = {
               ...existing,
-              department,
+              ...(department ? { department } : {}),
+              ...(googleEmail ? { google_email: googleEmail } : {}),
             };
             await manager.saveTeacher(updated);
+            if (googleEmail) googleOwners.set(googleEmail, teacherId);
             results.updated++;
           } else {
-            // 跳過（部門未變更）
+            // 跳過（部門與 Google 帳號都未變更）
             results.skipped++;
           }
         } else {
+          if (!data.name_cn || !data.email || !department) {
+            results.errors.push({ teacher_id: teacherId, error: "新教師缺少必填欄位（Name、email、department）" });
+            continue;
+          }
           // 新增教師
           const teacher: TeacherRecord = {
             teacher_id: teacherId,
@@ -434,8 +467,10 @@ async function handleBulkImportTeachers(
             name_en: data.name_en ? String(data.name_en).trim() : "",
             department,
             email: String(data.email).trim(),
+            ...(googleEmail ? { google_email: googleEmail } : {}),
             permission: "teacher",
           };
+          if (googleEmail) googleOwners.set(googleEmail, teacherId);
           await manager.saveTeacher(teacher);
           results.created++;
         }
@@ -727,28 +762,14 @@ async function handleRequest(request: Request, env: Env): Promise<Response> {
     return handleOptions();
   }
 
-  // 驗證 API Key（除了健康檢查）
-  if (!pathname.includes("/health") && !verifyApiKey(request)) {
-    return errorResponse("未授權：缺少有效的 API Key", 401);
-  }
-
-  // 健康檢查
+  // 健康檢查（不需要 API Key）
   if (pathname === "/api/health") {
     return handleHealth();
   }
 
-  // 認證端點 (不需要 API Key)
-  if (pathname === "/auth/verify") {
-    if (method === "POST") {
-      return handleAuthVerify(manager, request);
-    } else {
-      return errorResponse("方法不允許", 405);
-    }
-  }
-
-  // 驗證 API Key（除了健康檢查）
-  if (!verifyApiKey(request)) {
-    return errorResponse("未授權：缺少有效的 API Key", 401);
+  // 其餘所有端點都需要正確的 API Key
+  if (!verifyApiKey(request, env)) {
+    return errorResponse("未授權：API Key 不正確", 401);
   }
 
   // 教師資料 API

@@ -777,11 +777,13 @@ export class UIManager {
     xlsxScript.onload = () => {
       try {
         // 使用 xlsx 庫生成 Excel 文件
-        const headers = ["department", "School ID", "Name", "email"];
+        // google_email：老師的私人 Google 帳號，登入系統用（學校信箱不能用來登入）；
+        // 匯入既有教師時只填 School ID + google_email 也可以，空白代表不變更
+        const headers = ["department", "School ID", "Name", "email", "google_email"];
         const sampleData = [
-          ["华文 Chinese", "T119", "谭长咏", "ecchhs014@chhsban.edu.my"],
-          ["数学 Maths", "T001", "李明", "ecchhs001@chhsban.edu.my"],
-          ["英文 English", "T100", "王美玲", "ecchhs100@chhsban.edu.my"],
+          ["华文 Chinese", "T119", "谭长咏", "ecchhs014@chhsban.edu.my", "tan.example@gmail.com"],
+          ["数学 Maths", "T001", "李明", "ecchhs001@chhsban.edu.my", "liming.example@gmail.com"],
+          ["英文 English", "T100", "王美玲", "ecchhs100@chhsban.edu.my", ""],
         ];
 
         // 建立工作表数据
@@ -798,6 +800,7 @@ export class UIManager {
           { wch: 12 }, // School ID
           { wch: 15 }, // Name
           { wch: 30 }, // email
+          { wch: 30 }, // google_email
         ];
 
         // 下载文件
@@ -871,6 +874,7 @@ export class UIManager {
               name_cn: row["Name"] || row["name_cn"],
               department: row["department"],
               email: row["email"],
+              google_email: row["google_email"] || row["Google Email"] || "",
             }));
 
             // 调用 API
@@ -884,12 +888,20 @@ export class UIManager {
             statusText.innerHTML = `
               ✅ 匯入完成！<br/>
               新增: ${results.created} 位 | 更新: ${results.updated} 位 | 跳過: ${results.skipped} 位
-              ${results.errors && results.errors.length > 0 ? `<br/>❌ 錯誤: ${results.errors.length} 筆` : ""}
+              ${results.errors && results.errors.length > 0
+                ? `<br/>❌ 錯誤: ${results.errors.length} 筆<br/>` +
+                  results.errors
+                    .map((e: { teacher_id: string; error: string }) =>
+                      `${String(e.teacher_id).replace(/[<>&]/g, "")}：${String(e.error).replace(/[<>&]/g, "")}`)
+                    .join("<br/>")
+                : ""}
             `;
 
-            this.showToast("批量匯入成功", "success");
+            const hasErrors = results.errors && results.errors.length > 0;
+            this.showToast(hasErrors ? "匯入完成，但有部分錯誤，請看下方說明" : "批量匯入成功", hasErrors ? "error" : "success");
             setTimeout(() => {
-              if (progressDiv) progressDiv.style.display = "none";
+              // 有錯誤時保留結果讓使用者看清楚是哪幾筆
+              if (progressDiv && !hasErrors) progressDiv.style.display = "none";
               this.refreshTeachers();
             }, 2000);
           } catch (error) {
