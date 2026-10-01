@@ -242,8 +242,6 @@ async function finalizeLogin(
     (teacher.permission as any) || "teacher",
   );
 
-  console.log(`[AUTH] Session created: ${session.token}`);
-
   return jsonResponse({
     success: true,
     data: {
