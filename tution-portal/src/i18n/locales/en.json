@@ -2,6 +2,7 @@
   "common": {
     "loading": "Loading...",
     "backHome": "Home",
+    "adminPortal": "Admin Portal",
     "logout": "Logout",
     "language": "Language",
     "switchToEnglish": "Switch to English",

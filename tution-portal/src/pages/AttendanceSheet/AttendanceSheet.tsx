@@ -61,7 +61,6 @@ function composeReason(entry: DraftEntry): string {
 export const AttendanceSheet: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const readOnly = user?.permission === "super_admin";
   const { t } = useTranslation();
   const gradeLabel = useGradeLabel();
   const dayLabel = useDayLabel();
@@ -75,6 +74,8 @@ export const AttendanceSheet: React.FC = () => {
   };
 
   const [classInfo, setClassInfo] = useState<TutionClass | null>(null);
+  // 看別人的課（只有管理身分看得到）才唯讀；自己的課不論身分都可以點名
+  const readOnly = !!classInfo && classInfo.teacher_id !== user?.teacherId;
   const [roster, setRoster] = useState<ClassRosterEntry[]>([]);
   const [exceptions, setExceptions] = useState<TutionSchedule[]>([]);
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceQueryRecord[]>([]);
@@ -84,8 +85,11 @@ export const AttendanceSheet: React.FC = () => {
 
   const [selectedDate, setSelectedDate] = useState("");
   const [draft, setDraft] = useState<Map<string, DraftEntry>>(new Map());
-  // 管理員（唯讀）直接看總覽表格，不需要進到個別日期的點名畫面。
-  const [showOverview, setShowOverview] = useState(readOnly);
+  // 唯讀（看別人的課）直接看總覽表格，不需要進到個別日期的點名畫面。
+  const [showOverview, setShowOverview] = useState(false);
+  useEffect(() => {
+    if (readOnly) setShowOverview(true);
+  }, [readOnly]);
 
   const loadStaticData = useCallback(async () => {
     if (!classId) {

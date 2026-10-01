@@ -6,6 +6,10 @@ import houseIcon from "@/assets/house.svg";
 import logOutIcon from "@/assets/log-out.svg";
 import { LanguageToggle } from "./LanguageToggle";
 
+const ADMIN_PORTAL_URL = "https://chhsban-admin.pages.dev";
+// 可以進行政管理站的身分
+const ADMIN_PORTAL_PERMISSIONS = ["super_admin", "admin", "classroom_manager", "dorm_supervisor"];
+
 interface LayoutProps {
   title?: string;
   children: React.ReactNode;
@@ -13,7 +17,7 @@ interface LayoutProps {
 
 // Header 版面沿用 tution-portal：左邊頁面標題，右邊中／EN 切換 + 回首頁 + 登出圖示（老師姓名改在首頁歡迎語顯示）
 export const Layout: React.FC<LayoutProps> = ({ title, children }) => {
-  const { logout } = useAuth();
+  const { logout, user } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation();
 
@@ -22,6 +26,12 @@ export const Layout: React.FC<LayoutProps> = ({ title, children }) => {
       <header className="app-header">
         <span className="app-header__title">{title || t("common.appTitle")}</span>
         <div className="app-header__right">
+          {/* 有管理身分的人從本站登入會留在老師端；行政工作在行政管理站（需另外登入一次） */}
+          {user && ADMIN_PORTAL_PERMISSIONS.includes(user.permission) && (
+            <a href={ADMIN_PORTAL_URL} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14, whiteSpace: "nowrap" }}>
+              {t("app.adminPortal")} ↗
+            </a>
+          )}
           <LanguageToggle />
           <button className="app-header__icon-btn" onClick={() => navigate("/")} aria-label={t("common.backHome")} title={t("common.backHome")}>
             <img src={houseIcon} alt="" />

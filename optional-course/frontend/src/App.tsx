@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { AuthProvider, useAuth } from "@/context/AuthContext";
 import Login from "@/pages/Login/Login";
@@ -11,11 +11,6 @@ import AttendanceSheet from "@/pages/AttendanceSheet/AttendanceSheet";
 // 行政端（建課、綁定老師、開關窗口、行事曆、點名追蹤）在管理站（admin-portal），
 // 本站只保留老師端（名冊／排課／點名）。舊的 /admin/courses 一律轉址過去。
 const ADMIN_PORTAL_URL = "https://chhsban-admin.pages.dev/optional/courses";
-
-// admin（督察員）在選修課只能查看課程總覽，不會有自己的課，一律導到管理系統
-const RESTRICTED_ALLOWED_PATHS: Record<string, string[]> = {
-  admin: ["/admin/courses"],
-};
 
 const RedirectToAdminPortal: React.FC = () => {
   const { t } = useTranslation();
@@ -31,9 +26,10 @@ const RedirectToAdminPortal: React.FC = () => {
   );
 };
 
+// 不依身分轉址：管理身分的人（超級管理員、督察員等）也可能被綁定為授課老師，從本站登入就留在老師端；
+// 要做行政工作時自行到行政管理站登入（Header 有連結）。
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { isAuthenticated, isLoading, user } = useAuth();
-  const location = useLocation();
+  const { isAuthenticated, isLoading } = useAuth();
   const { t } = useTranslation();
 
   if (isLoading) {
@@ -44,19 +40,10 @@ const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) =
     return <Navigate to="/login" replace />;
   }
 
-  const allowedPaths = user ? RESTRICTED_ALLOWED_PATHS[user.permission] : undefined;
-  if (allowedPaths && !allowedPaths.includes(location.pathname)) {
-    return <Navigate to={allowedPaths[0]} replace />;
-  }
-
   return <>{children}</>;
 };
 
-const HomeRedirect: React.FC = () => {
-  const { user } = useAuth();
-  const isAdmin = user?.permission === "admin" || user?.permission === "super_admin";
-  return <Navigate to={isAdmin ? "/admin/courses" : "/my/courses"} replace />;
-};
+const HomeRedirect: React.FC = () => <Navigate to="/my/courses" replace />;
 
 const AppRoutes = () => {
   return (

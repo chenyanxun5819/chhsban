@@ -26,12 +26,13 @@ import "./schedule-management.css";
 export const ScheduleManagement: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
   const { user } = useAuth();
-  const readOnly = user?.permission === "super_admin";
   const { t } = useTranslation();
   const gradeLabel = useGradeLabel();
   const dayLabel = useDayLabel();
 
   const [classInfo, setClassInfo] = useState<TutionClass | null>(null);
+  // 看別人的課（只有管理身分看得到）才唯讀；自己的課不論身分都可以操作
+  const readOnly = !!classInfo && classInfo.teacher_id !== user?.teacherId;
   const [exceptions, setExceptions] = useState<TutionSchedule[]>([]);
   const [attendedDates, setAttendedDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);

@@ -1,5 +1,5 @@
 import React from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { ClassRosterEntry, TutionClass } from "@/types";
 import apiClient from "@/utils/api";
 import {
@@ -25,9 +25,7 @@ interface PageState {
 
 const RosterManagement: React.FC = () => {
   const { id: classId } = useParams<{ id: string }>();
-  const navigate = useNavigate();
   const { user } = useAuth();
-  const readOnly = user?.permission === "super_admin";
   const { t } = useTranslation();
   const gradeLabel = useGradeLabel();
   const dayLabel = useDayLabel();
@@ -37,6 +35,8 @@ const RosterManagement: React.FC = () => {
     saving: false,
     error: "",
   });
+  // 看別人的課（只有管理身分看得到）才唯讀；自己的課不論身分都可以管理名單
+  const readOnly = !!state.classInfo && state.classInfo.teacher_id !== user?.teacherId;
 
   const fetchRoster = React.useCallback(async () => {
     if (!classId) {

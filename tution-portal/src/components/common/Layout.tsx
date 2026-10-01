@@ -7,6 +7,10 @@ import houseIcon from "../../assets/house.svg";
 import logOutIcon from "../../assets/log-out.svg";
 import "../../styles/layout.css";
 
+const ADMIN_PORTAL_URL = "https://chhsban-admin.pages.dev";
+// 可以進行政管理站的身分
+const ADMIN_PORTAL_PERMISSIONS = ["super_admin", "admin", "classroom_manager", "dorm_supervisor"];
+
 interface HeaderProps {
   title?: string;
   onMenuToggle?: () => void;
@@ -38,6 +42,12 @@ export const Header: React.FC<HeaderProps> = ({ title, onMenuToggle, menuOpen })
         <div className="user-info">
           <span className="user-info__name">{user?.teacherName}</span>
         </div>
+        {/* 有管理身分的人從本站登入會留在老師端；行政工作在行政管理站（需另外登入一次） */}
+        {user && ADMIN_PORTAL_PERMISSIONS.includes(user.permission) && (
+          <a href={ADMIN_PORTAL_URL} target="_blank" rel="noopener noreferrer" style={{ fontSize: 14, whiteSpace: "nowrap" }}>
+            {t("common.adminPortal")} ↗
+          </a>
+        )}
         <LanguageToggle />
         <button
           className="header__home"
