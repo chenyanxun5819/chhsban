@@ -1,0 +1,31 @@
+{
+  "_说明": "科目设定。code=考卷封面的科目代号；answer_keywords=答案卷(没有代号)用来辨认科目的关键字(会去空白、转大写后比对，越前面的科目越先比对)；code/codes=科目代号(codes 可放历年其他代号，例如 2026 会计 SE16 沿用 UBK)；papers=该科有哪些试卷及考试时间(分钟，可写成清单 [40, 50] 表示历年不同)，用来推论答案卷是哪一卷；paper_hints=答案卷内文的关键字提示。",
+  "subjects": [
+    {"grade": "J3", "name": "BC",    "zh": "华文",   "code": "JY01", "answer_keywords": ["华文BC", "华文"], "papers": {"P1": 105, "P2": 90}, "paper_hints": {"P1": ["作文", "写作", "评分标准"], "P2": ["作答纸", "答案卷", "语文基础"]}},
+    {"grade": "J3", "name": "BM",    "zh": "马来文", "code": "JY02", "answer_keywords": ["BAHASAMALAYSIA", "BAHASAMELAYU"], "papers": {"K1": 105, "K2": 75}, "paper_hints": {"K1": ["KARANGAN"], "K2": ["RUMUSAN"]}},
+    {"grade": "J3", "name": "BI",    "zh": "英文",   "code": "JY03", "answer_keywords": ["ENGLISHLANGUAGE"], "papers": {"P1": 105, "P2": 80}},
+    {"grade": "J3", "name": "MATHS", "zh": "数学",   "code": "JC04", "answer_keywords": ["统考数学", "UECMATHS"], "papers": {"P1": 80, "P2": 100}},
+    {"grade": "J3", "name": "USCI",  "zh": "科学",   "code": "JC05", "answer_keywords": ["统考科学", "UECSCIENCE"], "papers": {"P1": 70, "P2": 80}},
+    {"grade": "J3", "name": "UHIS",  "zh": "历史",   "code": "JY06", "answer_keywords": ["统考历史", "UHIS"], "papers": {"P2": 120}},
+    {"grade": "J3", "name": "UGEO",  "zh": "地理",   "code": "JY07", "answer_keywords": ["统考地理", "UGEO"], "papers": {"P1": 60, "P2": 80}},
+    {"grade": "J3", "name": "ART",   "zh": "美术",   "code": "JY08", "answer_keywords": ["美术"], "papers": {"P1": 30, "P2": 150}},
+
+    {"grade": "S3", "name": "BC",    "zh": "华文",   "code": "SY01", "answer_keywords": ["华文BC", "华文"], "papers": {"P1": 105, "P2": 105}, "paper_hints": {"P1": ["作文", "写作", "评分标准"], "P2": ["作答纸", "答案卷", "语文基础"]}},
+    {"grade": "S3", "name": "BM",    "zh": "马来文", "code": "SY02", "answer_keywords": ["BAHASAMELAYU", "BAHASAMALAYSIA"], "papers": {"K1": 110, "K2": 110}, "paper_hints": {"K1": ["KARANGAN"], "K2": ["RUMUSAN"]}},
+    {"grade": "S3", "name": "BI",    "zh": "英文",   "code": "SY03", "answer_keywords": ["ENGLISHLANGUAGE"], "papers": {"P1": 100, "P2": 80}},
+    {"grade": "S3", "name": "ADV MATHS Ⅱ", "zh": "高级数学(II)", "code": "SC07", "answer_keywords": ["高数II", "高数Ⅱ", "高级数学(II)", "高级数学II", "高级数学Ⅱ", "ADVMATHSII", "ADVANCEDMATHS.II", "ADVANCEDMATHSII", "MATHS.(II)", "MATHS(II)"], "papers": {"P1": 60, "P2": 120}},
+    {"grade": "S3", "name": "ADV MATHS Ⅰ", "zh": "高级数学(I)",  "code": "SC06", "answer_keywords": ["高级数学(I)", "高级数学I", "高级数学Ⅰ", "高数I", "ADVMATHSI", "ADVANCEDMATHS.I", "ADVANCEDMATHSI", "MATHS.(I)", "MATHS(I)"], "papers": {"P1": 60, "P2": 120}},
+    {"grade": "S3", "name": "ADV MATHS",   "zh": "高级数学",     "code": "SC05", "answer_keywords": ["统考高级数学", "高级数学"], "papers": {"P1": 60, "P2": 120}},
+    {"grade": "S3", "name": "MATHS", "zh": "数学",   "code": "SC04", "answer_keywords": ["统考数学", "UECMATHEMATICS", "UECMATHS"], "papers": {"P1": 60, "P2": 120}},
+    {"grade": "S3", "name": "UBIO",  "zh": "生物",   "code": "SC10", "answer_keywords": ["统考生物", "UECBIOLOGY", "BIOLOGY"], "papers": {"P1": 50, "P2": 120}},
+    {"grade": "S3", "name": "UCHEM", "zh": "化学",   "code": "SE11", "answer_keywords": ["统考化学", "UECCHEMISTRY", "CHEMISTRY"], "papers": {"P1": 60, "P2": 120}},
+    {"grade": "S3", "name": "UPHY",  "zh": "物理",   "code": "SE12", "answer_keywords": ["统考物理", "UECPHYSICS", "PHYSICS"], "papers": {"P1": 70, "P2": 120}},
+    {"grade": "S3", "name": "UBS",   "zh": "商业学", "code": "SC14", "answer_keywords": ["商业学", "UECBUSINESS"], "papers": {"P1": [40, 50], "P2": 120}},
+    {"grade": "S3", "name": "UBK",   "zh": "簿记与会计／会计", "code": "SE15", "codes": ["SE16"], "answer_keywords": ["统考簿记", "UECBOOKKEEPING", "BOOKKEEPING", "统考会计", "UECACCOUNTING", "ACCOUNTING"], "papers": {"P1": 30, "P2": 180}},
+    {"grade": "S3", "name": "UECON", "zh": "经济学", "code": "SY17", "answer_keywords": ["统考经济学", "UECECONOMICS", "ECONOMICS"], "papers": {"P1": 45, "P2": [120, 150]}},
+    {"grade": "S3", "name": "COMPUTING & IT", "zh": "电脑与资讯工艺", "code": "SY18", "answer_keywords": ["统考电脑与资讯", "电脑与资讯", "COMPUTING&IT", "COMPUTING"], "papers": {"P1": 60, "P2": 90}},
+    {"grade": "S3", "name": "UGEO",  "zh": "地理",   "code": "SY09", "answer_keywords": ["统考地理", "UGEO"], "papers": {"P1": 60, "P2": 110}},
+    {"grade": "S3", "name": "UHIS",  "zh": "历史",   "code": "SY08", "answer_keywords": ["高中历史", "UECHISTORY", "统考历史", "UHIS"], "papers": {"P1": 40, "P2": 130}},
+    {"grade": "S3", "name": "ART",   "zh": "美术",   "code": "SY19", "answer_keywords": ["美术"], "papers": {"P1": 20, "P2": 160}}
+  ]
+}

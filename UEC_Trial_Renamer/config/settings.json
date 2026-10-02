@@ -1,0 +1,14 @@
+{
+  "_说明": "一般设定。修改后重新执行即可生效。",
+  "name_template": "{date} TRIAL {grade} {subject}{section} {paper}{ans}",
+  "folder_template": "CHHS {year} UEC {grade}",
+  "ocr": {"crop": 0.40, "dpi": 150},
+  "deep_check_pages": 4,
+  "watermark": {
+    "enabled": true,
+    "image": "assets/watermark_logo.png",
+    "width_ratio": 0.50,
+    "opacity": 0.30,
+    "on_top": true
+  }
+}

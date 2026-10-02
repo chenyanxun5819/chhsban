@@ -34,6 +34,12 @@
 		},
 		{
 			"path": "optional-course"
+		},
+		{
+			"path": "admin-portal"
+		},
+		{
+			"path": "UEC_Trial_Renamer"
 		}
 	],
 	"settings": {
