@@ -10,6 +10,8 @@ import { KV_CONFIG } from "../types/index.js";
 const EMAIL_DIRECTORY_KEY = "email_directory";
 // 查無此 email 時，對照表超過這個時間才重建一次，避免有人亂打 email 就一直觸發全表掃描
 const EMAIL_DIRECTORY_REBUILD_MS = 30 * 60 * 1000;
+// 掃描全部教師時，一批同時讀幾筆
+const READ_BATCH_SIZE = 30;
 
 interface EmailDirectory {
   built_at: number;
@@ -114,32 +116,10 @@ export class TeacherKVManager {
    * @returns TeacherRecord[]
    */
   async getTeachersByDepartment(department: string): Promise<TeacherRecord[]> {
-    const teachers: TeacherRecord[] = [];
-    let cursor: string | undefined;
-
-    const listOptions: Parameters<typeof this.kv.list>[0] = {
-      prefix: KV_CONFIG.TEACHER_PREFIX,
-    };
-
-    do {
-      const result = await this.kv.list(listOptions);
-
-      for (const item of result.keys) {
-        const teacher = await this.getTeacher(item.name.replace(KV_CONFIG.TEACHER_PREFIX, ""));
-        // trim 比對：教師資料裡的舊 department 字串可能帶有前後多餘空白（歷史匯入資料常見），
-        // 嚴格相等會漏掉這些記錄，導致部門刪除/改名時誤判「沒有教師在用」
-        if (teacher && teacher.department?.trim() === department.trim()) {
-          teachers.push(teacher);
-        }
-      }
-
-      cursor = result.list_complete ? undefined : result.cursor;
-      if (cursor) {
-        listOptions.cursor = cursor;
-      }
-    } while (cursor);
-
-    return teachers;
+    const target = department.trim();
+    // trim 比對：教師資料裡的舊 department 字串可能帶有前後多餘空白（歷史匯入資料常見），
+    // 嚴格相等會漏掉這些記錄，導致部門刪除/改名時誤判「沒有教師在用」
+    return (await this.getAllTeachers()).filter((teacher) => teacher.department?.trim() === target);
   }
 
   /**
@@ -147,30 +127,7 @@ export class TeacherKVManager {
    * @returns TeacherRecord[]
    */
   async getAdmins(): Promise<TeacherRecord[]> {
-    const admins: TeacherRecord[] = [];
-    let cursor: string | undefined;
-
-    const listOptions: Parameters<typeof this.kv.list>[0] = {
-      prefix: KV_CONFIG.TEACHER_PREFIX,
-    };
-
-    do {
-      const result = await this.kv.list(listOptions);
-
-      for (const item of result.keys) {
-        const teacher = await this.getTeacher(item.name.replace(KV_CONFIG.TEACHER_PREFIX, ""));
-        if (teacher && teacher.permission === "admin") {
-          admins.push(teacher);
-        }
-      }
-
-      cursor = result.list_complete ? undefined : result.cursor;
-      if (cursor) {
-        listOptions.cursor = cursor;
-      }
-    } while (cursor);
-
-    return admins;
+    return (await this.getAllTeachers()).filter((teacher) => teacher.permission === "admin");
   }
 
   /**
@@ -203,6 +160,9 @@ export class TeacherKVManager {
 
   /**
    * 获取所有教师
+   *
+   * 分批同時讀取，不要一筆一筆排隊：KV 一陣子沒讀過的 key 每筆要 100–300ms，一百多位老師排隊讀
+   * 會超過前端 30 秒的等待上限（2026-10-01 老師管理頁第一次打開常出現「無法連線到伺服器」）。
    * @returns TeacherRecord[]
    */
   async getAllTeachers(): Promise<TeacherRecord[]> {
@@ -216,10 +176,16 @@ export class TeacherKVManager {
     do {
       const result = await this.kv.list(listOptions);
 
-      for (const item of result.keys) {
-        const teacher = await this.getTeacher(item.name.replace(KV_CONFIG.TEACHER_PREFIX, ""));
-        if (teacher) {
-          teachers.push(teacher);
+      for (let i = 0; i < result.keys.length; i += READ_BATCH_SIZE) {
+        const batch = await Promise.all(
+          result.keys
+            .slice(i, i + READ_BATCH_SIZE)
+            .map((item: { name: string }) => this.getTeacher(item.name.replace(KV_CONFIG.TEACHER_PREFIX, ""))),
+        );
+        for (const teacher of batch) {
+          if (teacher) {
+            teachers.push(teacher);
+          }
         }
       }
 

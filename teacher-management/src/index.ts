@@ -574,8 +574,11 @@ async function listDepartments(kv: KVNamespace): Promise<DepartmentRecord[]> {
   do {
     const result: any = await kv.list({ prefix: DEPARTMENT_PREFIX, cursor });
 
-    for (const item of result.keys) {
-      const data = await kv.get(item.name);
+    // 同時讀取（部門只有十幾個），不要一筆一筆排隊等
+    const values: (string | null)[] = await Promise.all(result.keys.map((item: { name: string }) => kv.get(item.name)));
+
+    for (const [index, item] of result.keys.entries()) {
+      const data = values[index];
       if (data) {
         try {
           departments.push(JSON.parse(data) as DepartmentRecord);
