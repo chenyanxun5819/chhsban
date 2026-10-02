@@ -215,59 +215,145 @@ class SMSHandler:
                             class_name_to_id[option.get_text(strip=True)] = option.get('value')
                     log('info', f"  ✓ 取得 {len(class_name_to_id)} 个班级")
 
-                    item_id = ""
+                    # 没有项目编号就不上传：不能替操作者猜一个项目，否则成绩会写进别的活动
+                    activity_code = (activity_code or '').strip()
+                    if not activity_code:
+                        result['message'] = "❌ 没有指定项目编号，已取消上传"
+                        log('error', result['message'])
+                        result['failed'] = result['total']
+                        return result
+
+                    # 编号必须整段相符：ACA CMI14 不能匹配到 ACA CMI145
+                    code_pattern = re.compile(
+                        rf'(?<![A-Za-z0-9]){re.escape(activity_code)}(?![A-Za-z0-9])'
+                    )
+                    matched_options = []
                     item_select = soup_page.select_one('select#StudentPerformanceM_item_id')
                     if item_select:
                         for option in item_select.select('option[value]:not([value=""])'):
                             option_text = option.get_text(strip=True) or ""
-                            if activity_code and activity_code in option_text:
-                                item_id = option.get('value')
-                                log('info', f"  ✓ 找到活动 '{activity_code}'，item_id: {item_id}")
-                                break
+                            if code_pattern.search(option_text):
+                                matched_options.append((option.get('value'), option_text))
 
-                    if activity_code and not item_id:
+                    if not matched_options:
                         result['message'] = f"❌ 查无此代号的活动，请先输入此活动项目资料！(代号: {activity_code})"
                         log('error', result['message'])
                         result['failed'] = result['total']
                         return result
 
+                    if len(matched_options) > 1:
+                        result['message'] = (
+                            f"❌ 代号 {activity_code} 对应到 {len(matched_options)} 个活动，无法确定是哪一个，已取消上传: "
+                            + "；".join(text for _, text in matched_options)
+                        )
+                        log('error', result['message'])
+                        result['failed'] = result['total']
+                        return result
+
+                    item_id = matched_options[0][0]
+                    log('info', f"  ✓ 找到活动 '{matched_options[0][1]}'，item_id: {item_id}")
+
                     # 检查此活动项目 + 日期是否已经有既有记录 -- 若有，之后要合并写入
                     # 同一笔记录，而不是另外新增一笔重复的活动记录
-                    upload_date = date or '2026-01-01'
+                    # 日期必须先转成 YYYY-MM-DD 再拿去查：SMS 的 update 路由遇到 26/5/2026 这种格式
+                    # 会直接回 HTTP 500，查不到既有记录就会被当成新增，同一批学生因此被重复写入
+                    # 没有日期就不上传：代填一个日期会把成绩写进错的那一天
+                    upload_date = (date or '').strip()
+                    if not upload_date:
+                        result['message'] = "❌ 没有指定日期，已取消上传"
+                        log('error', result['message'])
+                        result['failed'] = result['total']
+                        return result
+                    if '/' in upload_date:
+                        from datetime import datetime
+                        for fmt in ['%d/%m/%Y', '%m/%d/%Y', '%Y/%m/%d']:
+                            try:
+                                converted = datetime.strptime(upload_date, fmt).strftime('%Y-%m-%d')
+                                log('info', f"  🗓 日期转换: {upload_date} → {converted}")
+                                upload_date = converted
+                                break
+                            except ValueError:
+                                continue
+                        else:
+                            log('warning', f"  ⚠ 日期格式无法转换，使用原值: {upload_date}")
                     existing_post_data = {}
                     existing_internal_ids = set()
+                    existing_records = []  # (记录编号, 学号)，一笔记录一项，同一学生重复时会有多项
                     is_update_mode = False
-                    
-                    try:
+
+                    def load_existing_records():
+                        """读取修改页上的既有记录，回传 (是否已有记录, 表单栏位, 学生内部ID, 记录清单)"""
+                        fields, internal_ids, records = {}, set(), []
                         check_params = {
                             'r': 'transaction/studentPerformance/update',
                             'date': upload_date,
                             'item_id': item_id,
                         }
                         resp_check = use_session.get(BASE_URL, params=check_params, timeout=15)
-                        if resp_check.status_code == 200:
-                            soup_check = BeautifulSoup(resp_check.text, 'html.parser')
-                            perf_inputs = soup_check.select('input[name^="StudentPerformanceM[inputperformance]"]')
-                            if perf_inputs:
-                                is_update_mode = True
-                                for inp in perf_inputs:
-                                    name = inp.get('name')
-                                    existing_post_data[name] = inp.get('value', '')
-                                    m = re.search(r'\[inputperformance\]\[(\d+)\]\[', name or '')
-                                    if m:
-                                        existing_internal_ids.add(m.group(1))
-                                for sel in soup_check.select('select[name^="StudentPerformanceM[inputperformance]"]'):
-                                    chosen = sel.find('option', selected=True) or sel.find('option')
-                                    existing_post_data[sel.get('name')] = chosen.get('value', '') if chosen else ''
-                                for ta in soup_check.select('textarea[name^="StudentPerformanceM[inputperformance]"]'):
-                                    existing_post_data[ta.get('name')] = ta.get_text()
-                                for inp in soup_check.select('input[name^="StudentPerformanceM["]'):
-                                    name = inp.get('name', '')
-                                    if re.match(r'StudentPerformanceM\[\d+\]\[student_id\]', name):
-                                        existing_post_data[name] = inp.get('value', '')
-                                log('info', f"  ℹ 此活动在 {upload_date} 已有 {len(existing_internal_ids)} 位既有学生记录，将合并写入同一笔记录（不会另外新增）")
+                        if resp_check.status_code != 200:
+                            raise Exception(f"HTTP {resp_check.status_code}")
+                        soup_check = BeautifulSoup(resp_check.text, 'html.parser')
+                        perf_inputs = soup_check.select('input[name^="StudentPerformanceM[inputperformance]"]')
+                        if not perf_inputs:
+                            return False, fields, internal_ids, records
+                        for inp in perf_inputs:
+                            name = inp.get('name')
+                            fields[name] = inp.get('value', '')
+                            m = re.search(r'\[inputperformance\]\[(\d+)\]\[', name or '')
+                            if m:
+                                internal_ids.add(m.group(1))
+                        for sel in soup_check.select('select[name^="StudentPerformanceM[inputperformance]"]'):
+                            chosen = sel.find('option', selected=True) or sel.find('option')
+                            fields[sel.get('name')] = chosen.get('value', '') if chosen else ''
+                        for ta in soup_check.select('textarea[name^="StudentPerformanceM[inputperformance]"]'):
+                            fields[ta.get('name')] = ta.get_text()
+                        for inp in soup_check.select('input[name^="StudentPerformanceM["]'):
+                            name = inp.get('name', '')
+                            if re.match(r'StudentPerformanceM\[\d+\]\[student_id\]', name):
+                                fields[name] = inp.get('value', '')
+                        # 每一行的删除按钮带有该笔记录的编号：delValue(记录编号, 学生内部ID)
+                        for link in soup_check.select('a[onclick^="delValue("]'):
+                            m = re.search(r'delValue\((\d+),', link.get('onclick', ''))
+                            row = link.find_parent('tr')
+                            first_cell = row.find('td') if row else None
+                            if m and first_cell:
+                                records.append((int(m.group(1)), first_cell.get_text(strip=True)))
+                        return True, fields, internal_ids, records
+
+                    try:
+                        is_update_mode, existing_post_data, existing_internal_ids, existing_records = load_existing_records()
+                        if is_update_mode:
+                            log('info', f"  ℹ 此活动在 {upload_date} 已有 {len(existing_internal_ids)} 位既有学生记录，将合并写入同一笔记录（不会另外新增）")
+                        else:
+                            log('info', f"  ℹ 此活动在 {upload_date} 尚无既有记录，将以新增记录处理")
                     except Exception as e:
-                        log('warning', f"  ⚠ 检查既有记录时发生问题，将以新增记录处理: {e}")
+                        log('warning', f"  ⚠ 检查既有记录时发生问题，将以新增记录处理（可能产生重复）: {e}")
+
+                    # 本次 Excel 里的学生若已有多笔重复记录，只留最新一笔（之后会被 Excel 内容覆盖），
+                    # 其余旧记录先删除。SMS 的修改页不会合并重复，只能逐笔删。不在 Excel 里的学生不动。
+                    upload_student_nos = {str(item.get('student_id', '')).strip() for item in scores_data}
+                    records_by_student = {}
+                    for record_id, student_no in existing_records:
+                        if student_no in upload_student_nos:
+                            records_by_student.setdefault(student_no, []).append(record_id)
+                    stale_records = [
+                        (student_no, record_id)
+                        for student_no, record_ids in records_by_student.items()
+                        for record_id in sorted(record_ids)[:-1]
+                    ]
+                    if stale_records:
+                        log('warning', f"  ⚠ 发现 {len(stale_records)} 笔重复的旧记录，上传前先删除...")
+                        for student_no, record_id in stale_records:
+                            resp_del = use_session.post(
+                                BASE_URL,
+                                params={'r': 'transaction/studentPerformance/delete', 'id': record_id},
+                                timeout=15,
+                            )
+                            if resp_del.status_code != 200:
+                                raise Exception(f"删除重复记录失败（学号 {student_no}，记录 {record_id}）: HTTP {resp_del.status_code}")
+                            log('info', f"    🗑 已删除学号 {student_no} 的重复旧记录 (记录编号 {record_id})")
+                        # 删除后重新读取，确保之后提交的既有栏位与 SMS 上的实际记录一致
+                        is_update_mode, existing_post_data, existing_internal_ids, existing_records = load_existing_records()
 
                     # 第2步：将班级简写（括号内代码）也纳入映射，方便匹配 Excel 里的简写班级名
                     short_code_to_id = {}
@@ -300,7 +386,7 @@ class SMSHandler:
                             'StudentPerformanceM[class_id]': target_class_id,
                             'StudentPerformanceM[item_id]': item_id,
                             'ajax': 'student-grid',
-                            'date': date if date else '2026-01-01',
+                            'date': upload_date,
                             'item_id': item_id,
                         }
                         resp = use_session.get(BASE_URL, params=ajax_params, timeout=15)
@@ -357,28 +443,10 @@ class SMSHandler:
                         log('info', f"    班级 {class_id}: {len(all_students_map[class_id])} 位学生")
 
                     # 第5步：组装批量提交的表单数据（若为既有记录，先带入既有栏位以免覆盖遗失）
-                    # 确保日期格式为YYYY-MM-DD
-                    formatted_date = upload_date
-                    if '/' in upload_date:
-                        # 如果是26/5/2026或5/26/2026格式，转换为YYYY-MM-DD
-                        try:
-                            from datetime import datetime
-                            # 尝试多种日期格式
-                            for fmt in ['%d/%m/%Y', '%m/%d/%Y', '%Y/%m/%d']:
-                                try:
-                                    dt = datetime.strptime(upload_date, fmt)
-                                    formatted_date = dt.strftime('%Y-%m-%d')
-                                    log('info', f"  🗓 日期转换: {upload_date} → {formatted_date}")
-                                    break
-                                except:
-                                    continue
-                        except Exception as e:
-                            log('warning', f"日期格式转换失败: {e}，使用原值")
-                    
                     post_data = {
                         'StudentPerformanceM[year]': current_year,
                         'StudentPerformanceM[semester]': current_semester,
-                        'StudentPerformanceM[date]': formatted_date,
+                        'StudentPerformanceM[date]': upload_date,
                         'StudentPerformanceM[item_id]': item_id,
                     }
                     post_data.update(existing_post_data)
