@@ -4,5 +4,6 @@ __pycache__/
 build/
 dist/
 output/
-samples/
+samples/*/*
+!samples/*/ground_truth.csv
 *.spec
