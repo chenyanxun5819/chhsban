@@ -180,6 +180,13 @@ async function buildOptionalCourses(year: number, onProgress: (text: string) => 
 
 type Kind = "tution" | "optional";
 
+/** 距離 1/1 學年重置還有幾天（馬來西亞時間） */
+function daysUntilReset(): number {
+  const today = todayMYT();
+  const next = `${Number(today.slice(0, 4)) + 1}-01-01`;
+  return Math.round((Date.parse(`${next}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000);
+}
+
 const YearArchive: React.FC = () => {
   const [year, setYear] = useState(currentYear());
   const [running, setRunning] = useState<Kind | null>(null);
@@ -228,6 +235,10 @@ const YearArchive: React.FC = () => {
           </ul>
           <p className="ss-muted">
             補習班以「開課日期」所在年份歸年；選修課以建課時的年份歸年。學生班級是加入名單當時的班級。
+          </p>
+          <p className={daysUntilReset() <= 31 ? "error-text" : "ss-muted"}>
+            ⚠️ 學年重置：{currentYear() + 1}/1/1 凌晨起，{currentYear()} 年的補習班、選修課資料（課程、名單、點名）會自動刪除，
+            無法復原。請在 12/31 前下載兩份封存檔（還有 {daysUntilReset()} 天）。老師、教室與學生名單不受影響。
           </p>
           <div className="ss-actions" style={{ flexWrap: "wrap", gap: 8 }}>
             <label>

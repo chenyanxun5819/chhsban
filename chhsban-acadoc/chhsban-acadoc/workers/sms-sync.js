@@ -26,12 +26,13 @@
  * 之后的 SMS 同步会维持这些学生为离校，直到下一份官方名单再列入；住宿代码以官方名单为准。
  *
  * 学年交接：SMS 每页上方都有「第二 学期, 2026」，同步时一并读取存进 metadata.sms_term。
- * SMS 换到新学年（年份比上次成功同步时大）的那次同步，上一学年的官方名单不再套用并删除，
- * 否则名单外的学生会一直被当成离校、住宿代码也会沿用去年的。学生资料本身不清空（学号不变、不会冲突）。
+ * SMS 换到新学年（年份比上次成功同步时大）的那次同步，上一学年官方名单的住宿代码不再套用
+ * （否则会盖过新学年重新上传的住宿名单）；名单外的离校学生维持离校，直到上传新学年的官方名单。
+ * 学生资料本身不清空（学号不变、不会冲突）。新学年住宿名单要重新执行 prepare_excel_for_worker.py 上传。
  * 新学年初 SMS 名单还没建好时：抓到 0 人 → 失败、不写入；人数骤降 → 被保险挡下、不写入，原资料不受影响。
  *
  * 每次同步的 KV 用量：读 4（excel_gender_boarding_map、official_roster、上一版 students_by_no、metadata）
- * + 1（sync_status），写 4（students_by_no、classes、metadata、sync_status）；换学年那次多删 1（official_roster）。
+ * + 1（sync_status），写 4（students_by_no、classes、metadata、sync_status）；换学年那次多写 1（official_roster）。
  *
  * 必需的密钥（用 `wrangler secret put` 设置，不要写在代码或 wrangler.toml 里）：
  *   wrangler secret put SMS_USER
@@ -317,9 +318,12 @@ async function runSync(env, { trigger, triggered_by = '', force = false }) {
 
     const today = localDateString();
     let official = await env.STUDENT_KV.get('official_roster', 'json');
-    if (official && newAcademicYear) {
-      log.push(`   🎓 SMS 已进入 ${term.year} 学年（上次 ${prevTerm.year}），上一学年的官方名单 ${official.file_name} 不再套用，写入后删除`);
-      official = null;
+    if (newAcademicYear) {
+      log.push(`   🎓 SMS 已进入 ${term.year} 学年（上次 ${prevTerm.year}），请重新上传新学年的住宿名单与官方名单`);
+    }
+    if (official && newAcademicYear && !official.previous_year) {
+      log.push(`   上一学年官方名单 ${official.file_name}：住宿代码不再套用，名单外 ${(official.absent || []).length} 人维持离校`);
+      official = { ...official, students: {}, previous_year: prevTerm.year };
     } else if (official) {
       log.push(`   官方名单：${official.file_name}（${official.total} 人，${official.uploaded_at.slice(0, 10)} 上传）`);
     }
@@ -330,8 +334,8 @@ async function runSync(env, { trigger, triggered_by = '', force = false }) {
 
     log.push('\n5️⃣ 写入 Cloudflare KV...');
     const summary = await writeToKV(env, studentsByNo, run.started_at, term || prevTerm);
-    if (newAcademicYear) {
-      await env.STUDENT_KV.delete('official_roster');
+    if (newAcademicYear && official?.previous_year) {
+      await env.STUDENT_KV.put('official_roster', JSON.stringify(official));
     }
     Object.assign(run, summaryFields(summary));
     log.push(`   ✅ 在校 ${summary.active} 人、离校 ${summary.left} 人、不计入 ${summary.excluded} 人、${summary.classes} 个班`);

@@ -55,6 +55,7 @@ interface SyncStatusResponse {
     uploaded_by: string;
     total: number;
     absent_count: number;
+    previous_year?: number | null;
   } | null;
 }
 
@@ -168,7 +169,13 @@ const StudentSync: React.FC = () => {
                 <div className="ss-stat">
                   <div className="ss-stat__label">SMS 目前學期</div>
                   <div className="ss-stat__value ss-stat__value--text">{termLabel(lastRun.sms_term ?? data?.metadata?.sms_term)}</div>
-                  {lastRun.new_academic_year && <div className="ss-stat__sub">新學年（上學年官方名單已停用）</div>}
+                  {lastRun.new_academic_year && (
+                    <div className="ss-stat__sub">
+                      {lastRun.result === "success"
+                        ? "新學年：請重新上傳住宿名單與官方名單"
+                        : "新學年：SMS 名單可能尚未建好，本次未寫入"}
+                    </div>
+                  )}
                 </div>
                 <div className="ss-stat">
                   <div className="ss-stat__label">上次 SMS 同步成功</div>
@@ -193,7 +200,10 @@ const StudentSync: React.FC = () => {
                 {data?.official_roster
                   ? `官方名單：${data.official_roster.file_name}（${data.official_roster.total} 人），` +
                     `${formatTime(data.official_roster.uploaded_at)} 由 ${data.official_roster.uploaded_by || "-"} 核對，` +
-                    `名單外 ${data.official_roster.absent_count} 人標記為離校。`
+                    `名單外 ${data.official_roster.absent_count} 人標記為離校。` +
+                    (data.official_roster.previous_year
+                      ? `（這是 ${data.official_roster.previous_year} 學年的名單，住宿代碼已不套用，請上傳新學年官方名單）`
+                      : "")
                   : "尚未核對官方名單（可到「核對官方名單」上傳 Excel）。"}
               </p>
 

@@ -55,6 +55,7 @@ export async function handleStudentSync(
           uploaded_by: official.uploaded_by,
           total: official.total,
           absent_count: (official.absent || []).length,
+          previous_year: official.previous_year || null,
         }
       : null;
     return json(

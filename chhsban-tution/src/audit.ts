@@ -28,6 +28,8 @@ export interface AuditLogEntry {
   created_at: number;
 }
 
+const AUDIT_TTL_SECONDS = 400 * 24 * 60 * 60;
+
 interface AuditEnv {
   AUDIT_LOG_KV: KVNamespace;
 }
@@ -43,7 +45,8 @@ export async function logAudit(
       audit_id: auditId,
       created_at: Date.now(),
     };
-    await env.AUDIT_LOG_KV.put(auditId, JSON.stringify(record));
+    // 保存 13 個月後由 KV 自動刪除（學年重置後不留舊學年的學生資料，也不必另外排程清理）
+    await env.AUDIT_LOG_KV.put(auditId, JSON.stringify(record), { expirationTtl: AUDIT_TTL_SECONDS });
   } catch (error) {
     console.error("[AUDIT] Failed to write audit log:", error);
   }
