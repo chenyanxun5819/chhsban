@@ -14,6 +14,7 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
       { label: "學生名單同步", path: "/data/student-sync" },
       { label: "核對官方名單", path: "/data/official-roster" },
       { label: "學生資料匯出", path: "/data/student-export" },
+      { label: "學年封存", path: "/data/year-archive" },
     ],
   },
   {

@@ -10,6 +10,14 @@ import "@/data/styles/student-sync.css";
  * 這頁透過 tution-system 讀取 sync_status 顯示工作狀態，並可手動觸發同步。
  */
 
+interface SmsTerm {
+  year: number;
+  semester: number;
+}
+
+const termLabel = (term: SmsTerm | null | undefined): string =>
+  term ? `${term.year} 第${term.semester === 1 ? "一" : "二"}學期` : "-";
+
 interface SyncRun {
   started_at: string;
   finished_at: string;
@@ -25,6 +33,8 @@ interface SyncRun {
   excluded_students?: number;
   total_classes: number;
   changes: SyncChanges;
+  sms_term?: SmsTerm | null;
+  new_academic_year?: boolean;
   log?: string[];
 }
 
@@ -36,6 +46,7 @@ interface SyncStatusResponse {
     excluded_students?: number;
     total_classes: number;
     updated_at: string;
+    sms_term?: SmsTerm | null;
   } | null;
   official_roster: {
     file_name: string;
@@ -115,6 +126,7 @@ const StudentSync: React.FC = () => {
               從 SMS 同步全校學生到 students_KV。每週日、週二凌晨 00:00（馬來西亞時間）自動執行；
               學生調班、離校會記錄在學生資料中，不會刪除。STAR 班不計入在校生；
               核對過官方名單後，名單外的學生維持離校，直到下一份名單再列入。
+              SMS 換到新學年時，上一學年的官方名單自動停用；新學年初 SMS 名單還沒建好時，同步會失敗或被攔下，原資料不受影響。
             </p>
           </div>
           <div className="ss-actions">
@@ -152,6 +164,11 @@ const StudentSync: React.FC = () => {
                     <span className={RESULT_LABEL[lastRun.result].className}>{RESULT_LABEL[lastRun.result].text}</span>
                   </div>
                   <div className="ss-stat__sub">{formatTime(lastRun.finished_at)}</div>
+                </div>
+                <div className="ss-stat">
+                  <div className="ss-stat__label">SMS 目前學期</div>
+                  <div className="ss-stat__value ss-stat__value--text">{termLabel(lastRun.sms_term ?? data?.metadata?.sms_term)}</div>
+                  {lastRun.new_academic_year && <div className="ss-stat__sub">新學年（上學年官方名單已停用）</div>}
                 </div>
                 <div className="ss-stat">
                   <div className="ss-stat__label">上次 SMS 同步成功</div>

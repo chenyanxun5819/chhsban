@@ -27,6 +27,7 @@ import StudentSync from "@/data/pages/StudentSync";
 import StudentExport from "@/data/pages/StudentExport";
 import OfficialRoster from "@/data/pages/OfficialRoster";
 import LegacyCleanup from "@/data/pages/LegacyCleanup";
+import YearArchive from "@/data/pages/YearArchive";
 
 // 行政管理站：super_admin（全部）、admin（督察員，只能查看）、classroom_manager（教室管理員）、dorm_supervisor（舍監）。
 // 路由依系統分前綴：/data/*（學生資料）、/tution/*（補習班）、/optional/*（選修課）、/settings/*（共用設定）；
@@ -95,6 +96,7 @@ const AppRoutes = () => (
     <Route path="/data/student-sync" element={page(<StudentSync />)} />
     <Route path="/data/official-roster" element={page(<OfficialRoster />)} />
     <Route path="/data/student-export" element={page(<StudentExport />)} />
+    <Route path="/data/year-archive" element={page(<YearArchive />)} />
 
     {/* 補習班（tution-system Worker） */}
     <Route path="/tution/approvals" element={page(<Approvals />)} />

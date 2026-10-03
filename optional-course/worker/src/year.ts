@@ -5,8 +5,8 @@
 
 const MYT_OFFSET_MS = 8 * 60 * 60 * 1000;
 
-/** 保留今年＋往前 2 年（例如 2026 年時保留 2024~2026），更舊的由排程自動刪除 */
-export const RETAINED_YEARS = 3;
+/** 學年重置：只保留今年（跨年後 1/1 起，上一年的課程由每日排程自動刪除；年底前請先到行政管理站「學年封存」下載 Excel） */
+export const RETAINED_YEARS = 1;
 
 export function currentYear(now: number = Date.now()): number {
   return new Date(now + MYT_OFFSET_MS).getUTCFullYear();

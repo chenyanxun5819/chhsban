@@ -1287,7 +1287,7 @@ export default {
     }
   },
 
-  /** 每日排程：刪除超過保留年限（今年＋往前 2 年）的課程及其名冊／排課／點名 */
+  /** 每日排程（學年重置）：刪除上一年以前的課程及其名冊／排課／點名；每天最多 PURGE_COURSES_PER_RUN 門，課多時跨年後幾天內清完 */
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
       buildService(env)

@@ -174,6 +174,15 @@ export class TutionService {
     return parseRows<TutionClass>(results);
   }
 
+  /** 開課日期落在某一年的班級（學年封存用；班級數量不多，不另建索引） */
+  async listClassesByStartYear(year: number): Promise<TutionClass[]> {
+    const { results } = await this.db
+      .prepare(`SELECT data FROM tution_classes WHERE start_date >= ? AND start_date < ? ORDER BY start_date`)
+      .bind(`${year}-01-01`, `${year + 1}-01-01`)
+      .all<{ data: string }>();
+    return parseRows<TutionClass>(results);
+  }
+
   async getClassesByIds(classIds: string[]): Promise<TutionClass[]> {
     if (classIds.length === 0) return [];
     const { results } = await this.db
@@ -426,6 +435,18 @@ export class TutionService {
     return results.map(toAttendance);
   }
 
+  /** 多個班級的目前出勤狀態（學年封存用，1 次查詢） */
+  async listAttendanceByClasses(classIds: string[]): Promise<TutionAttendance[]> {
+    if (classIds.length === 0) return [];
+    const { results } = await this.db
+      .prepare(
+        `SELECT * FROM tution_attendance WHERE class_id IN (SELECT value FROM json_each(?)) ORDER BY class_date`,
+      )
+      .bind(JSON.stringify(classIds))
+      .all<AttendanceRow>();
+    return results.map(toAttendance);
+  }
+
   /** 某日期的目前出勤狀態（住宿生點名控管用），可限定班級 */
   async listAttendanceByDate(classDate: string, classIds: string[]): Promise<TutionAttendance[]> {
     if (classIds.length === 0) return [];
@@ -537,17 +558,41 @@ export class TutionService {
     await this.db.prepare(`DELETE FROM tution_schedules WHERE schedule_id = ?`).bind(scheduleId).run();
   }
 
-  // ===== 過期資料清理 =====
+  // ===== 學年重置 =====
 
-  /**
-   * 找出開課日期早於 minYear 的班級（保留年限之前），一次最多 limit 班。
-   * 刪除由呼叫端逐班呼叫 deleteClass（並刪 R2 檔案），避免單次請求查詢數超過上限。
-   */
-  async listExpiredClasses(minYear: number, limit: number): Promise<TutionClass[]> {
+  /** 開課日期早於 minYear 的班級（上一學年以前） */
+  async listExpiredClasses(minYear: number): Promise<TutionClass[]> {
     const { results } = await this.db
-      .prepare(`SELECT data FROM tution_classes WHERE start_date < ? ORDER BY start_date LIMIT ?`)
-      .bind(`${minYear}-01-01`, limit)
+      .prepare(`SELECT data FROM tution_classes WHERE start_date < ? ORDER BY start_date`)
+      .bind(`${minYear}-01-01`)
       .all<{ data: string }>();
     return parseRows<TutionClass>(results);
+  }
+
+  /**
+   * 一次刪光開課日期早於 minYear 的班級，連同名單、排課例外、點名（含歷史）：
+   * 5 個 DELETE 放在同一個 batch（交易），不論班級數都只算 5 次查詢。R2 檔案由呼叫端先刪。
+   */
+  async deleteClassesBefore(minYear: number): Promise<void> {
+    const cutoff = `${minYear}-01-01`;
+    const expiredIds = `SELECT class_id FROM tution_classes WHERE start_date < ?`;
+    await this.db.batch(
+      [
+        `DELETE FROM tution_attendance WHERE class_id IN (${expiredIds})`,
+        `DELETE FROM tution_attendance_log WHERE class_id IN (${expiredIds})`,
+        `DELETE FROM tution_schedules WHERE class_id IN (${expiredIds})`,
+        `DELETE FROM tution_roster WHERE class_id IN (${expiredIds})`,
+        `DELETE FROM tution_classes WHERE start_date < ?`,
+      ].map((sql) => this.db.prepare(sql).bind(cutoff)),
+    );
+  }
+
+  /** 「最後上課日期」若是上一學年的就清掉（否則新學年沒設結束日期的課會被當成已結束） */
+  async clearLastTeachingDateBefore(minYear: number): Promise<boolean> {
+    const result = await this.db
+      .prepare(`DELETE FROM tution_settings WHERE key = ? AND value < ?`)
+      .bind(LAST_TEACHING_DATE_KEY, `${minYear}-01-01`)
+      .run();
+    return (result.meta?.changes ?? 0) > 0;
   }
 }

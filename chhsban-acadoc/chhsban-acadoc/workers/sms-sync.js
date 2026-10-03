@@ -25,8 +25,13 @@
  * 官方名单（official_roster）：行政管理站上传 Excel 核对时写入，记下「当时 KV 里有、名单里没有」的学号（absent）。
  * 之后的 SMS 同步会维持这些学生为离校，直到下一份官方名单再列入；住宿代码以官方名单为准。
  *
- * 每次同步的 KV 用量：读 3（excel_gender_boarding_map、official_roster、上一版 students_by_no）
- * + 1（sync_status），写 4（students_by_no、classes、metadata、sync_status）。
+ * 学年交接：SMS 每页上方都有「第二 学期, 2026」，同步时一并读取存进 metadata.sms_term。
+ * SMS 换到新学年（年份比上次成功同步时大）的那次同步，上一学年的官方名单不再套用并删除，
+ * 否则名单外的学生会一直被当成离校、住宿代码也会沿用去年的。学生资料本身不清空（学号不变、不会冲突）。
+ * 新学年初 SMS 名单还没建好时：抓到 0 人 → 失败、不写入；人数骤降 → 被保险挡下、不写入，原资料不受影响。
+ *
+ * 每次同步的 KV 用量：读 4（excel_gender_boarding_map、official_roster、上一版 students_by_no、metadata）
+ * + 1（sync_status），写 4（students_by_no、classes、metadata、sync_status）；换学年那次多删 1（official_roster）。
  *
  * 必需的密钥（用 `wrangler secret put` 设置，不要写在代码或 wrangler.toml 里）：
  *   wrangler secret put SMS_USER
@@ -278,9 +283,17 @@ async function runSync(env, { trigger, triggered_by = '', force = false }) {
     const cookies = await loginSMS(env, log);
 
     log.push('\n2️⃣ 抓取全校学生名单（翻页）...');
-    const fetched = await fetchAllStudents(env, cookies, log);
+    const { students: fetched, term } = await fetchAllStudents(env, cookies, log);
+    run.sms_term = term;
+    const prevMeta = await env.STUDENT_KV.get('metadata', 'json');
+    const prevTerm = prevMeta?.sms_term || null;
+    const newAcademicYear = Boolean(term && prevTerm && term.year > prevTerm.year);
+    run.new_academic_year = newAcademicYear;
+    const yearNote = newAcademicYear
+      ? `SMS 已进入 ${term.year} 学年，新学年的学生名单可能还没建立完成。`
+      : '';
     if (fetched.length === 0) {
-      throw new Error('未抓到任何学生数据，可能登录失败或页面结构变更');
+      throw new Error(`${yearNote}未抓到任何学生数据，可能 SMS 名单尚未建立、登录失败或页面结构变更`);
     }
     run.total_fetched = fetched.length;
     log.push(`   ✅ 共抓到 ${fetched.length} 名学生（已去重）`);
@@ -295,7 +308,7 @@ async function runSync(env, { trigger, triggered_by = '', force = false }) {
 
     if (!force && prevInSms > 0 && fetched.length < prevInSms * (1 - MAX_DROP_RATIO)) {
       run.result = 'blocked';
-      run.error = `本次只抓到 ${fetched.length} 人，比上次 ${prevInSms} 人少了 ${prevInSms - fetched.length} 人`
+      run.error = yearNote + `本次只抓到 ${fetched.length} 人，比上次 ${prevInSms} 人少了 ${prevInSms - fetched.length} 人`
         + `（超过 ${MAX_DROP_RATIO * 100}%），可能是 SMS 暂时异常，已停止写入。`
         + '请确认 SMS 名单无误后，再用「强制同步」执行。';
       log.push(`\n⛔ ${run.error}`);
@@ -303,8 +316,11 @@ async function runSync(env, { trigger, triggered_by = '', force = false }) {
     }
 
     const today = localDateString();
-    const official = await env.STUDENT_KV.get('official_roster', 'json');
-    if (official) {
+    let official = await env.STUDENT_KV.get('official_roster', 'json');
+    if (official && newAcademicYear) {
+      log.push(`   🎓 SMS 已进入 ${term.year} 学年（上次 ${prevTerm.year}），上一学年的官方名单 ${official.file_name} 不再套用，写入后删除`);
+      official = null;
+    } else if (official) {
       log.push(`   官方名单：${official.file_name}（${official.total} 人，${official.uploaded_at.slice(0, 10)} 上传）`);
     }
     const merged = mergeSmsData(previous, fetched, excelData, today);
@@ -313,7 +329,10 @@ async function runSync(env, { trigger, triggered_by = '', force = false }) {
     log.push(`   ${describeChanges(changes)}`);
 
     log.push('\n5️⃣ 写入 Cloudflare KV...');
-    const summary = await writeToKV(env, studentsByNo, run.started_at);
+    const summary = await writeToKV(env, studentsByNo, run.started_at, term || prevTerm);
+    if (newAcademicYear) {
+      await env.STUDENT_KV.delete('official_roster');
+    }
     Object.assign(run, summaryFields(summary));
     log.push(`   ✅ 在校 ${summary.active} 人、离校 ${summary.left} 人、不计入 ${summary.excluded} 人、${summary.classes} 个班`);
 
@@ -469,6 +488,8 @@ async function fetchAllStudents(env, cookies, log) {
     throw new Error('未能解析出班级列表，可能登录失败或页面结构变更');
   }
   const anyClassId = classList[0].id;
+  const term = extractTerm(listHtml);
+  log.push(term ? `   SMS 目前学期: ${term.year} 第${term.semester}学期` : '   ⚠️ 未能解析 SMS 目前学期（页面上方「第X 学期, 年份」）');
 
   const seen = new Set();
   const students = [];
@@ -499,7 +520,17 @@ async function fetchAllStudents(env, cookies, log) {
     page++;
   }
 
-  return students;
+  return { students, term };
+}
+
+/**
+ * SMS 每页上方 breadcrumb 的「第二 学期, 2026」（与 sms_app 成绩上传读的是同一处）。
+ * 解析不到回传 null（不影响同步，只是无法判断学年交接）。
+ */
+function extractTerm(html) {
+  const m = html.match(/第\s*(一|二|1|2)\s*学期\s*[,，]\s*(\d{4})/);
+  if (!m) return null;
+  return { year: Number(m[2]), semester: m[1] === '一' || m[1] === '1' ? 1 : 2 };
 }
 
 /**
@@ -825,7 +856,8 @@ async function checkOfficialRoster(env, input) {
   };
   if (input.dry_run) return result;
 
-  const summary = await writeToKV(env, studentsByNo, official.uploaded_at);
+  const prevMeta = await env.STUDENT_KV.get('metadata', 'json');
+  const summary = await writeToKV(env, studentsByNo, official.uploaded_at, prevMeta?.sms_term || null);
   await env.STUDENT_KV.put('official_roster', JSON.stringify(official));
 
   const run = {
@@ -859,7 +891,7 @@ async function checkOfficialRoster(env, input) {
  *   metadata：人数摘要（total_students 只算在校）
  * 不再写 students:{班级}（没有任何系统读取），避免每次同步多写几十个 key。
  */
-async function writeToKV(env, studentsByNo, syncedAt) {
+async function writeToKV(env, studentsByNo, syncedAt, smsTerm) {
   const all = Object.values(studentsByNo);
   const active = all.filter(s => s.status === 'active');
   const excluded = all.filter(s => s.status === 'excluded').length;
@@ -874,6 +906,7 @@ async function writeToKV(env, studentsByNo, syncedAt) {
     excluded_students: excluded,
     total_classes: classNames.length,
     updated_at: syncedAt,
+    sms_term: smsTerm || null,
   }));
 
   return { active: active.length, left, excluded, classes: classNames.length };

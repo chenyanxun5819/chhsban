@@ -56,10 +56,9 @@ const FIXED_TIME_START = "19:00";
 const FIXED_TIME_END = "21:00";
 const MAX_STUDENTS_PER_CLASS = 30;
 
-// 資料保留：今年＋往前 2 年（與選修課一致），更早開課的班級由每日排程清理；
-// 每班刪除約 6 次 D1 查詢，一次最多清 5 班，未清完的隔天繼續
-const RETENTION_PAST_YEARS = 2;
-const PURGE_CLASSES_PER_RUN = 5;
+// 學年重置：只保留今年開課的班級（與選修課一致）。每日排程檢查，跨年後第一次執行（1/1 凌晨）
+// 就把上一學年以前開課的班級全部刪除；補習班不會跨年上課。年底前請先到行政管理站「學年封存」下載 Excel。
+const RETENTION_PAST_YEARS = 0;
 
 // 可以點名的課程狀態（與開課報表一致：審批通過後才算有開課）
 const ATTENDANCE_CLASS_STATUSES = new Set<string>([
@@ -402,7 +401,7 @@ export default {
   },
 
   // 每日凌晨（見 wrangler.toml 的 [triggers] crons）：
-  // 1. 清理超過保留年限（今年＋往前 2 年，依開課日期）的班級，連同名單、點名、排課例外、R2 檔案
+  // 1. 學年重置：刪除上一學年以前開課的班級，連同名單、點名、排課例外、R2 檔案，並清掉過期的「最後上課日期」
   // 2. 重新計算「各課程開課報表」並存入 D1，前端一律讀這份快照
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
@@ -410,12 +409,22 @@ export default {
         const service = new TutionService(env.DB);
         try {
           const minYear = new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear() - RETENTION_PAST_YEARS;
-          const expired = await service.listExpiredClasses(minYear, PURGE_CLASSES_PER_RUN);
-          for (const cls of expired) {
-            await deleteClassWithFiles(env, service, cls);
-          }
+          const expired = await service.listExpiredClasses(minYear);
           if (expired.length > 0) {
-            console.log(`Purged ${expired.length} expired classes:`, expired.map((c) => c.class_id).join(", "));
+            // 先刪 R2 檔案（一次最多 1000 個），再一次刪光 D1 資料；R2 失敗就整個停下，隔天重試
+            const fileKeys = expired.flatMap((c: any) =>
+              [c.signed_form_key, c.receipt_h1?.key, c.receipt_h2?.key].filter(
+                (key): key is string => typeof key === "string" && key.length > 0,
+              ),
+            );
+            for (let i = 0; i < fileKeys.length; i += 1000) {
+              await env.SIGNED_FORMS_BUCKET.delete(fileKeys.slice(i, i + 1000));
+            }
+            await service.deleteClassesBefore(minYear);
+            console.log(`Year reset: purged ${expired.length} classes before ${minYear}:`, expired.map((c) => c.class_id).join(", "));
+          }
+          if (await service.clearLastTeachingDateBefore(minYear)) {
+            console.log(`Year reset: cleared last teaching date before ${minYear}`);
           }
         } catch (error) {
           console.error("Scheduled purge failed:", error);
@@ -1703,6 +1712,14 @@ async function handleReports(
   const teacherManager = createTeacherKVManager(env.TEACHER_KV);
 
   try {
+    if (reportKey === "archive" && request.method === "GET") {
+      const year = Number(url.searchParams.get("year"));
+      if (!Number.isInteger(year) || year < 2000 || year > 2100) {
+        return jsonResponse({ error: "INVALID_YEAR" }, 400);
+      }
+      return jsonResponse({ data: await buildYearArchive(env, service, teacherManager, year) }, 200);
+    }
+
     if (reportKey !== "course-summary") {
       return jsonResponse({ error: "Not found" }, 404);
     }
@@ -1726,6 +1743,67 @@ async function handleReports(
     console.error("Reports handler error:", error);
     return jsonResponse({ error: String(error) }, 500);
   }
+}
+
+/**
+ * 學年封存（行政管理站下載 Excel 用）：開課日期在該年、審批通過後的班級，連同完整名單（含已退出）、
+ * 排課例外與點名，一次回傳（共 4 次 D1 查詢，不論班級數）。
+ * 名單的班級用加入名單當時記下的 student_class，不用學生名錄現在的班級，跨年升班後匯出也不會錯。
+ */
+async function buildYearArchive(
+  env: Env,
+  service: TutionService,
+  teacherManager: ReturnType<typeof createTeacherKVManager>,
+  year: number,
+): Promise<any> {
+  const classes: any[] = (await service.listClassesByStartYear(year)).filter((c) =>
+    ATTENDANCE_CLASS_STATUSES.has(c.approval_status),
+  );
+  const classIds = classes.map((c) => c.class_id);
+  const [roster, schedules, attendance] = await Promise.all([
+    service.listRosterByClasses(classIds),
+    service.listSchedulesByClasses(classIds),
+    service.listAttendanceByClasses(classIds),
+  ]);
+
+  const teacherIds = Array.from(new Set(classes.filter((c) => !c.teacher_name_cn && c.teacher_id).map((c) => c.teacher_id)));
+  const teachers = new Map(
+    await Promise.all(teacherIds.map(async (id) => [id, await teacherManager.getTeacher(id)] as const)),
+  );
+
+  const directory = createStudentDirectory(env.STUDENT_KV);
+  const classById = new Map(classes.map((c) => [c.class_id, c]));
+  const rosterOut = await Promise.all(
+    roster.map(async (entry) => {
+      const info = await resolveRosterStudentInfo(entry, classById.get(entry.class_id) || null, directory);
+      return {
+        roster_id: entry.roster_id,
+        class_id: entry.class_id,
+        student_id: entry.student_id,
+        student_no: info.student_no,
+        name_cn: entry.student_name_cn,
+        name_en: entry.student_name_en,
+        real_class_name: entry.student_class || info.real_class_name,
+        gender_boarding: (entry as any).gender_boarding || info.gender_boarding,
+        enrollment_date: entry.enrollment_date,
+        withdrawal_date: entry.withdrawal_date || null,
+        withdrawal_reason: entry.withdrawal_reason || null,
+        is_active: !entry.withdrawal_date,
+      };
+    }),
+  );
+
+  return {
+    year,
+    generated_at: Date.now(),
+    classes: classes.map((c) => {
+      const teacher = teachers.get(c.teacher_id);
+      return { ...c, teacher_name_cn: c.teacher_name_cn || teacher?.name_cn || teacher?.name_en || "" };
+    }),
+    roster: rosterOut,
+    schedules,
+    attendance,
+  };
 }
 
 /**
