@@ -59,6 +59,8 @@ const MAX_STUDENTS_PER_CLASS = 30;
 // 學年重置：只保留今年開課的班級（與選修課一致）。每日排程檢查，跨年後第一次執行（1/1 凌晨）
 // 就把上一學年以前開課的班級全部刪除；補習班不會跨年上課。年底前請先到行政管理站「學年封存」下載 Excel。
 const RETENTION_PAST_YEARS = 0;
+// 點名每天最多刪幾列（含歷史；每列連索引約寫 2~3 列），留足 D1 免費版每日 10 萬列寫入額度給正常使用
+const ATTENDANCE_PURGE_ROWS_PER_RUN = 10000;
 
 // 可以點名的課程狀態（與開課報表一致：審批通過後才算有開課）
 const ATTENDANCE_CLASS_STATUSES = new Set<string>([
@@ -401,7 +403,7 @@ export default {
   },
 
   // 每日凌晨（見 wrangler.toml 的 [triggers] crons）：
-  // 1. 學年重置：刪除上一學年以前開課的班級，連同名單、點名、排課例外、R2 檔案，並清掉過期的「最後上課日期」
+  // 1. 學年重置：刪除上一學年以前開課的班級，連同名單、排課例外、R2 檔案，清掉過期的「最後上課日期」；點名資料量大，分天刪除
   // 2. 重新計算「各課程開課報表」並存入 D1，前端一律讀這份快照
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
@@ -425,6 +427,10 @@ export default {
           }
           if (await service.clearLastTeachingDateBefore(minYear)) {
             console.log(`Year reset: cleared last teaching date before ${minYear}`);
+          }
+          const purgedAttendance = await service.purgeOrphanAttendance(ATTENDANCE_PURGE_ROWS_PER_RUN);
+          if (purgedAttendance !== null) {
+            console.log(`Year reset: purged ${purgedAttendance} attendance rows of deleted classes`);
           }
         } catch (error) {
           console.error("Scheduled purge failed:", error);

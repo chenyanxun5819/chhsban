@@ -22,6 +22,8 @@ import type {
 const LAST_TEACHING_DATE_KEY = "last_teaching_date";
 // 「各課程開課報表」快取，每日凌晨由 Cron Trigger 重新計算並存入，前端一律讀這份快照
 const COURSE_REPORT_SUMMARY_KEY = "course_report_summary";
+// 學年重置後還有點名待分天清除（見 purgeOrphanAttendance）
+const ATTENDANCE_PURGE_PENDING_KEY = "attendance_purge_pending";
 
 function randomSuffix(): string {
   return Math.random().toString(36).substring(2, 8);
@@ -570,21 +572,51 @@ export class TutionService {
   }
 
   /**
-   * 一次刪光開課日期早於 minYear 的班級，連同名單、排課例外、點名（含歷史）：
-   * 5 個 DELETE 放在同一個 batch（交易），不論班級數都只算 5 次查詢。R2 檔案由呼叫端先刪。
+   * 刪除開課日期早於 minYear 的班級，連同名單、排課例外（資料量小，同一個 batch 交易一次刪完），
+   * 並標記「點名待清」。點名與點名歷史一年可達數萬筆，一次刪完可能超過 D1 免費版每日寫入額度
+   * （10 萬列，索引另計），整個交易失敗就會每天重試、永遠刪不掉，所以交給 purgeOrphanAttendance 分天刪。
+   * R2 檔案由呼叫端先刪。
    */
   async deleteClassesBefore(minYear: number): Promise<void> {
     const cutoff = `${minYear}-01-01`;
     const expiredIds = `SELECT class_id FROM tution_classes WHERE start_date < ?`;
-    await this.db.batch(
-      [
-        `DELETE FROM tution_attendance WHERE class_id IN (${expiredIds})`,
-        `DELETE FROM tution_attendance_log WHERE class_id IN (${expiredIds})`,
+    await this.db.batch([
+      ...[
         `DELETE FROM tution_schedules WHERE class_id IN (${expiredIds})`,
         `DELETE FROM tution_roster WHERE class_id IN (${expiredIds})`,
         `DELETE FROM tution_classes WHERE start_date < ?`,
       ].map((sql) => this.db.prepare(sql).bind(cutoff)),
-    );
+      this.db
+        .prepare(
+          `INSERT INTO tution_settings (key, value, updated_at) VALUES (?, '1', ?)
+           ON CONFLICT(key) DO UPDATE SET value = '1', updated_at = excluded.updated_at`,
+        )
+        .bind(ATTENDANCE_PURGE_PENDING_KEY, Date.now()),
+    ]);
+  }
+
+  /**
+   * 分天刪除班級已不存在的點名（先刪歷史、再刪目前狀態），每次最多 maxRows 列；
+   * 只在「點名待清」標記存在時才執行，清完就移除標記，平常不會每天掃描整張表。
+   * 這些點名的班級已刪除，任何畫面都查不到，慢慢刪不影響使用。回傳本次刪除列數，null 表示沒有待清。
+   */
+  async purgeOrphanAttendance(maxRows: number): Promise<number | null> {
+    if ((await this.getSetting(ATTENDANCE_PURGE_PENDING_KEY)) === null) return null;
+    const orphan = `class_id NOT IN (SELECT class_id FROM tution_classes)`;
+    let deleted = 0;
+    for (const table of ["tution_attendance_log", "tution_attendance"]) {
+      const remaining = maxRows - deleted;
+      if (remaining <= 0) return deleted;
+      const result = await this.db
+        .prepare(`DELETE FROM ${table} WHERE rowid IN (SELECT rowid FROM ${table} WHERE ${orphan} LIMIT ?)`)
+        .bind(remaining)
+        .run();
+      deleted += result.meta?.changes ?? 0;
+    }
+    if (deleted < maxRows) {
+      await this.db.prepare(`DELETE FROM tution_settings WHERE key = ?`).bind(ATTENDANCE_PURGE_PENDING_KEY).run();
+    }
+    return deleted;
   }
 
   /** 「最後上課日期」若是上一學年的就清掉（否則新學年沒設結束日期的課會被當成已結束） */
