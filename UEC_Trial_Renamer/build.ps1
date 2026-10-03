@@ -8,8 +8,10 @@ $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
 
 # 1. 用干净的虚拟环境，避免把电脑里其他套件（pandas、scipy…）一起打包进去
+# 固定用 Python 3.12：rapidocr_onnxruntime（onnxruntime）目前还没有 3.14 的 wheel，
+# 系统预设 python 若是更新的版本会在安装依赖时失败。
 if (-not (Test-Path ".venv")) {
-    python -m venv .venv
+    py -3.12 -m venv .venv
 }
 $py = ".\.venv\Scripts\python.exe"
 & $py -m pip install --upgrade pip

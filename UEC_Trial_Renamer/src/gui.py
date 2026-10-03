@@ -15,9 +15,22 @@ from tkinter import filedialog, messagebox, simpledialog, ttk
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from core import apply_plan, read_plan, scan_folder, write_plan  # noqa: E402
+import core as core_uec  # noqa: E402
+import core_school  # noqa: E402
+from core import read_plan  # noqa: E402
 
 APP_TITLE = "统考预考考卷命名工具"
+
+MODES = {
+    "UEC": {"label": "统考预考（UEC Trial）", "date_label": "档名日期 (YYYYMMDD)",
+            "date_default": lambda: _date.today().strftime("%Y%m%d"),
+            "date_hint": "档名日期要是 8 位数字，例如 20261015。",
+            "date_ok": lambda d: len(d) == 8 and d.isdigit()},
+    "SCHOOL": {"label": "校内考试（非 UEC）", "date_label": "期别代号 (学年-学期-期中1/期末2)",
+               "date_default": lambda: "2025-1-1",
+               "date_hint": "期别代号不能是空的，例如 2025-1-1（2025 学年第 1 学期期中考）。",
+               "date_ok": lambda d: bool(d)},
+}
 
 
 def open_path(p):
@@ -45,12 +58,15 @@ class App(tk.Tk):
 
         self.var_src = tk.StringVar()
         self.var_dst = tk.StringVar()
-        self.var_date = tk.StringVar(value=_date.today().strftime("%Y%m%d"))
+        self.var_mode = tk.StringVar(value="UEC")
+        self.var_date_label = tk.StringVar(value=MODES["UEC"]["date_label"])
+        self.var_date = tk.StringVar(value=MODES["UEC"]["date_default"]())
         self.var_wm = tk.BooleanVar(value=True)
         self.var_move = tk.BooleanVar(value=False)
         self.var_status = tk.StringVar(value="请选择来源资料夹，然后按「1. 扫描」。")
 
         self._build()
+        self.var_mode.trace_add("write", self._on_mode_change)
         self.after(100, self._poll)
 
     # ------------------------------------------------------------------ UI
@@ -59,18 +75,25 @@ class App(tk.Tk):
         top = ttk.Frame(self)
         top.pack(fill="x", **pad)
 
-        ttk.Label(top, text="来源资料夹（扫描好的 PDF）").grid(row=0, column=0, sticky="w")
-        ttk.Entry(top, textvariable=self.var_src).grid(row=0, column=1, sticky="ew", padx=4)
-        ttk.Button(top, text="浏览…", command=self._pick_src).grid(row=0, column=2)
+        mode_row = ttk.Frame(top)
+        mode_row.grid(row=0, column=0, columnspan=3, sticky="w", pady=(0, 4))
+        ttk.Label(mode_row, text="考试类型").pack(side="left")
+        for key, cfg in MODES.items():
+            ttk.Radiobutton(mode_row, text=cfg["label"], value=key,
+                            variable=self.var_mode).pack(side="left", padx=(6, 0))
 
-        ttk.Label(top, text="输出资料夹").grid(row=1, column=0, sticky="w")
-        ttk.Entry(top, textvariable=self.var_dst).grid(row=1, column=1, sticky="ew", padx=4)
-        ttk.Button(top, text="浏览…", command=self._pick_dst).grid(row=1, column=2)
+        ttk.Label(top, text="来源资料夹（扫描好的 PDF）").grid(row=1, column=0, sticky="w")
+        ttk.Entry(top, textvariable=self.var_src).grid(row=1, column=1, sticky="ew", padx=4)
+        ttk.Button(top, text="浏览…", command=self._pick_src).grid(row=1, column=2)
+
+        ttk.Label(top, text="输出资料夹").grid(row=2, column=0, sticky="w")
+        ttk.Entry(top, textvariable=self.var_dst).grid(row=2, column=1, sticky="ew", padx=4)
+        ttk.Button(top, text="浏览…", command=self._pick_dst).grid(row=2, column=2)
 
         opt = ttk.Frame(top)
-        opt.grid(row=2, column=0, columnspan=3, sticky="w", pady=(4, 0))
-        ttk.Label(opt, text="档名日期 (YYYYMMDD)").pack(side="left")
-        ttk.Entry(opt, textvariable=self.var_date, width=10).pack(side="left", padx=(4, 16))
+        opt.grid(row=3, column=0, columnspan=3, sticky="w", pady=(4, 0))
+        ttk.Label(opt, textvariable=self.var_date_label).pack(side="left")
+        ttk.Entry(opt, textvariable=self.var_date, width=14).pack(side="left", padx=(4, 16))
         ttk.Checkbutton(opt, text="加学校水印", variable=self.var_wm).pack(side="left", padx=8)
         ttk.Checkbutton(opt, text="移动档案（删除原档）", variable=self.var_move).pack(side="left", padx=8)
         top.columnconfigure(1, weight=1)
@@ -115,6 +138,18 @@ class App(tk.Tk):
                   text="黄色 = 需人工确认（程式不确定）。确认无误后，点「处理」栏打勾才会执行；双击新档名可修改，双击原档名可开启 PDF。").pack(anchor="w")
 
     # ------------------------------------------------------------- helpers
+    def _mode(self):
+        return MODES[self.var_mode.get()]
+
+    def _on_mode_change(self, *_):
+        cfg = self._mode()
+        self.var_date_label.set(cfg["date_label"])
+        self.var_date.set(cfg["date_default"]())
+        if self.rows:
+            self.rows = []
+            self._refresh()
+            self.var_status.set("已切换考试类型，请重新扫描。")
+
     def _pick_src(self):
         d = filedialog.askdirectory(title="选择扫描好的 PDF 资料夹")
         if d:
@@ -145,7 +180,8 @@ class App(tk.Tk):
 
     def _save_plan(self):
         if self.rows and self.var_dst.get():
-            write_plan(self.rows, self._plan_path())
+            mod = core_uec if self.var_mode.get() == "UEC" else core_school
+            mod.write_plan(self.rows, self._plan_path())
 
     def _toggle(self, iid):
         if not iid:
@@ -187,9 +223,10 @@ class App(tk.Tk):
             if new and not new.lower().endswith(".pdf"):
                 new += ".pdf"
             r["new_name"] = new
-            parts = new.split()
-            if len(parts) > 2 and parts[1] == "TRIAL":
-                r["grade"] = parts[2]
+            if self.var_mode.get() == "UEC":
+                parts = new.split()
+                if len(parts) > 2 and parts[1] == "TRIAL":
+                    r["grade"] = parts[2]
             r["action"] = "Y" if new else ""
             r["confidence"] = "已手动修改" if new else r.get("confidence", "")
             self._refresh()
@@ -226,21 +263,23 @@ class App(tk.Tk):
 
     # ------------------------------------------------------------ actions
     def scan(self):
+        cfg = self._mode()
         src, dst, d = self.var_src.get(), self.var_dst.get(), self.var_date.get().strip()
         if not src or not Path(src).is_dir():
             messagebox.showwarning(APP_TITLE, "请先选择来源资料夹。")
             return
-        if not (len(d) == 8 and d.isdigit()):
-            messagebox.showwarning(APP_TITLE, "档名日期要是 8 位数字，例如 20261015。")
+        if not cfg["date_ok"](d):
+            messagebox.showwarning(APP_TITLE, cfg["date_hint"])
             return
         if not dst:
             self.var_dst.set(str(Path(src).parent / f"已命名_{d}"))
         self._set_busy(True)
         self.var_status.set("载入文字辨识模型中…（第一次较慢）")
+        mod = core_uec if self.var_mode.get() == "UEC" else core_school
 
         def work():
             try:
-                rows = scan_folder(src, d, progress=lambda i, n, p: self.q.put(("prog", i, n, p)))
+                rows = mod.scan_folder(src, d, progress=lambda i, n, p: self.q.put(("prog", i, n, p)))
                 self.q.put(("scan_done", rows))
             except Exception as e:  # noqa: BLE001
                 self.q.put(("error", f"扫描失败：{e}"))
@@ -262,11 +301,12 @@ class App(tk.Tk):
         self._save_plan()
         self._set_busy(True)
         rows, move, wm = list(self.rows), self.var_move.get(), self.var_wm.get()
+        mod = core_uec if self.var_mode.get() == "UEC" else core_school
 
         def work():
             try:
-                rep = apply_plan(rows, dst, move=move, watermark=wm,
-                                 progress=lambda i, n, p: self.q.put(("prog", i, n, p)))
+                rep = mod.apply_plan(rows, dst, move=move, watermark=wm,
+                                     progress=lambda i, n, p: self.q.put(("prog", i, n, p)))
                 self.q.put(("apply_done", rep))
             except Exception as e:  # noqa: BLE001
                 self.q.put(("error", f"执行失败：{e}"))
