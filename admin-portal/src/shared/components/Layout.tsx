@@ -22,6 +22,7 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
     items: [
       { label: "審批管理", path: "/tution/approvals" },
       { label: "已開課管理", path: "/tution/courses" },
+      { label: "額外加課", path: "/tution/extra-sessions" },
       { label: "各課程開課報表", path: "/tution/course-report" },
       { label: "各課程出席狀況", path: "/tution/course-attendance" },
       { label: "每日教室使用", path: "/tution/usage" },
@@ -48,7 +49,10 @@ const NAV_GROUPS: Array<{ title: string; items: NavItem[] }> = [
   // 一次性工具：舊學生資料清完即可移除（見 LegacyCleanup.tsx 的提示語）
   {
     title: "維護",
-    items: [{ label: "舊學生資料清理", path: "/maintenance/legacy-cleanup" }],
+    items: [
+      { label: "系統維護通報", path: "/maintenance/notices" },
+      { label: "舊學生資料清理", path: "/maintenance/legacy-cleanup" },
+    ],
   },
 ];
 

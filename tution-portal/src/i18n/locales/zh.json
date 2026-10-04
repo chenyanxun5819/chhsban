@@ -260,6 +260,7 @@
     "statusHeld": "✅ 上課",
     "statusCancelled": "🚫 停課",
     "statusRescheduled": "🔄 調課",
+    "statusExtra": "➕ 加課",
     "attended": "已點名",
     "notAttended": "⚠️ 未點名",
     "cancelAction": "停課",
@@ -404,7 +405,8 @@
     "noScheduleLog": "本月尚無排課紀錄",
     "scheduleCancelled": "{{date}} 停課",
     "scheduleRescheduled": "{{date}} 調至 {{newDate}}",
-    "scheduleHeld": "{{date}} 上課"
+    "scheduleHeld": "{{date}} 上課",
+    "scheduleExtra": "{{date}} 額外加課：{{note}}"
   },
   "attendanceStatsPage": {
     "loadFailed": "加載失敗",

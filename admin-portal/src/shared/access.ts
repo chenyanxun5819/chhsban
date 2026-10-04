@@ -13,6 +13,7 @@ export const PAGE_ACCESS: Record<string, Permission[]> = {
   "/data/year-archive": ["super_admin", "admin"],
   "/tution/approvals": ["super_admin"],
   "/tution/courses": ["super_admin", "admin"],
+  "/tution/extra-sessions": ["super_admin"],
   "/tution/course-report": ["super_admin", "admin"],
   "/tution/course-attendance": ["super_admin", "admin"],
   "/tution/usage": ["super_admin", "classroom_manager"],
@@ -24,6 +25,7 @@ export const PAGE_ACCESS: Record<string, Permission[]> = {
   "/optional/course-report": ["super_admin", "admin"],
   "/settings/teachers": ["super_admin"],
   "/settings/classrooms": ["super_admin"],
+  "/maintenance/notices": ["super_admin", "admin"],
   "/maintenance/legacy-cleanup": ["super_admin"], // 一次性工具，舊學生資料清完即可移除
 };
 

@@ -5,7 +5,7 @@ import { useAuth } from "@/shared/auth/AuthContext";
 import {
   listCourses,
   createCourse,
-  updateCourseWeekday,
+  updateCourseWeekdays,
   updateCourseSlot,
   bindTeacher,
   openCourse,
@@ -15,7 +15,7 @@ import {
 } from "@/optional/services/courseService";
 import { getAttendanceSummary } from "@/optional/services/calendarService";
 import type { CourseAttendanceSummary, OptionalCourse, TeacherOption, Weekday } from "@/optional/types";
-import { SCHOOL_WEEKDAYS, WEEKDAY_LABEL } from "@/optional/utils/calendar";
+import { SCHOOL_WEEKDAYS, WEEKDAY_LABEL, courseWeekdays, weekdayListLabel } from "@/optional/utils/calendar";
 import { currentYear, selectableYears } from "@/shared/utils/year";
 
 /**
@@ -32,6 +32,13 @@ const STATUS_LABEL: Record<string, string> = {
 
 const TEACHER_SITE_URL = "https://optional-course.pages.dev/my/courses";
 
+function toggleWeekday(days: Weekday[], day: Weekday): Weekday[] {
+  const set = new Set(days);
+  if (set.has(day)) set.delete(day);
+  else set.add(day);
+  return SCHOOL_WEEKDAYS.filter((item) => set.has(item));
+}
+
 const CourseList: React.FC = () => {
   const { user } = useAuth();
   const canManage = user?.permission === "super_admin";
@@ -45,7 +52,7 @@ const CourseList: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [subject, setSubject] = useState("");
   const [createYear, setCreateYear] = useState(currentYear());
-  const [createWeekday, setCreateWeekday] = useState<Weekday | "">("");
+  const [createWeekdays, setCreateWeekdays] = useState<Weekday[]>([]);
   const [createTimeStart, setCreateTimeStart] = useState("");
   const [createTimeEnd, setCreateTimeEnd] = useState("");
   const [createVenue, setCreateVenue] = useState("");
@@ -162,13 +169,13 @@ const CourseList: React.FC = () => {
       await createCourse({
         subject: subject.trim(),
         year: createYear,
-        day_of_week: createWeekday || undefined,
+        weekly_days: createWeekdays.length > 0 ? createWeekdays : undefined,
         time_start: createTimeStart || undefined,
         time_end: createTimeEnd || undefined,
         venue: createVenue.trim() || undefined,
       });
       setSubject("");
-      setCreateWeekday("");
+      setCreateWeekdays([]);
       setCreateTimeStart("");
       setCreateTimeEnd("");
       setCreateVenue("");
@@ -192,16 +199,20 @@ const CourseList: React.FC = () => {
               <label htmlFor="subject">選修課名稱</label>
               <input id="subject" value={subject} onChange={(e) => setSubject(e.target.value)} placeholder="例如：程式設計入門" />
             </div>
-            <div className="form-row" style={{ marginBottom: 0 }}>
-              <label htmlFor="createWeekday">上課星期</label>
-              <select id="createWeekday" value={createWeekday} onChange={(e) => setCreateWeekday(e.target.value as Weekday | "")}>
-                <option value="">稍後設定</option>
+            <div className="form-row" style={{ marginBottom: 0, minWidth: 240 }}>
+              <label>每週上課日</label>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                 {SCHOOL_WEEKDAYS.map((w) => (
-                  <option key={w} value={w}>
-                    {WEEKDAY_LABEL[w]}
-                  </option>
+                  <label key={w} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                    <input
+                      type="checkbox"
+                      checked={createWeekdays.includes(w)}
+                      onChange={() => setCreateWeekdays((prev) => toggleWeekday(prev, w))}
+                    />
+                    <span>{WEEKDAY_LABEL[w]}</span>
+                  </label>
                 ))}
-              </select>
+              </div>
             </div>
             <div className="form-row" style={{ marginBottom: 0 }}>
               <label htmlFor="createTimeStart">上課時間</label>
@@ -244,7 +255,7 @@ const CourseList: React.FC = () => {
           ))}
         </select>
         <span style={{ color: "#888", fontSize: 13 }}>
-          系統只保留今年及往前 2 年的選修課資料。老師的名冊、點名在{" "}
+          選修課資料保留到隔年 11/30，於隔年 12/1 起分批清理。老師的名冊、點名在{" "}
           <a href={TEACHER_SITE_URL} target="_blank" rel="noopener noreferrer">
             選修課點名系統 ↗
           </a>
@@ -273,7 +284,7 @@ const CourseList: React.FC = () => {
                 <th>編號</th>
                 <th>選修課名稱</th>
                 <th>授課老師</th>
-                <th>上課星期</th>
+                <th>每週上課日</th>
                 <th>時間／地點</th>
                 <th>點名</th>
                 <th>狀態</th>
@@ -301,30 +312,33 @@ const CourseList: React.FC = () => {
                       )}
                     </td>
                     <td>
-                      {canManage ? (
-                        <select
-                          value={course.day_of_week || ""}
-                          disabled={busy}
-                          onChange={(e) =>
-                            runAction(
-                              course.course_id,
-                              () => updateCourseWeekday(course.course_id, e.target.value as Weekday | ""),
-                              "設定上課星期失敗",
-                            )
-                          }
-                        >
-                          <option value="">未設定</option>
-                          {SCHOOL_WEEKDAYS.map((w) => (
-                            <option key={w} value={w}>
-                              {WEEKDAY_LABEL[w]}
-                            </option>
-                          ))}
-                        </select>
-                      ) : course.day_of_week ? (
-                        WEEKDAY_LABEL[course.day_of_week]
-                      ) : (
-                        <em style={{ color: "#b45309" }}>未設定</em>
-                      )}
+                      {(() => {
+                        const weekdays = courseWeekdays(course);
+                        if (canManage) {
+                          return (
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", minWidth: 180 }}>
+                              {SCHOOL_WEEKDAYS.map((w) => (
+                                <label key={w} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={weekdays.includes(w)}
+                                    disabled={busy}
+                                    onChange={() =>
+                                      runAction(
+                                        course.course_id,
+                                        () => updateCourseWeekdays(course.course_id, toggleWeekday(weekdays, w)),
+                                        "設定上課星期失敗",
+                                      )
+                                    }
+                                  />
+                                  <span>{WEEKDAY_LABEL[w]}</span>
+                                </label>
+                              ))}
+                            </div>
+                          );
+                        }
+                        return weekdays.length > 0 ? weekdayListLabel(weekdays) : <em style={{ color: "#b45309" }}>未設定</em>;
+                      })()}
                     </td>
                     <td>
                       {slotDraft[course.course_id] ? (
@@ -383,7 +397,7 @@ const CourseList: React.FC = () => {
                       )}
                     </td>
                     <td style={{ whiteSpace: "nowrap" }}>
-                      {s && course.day_of_week && calendarReady ? (
+                      {s && courseWeekdays(course).length > 0 && calendarReady ? (
                         <>
                           {s.recorded_count} / {s.due_count}
                           {s.missing_dates.length > 0 && (

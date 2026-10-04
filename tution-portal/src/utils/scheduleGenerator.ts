@@ -15,11 +15,12 @@ export interface GeneratedScheduleRow {
   scheduled_date: string;
   /** 實際上課日期：held/cancelled 時等於 scheduled_date；rescheduled 時等於 rescheduled_to */
   actual_date: string;
-  status: "held" | "cancelled" | "rescheduled";
+  status: "held" | "cancelled" | "rescheduled" | "extra";
   cancellation_reason?: string;
   rescheduled_to?: string;
   rescheduled_venue?: string;
   reschedule_reason?: string;
+  extra_session_note?: string;
   /** 若為例外記錄（無開課/調課），帶出其 KV id，供更新/刪除操作使用；「有開課」的預設列沒有 id */
   schedule_id?: string;
 }
@@ -41,6 +42,10 @@ function toDateString(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
+function defaultEndDate(startDate: string): string {
+  return `${startDate.slice(0, 4)}-12-31`;
+}
+
 export interface GenerateScheduleRowsParams {
   dayOfWeek: string; // 例如 "Monday"
   startDate: string; // YYYY-MM-DD
@@ -53,7 +58,7 @@ export interface GenerateScheduleRowsParams {
 /**
  * 依 day_of_week + start_date 產生完整的上課日清單，並套用例外記錄。
  *
- * 範圍：下限 = start_date；上限 = min(今天 + horizonDays, end_date ?? 今天 + horizonDays)。
+ * 範圍：下限 = start_date；上限 = min(今天 + horizonDays, end_date ?? 該年 12/31 ?? 今天 + horizonDays)。
  * 沒有例外記錄的日期一律視為「有開課」（held），不需要對應的 KV 記錄。
  * 輸出依日期新到舊排序。
  */
@@ -74,8 +79,9 @@ export function generateScheduleRows(
   const horizonLimit = new Date(todayUTC);
   horizonLimit.setUTCDate(horizonLimit.getUTCDate() + horizonDays);
 
-  const upperBound = endDate
-    ? new Date(Math.min(toUTCDate(endDate).getTime(), horizonLimit.getTime()))
+  const effectiveEndDate = endDate || defaultEndDate(startDate);
+  const upperBound = effectiveEndDate
+    ? new Date(Math.min(toUTCDate(effectiveEndDate).getTime(), horizonLimit.getTime()))
     : horizonLimit;
 
   const start = toUTCDate(startDate);
@@ -89,7 +95,18 @@ export function generateScheduleRows(
   firstOccurrence.setUTCDate(firstOccurrence.getUTCDate() + diff);
 
   const exceptionsByDate = new Map<string, TutionSchedule>();
+  const extraRows: GeneratedScheduleRow[] = [];
   for (const exception of exceptions) {
+    if (exception.status === "extra") {
+      extraRows.push({
+        scheduled_date: exception.scheduled_date,
+        actual_date: exception.scheduled_date,
+        status: "extra",
+        extra_session_note: exception.extra_session_note,
+        schedule_id: exception.schedule_id,
+      });
+      continue;
+    }
     exceptionsByDate.set(exception.scheduled_date, exception);
   }
 
@@ -124,7 +141,7 @@ export function generateScheduleRows(
     cursor.setUTCDate(cursor.getUTCDate() + 7);
   }
 
-  return rows.sort((a, b) => (a.scheduled_date < b.scheduled_date ? 1 : -1));
+  return [...rows, ...extraRows].sort((a, b) => (a.scheduled_date < b.scheduled_date ? 1 : -1));
 }
 
 export interface ScheduleSummaryStats {

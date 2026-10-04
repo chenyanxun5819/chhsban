@@ -61,7 +61,8 @@ entrypoint = "SyncService"
 [vars]
 GOOGLE_CLIENT_ID = "491731246647-gf63vkq4vso6uji4dilcd84g5aedocsf.apps.googleusercontent.com"
 
-# Cron 觸發器：每日 UTC 16:00（= 馬來西亞時間 00:00）學年重置（刪除上一學年開課的班級）、重新計算「各課程開課報表」
+# Cron 觸發器：每日 UTC 16:00（= 馬來西亞時間 00:00）檢查是否已到隔年 12/1；
+# 到了就分批刪除前一年的班級資料，並重新計算「各課程開課報表」
 [triggers]
 crons = ["0 16 * * *"]
 

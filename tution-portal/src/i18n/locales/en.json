@@ -260,6 +260,7 @@
     "statusHeld": "✅ Held",
     "statusCancelled": "🚫 Cancelled",
     "statusRescheduled": "🔄 Rescheduled",
+    "statusExtra": "➕ Extra",
     "attended": "Attendance Taken",
     "notAttended": "⚠️ Not Marked",
     "cancelAction": "Cancel",
@@ -404,7 +405,8 @@
     "noScheduleLog": "No schedule records this month",
     "scheduleCancelled": "{{date}} Cancelled",
     "scheduleRescheduled": "{{date}} Moved to {{newDate}}",
-    "scheduleHeld": "{{date}} Held"
+    "scheduleHeld": "{{date}} Held",
+    "scheduleExtra": "{{date}} Extra session: {{note}}"
   },
   "attendanceStatsPage": {
     "loadFailed": "Failed to load",

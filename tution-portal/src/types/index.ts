@@ -39,7 +39,7 @@ export type TutionStatus =
   | "rejected"
   | "active"
   | "ended";
-export type ScheduleStatus = "held" | "cancelled" | "rescheduled";
+export type ScheduleStatus = "held" | "cancelled" | "rescheduled" | "extra";
 export type AttendanceStatus = "present" | "absent" | "late";
 export type RosterStatus = "initial" | "active" | "dropped";
 

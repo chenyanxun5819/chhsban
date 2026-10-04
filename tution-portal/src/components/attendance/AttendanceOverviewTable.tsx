@@ -85,6 +85,9 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
     if (row.status === "cancelled") return t("attendanceSheet.scheduleCancelled", { date: row.scheduled_date });
     if (row.status === "rescheduled")
       return t("attendanceSheet.scheduleRescheduled", { date: row.scheduled_date, newDate: row.rescheduled_to });
+    if (row.status === "extra") {
+      return t("attendanceSheet.scheduleExtra", { date: row.scheduled_date, note: row.extra_session_note || "—" });
+    }
     return t("attendanceSheet.scheduleHeld", { date: row.scheduled_date });
   };
   const chronological = useMemo(() => [...rows].reverse(), [rows]);

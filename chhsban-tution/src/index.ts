@@ -27,6 +27,13 @@ import {
 import { logAudit } from "./audit";
 import { handleStudentSync, type StudentSyncService } from "./student-sync";
 import { handleLegacyCleanup } from "./legacy-cleanup"; // 一次性工具，舊學生資料清完即可移除
+import {
+  currentTutionPurgeTargetYear,
+  currentTutionYear,
+  nextTutionPurgeStartDate,
+  oldestRetainedTutionYear,
+  tutionPurgeWindowOpen,
+} from "./retention";
 
 interface Env {
   STUDENT_KV: KVNamespace;
@@ -56,9 +63,6 @@ const FIXED_TIME_START = "19:00";
 const FIXED_TIME_END = "21:00";
 const MAX_STUDENTS_PER_CLASS = 30;
 
-// 學年重置：只保留今年開課的班級（與選修課一致）。每日排程檢查，跨年後第一次執行（1/1 凌晨）
-// 就把上一學年以前開課的班級全部刪除；補習班不會跨年上課。年底前請先到行政管理站「學年封存」下載 Excel。
-const RETENTION_PAST_YEARS = 0;
 // 點名每天最多刪幾列（含歷史；每列連索引約寫 2~3 列），留足 D1 免費版每日 10 萬列寫入額度給正常使用
 const ATTENDANCE_PURGE_ROWS_PER_RUN = 10000;
 
@@ -77,6 +81,7 @@ const SCHEDULE_EDITABLE_FIELDS = [
   "rescheduled_to",
   "rescheduled_venue",
   "reschedule_reason",
+  "extra_session_note",
 ];
 
 // 申請表內容欄位：建立申請時可填、待審批階段可修改
@@ -403,15 +408,17 @@ export default {
   },
 
   // 每日凌晨（見 wrangler.toml 的 [triggers] crons）：
-  // 1. 學年重置：刪除上一學年以前開課的班級，連同名單、排課例外、R2 檔案，清掉過期的「最後上課日期」；點名資料量大，分天刪除
+  // 1. 學年重置：隔年 12/1 起刪除前一年的班級，連同名單、排課例外、R2 檔案，清掉過期的「最後上課日期」；點名資料量大，分天刪除
   // 2. 重新計算「各課程開課報表」並存入 D1，前端一律讀這份快照
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
       (async () => {
         const service = new TutionService(env.DB);
         try {
-          const minYear = new Date(Date.now() + 8 * 60 * 60 * 1000).getUTCFullYear() - RETENTION_PAST_YEARS;
+          const minYear = oldestRetainedTutionYear();
           const expired = await service.listExpiredClasses(minYear);
+          const purgeTargetYear = currentTutionPurgeTargetYear();
+          const noticeParts: string[] = [];
           if (expired.length > 0) {
             // 先刪 R2 檔案（一次最多 1000 個），再一次刪光 D1 資料；R2 失敗就整個停下，隔天重試
             const fileKeys = expired.flatMap((c: any) =>
@@ -424,13 +431,25 @@ export default {
             }
             await service.deleteClassesBefore(minYear);
             console.log(`Year reset: purged ${expired.length} classes before ${minYear}:`, expired.map((c) => c.class_id).join(", "));
+            noticeParts.push(`本次刪除 ${expired.length} 門 ${purgeTargetYear ?? minYear - 1} 年舊課程`);
           }
           if (await service.clearLastTeachingDateBefore(minYear)) {
             console.log(`Year reset: cleared last teaching date before ${minYear}`);
+            noticeParts.push("已清除過期的最後上課日期設定");
           }
           const purgedAttendance = await service.purgeOrphanAttendance(ATTENDANCE_PURGE_ROWS_PER_RUN);
           if (purgedAttendance !== null) {
             console.log(`Year reset: purged ${purgedAttendance} attendance rows of deleted classes`);
+            noticeParts.push(`本次分批刪除 ${purgedAttendance} 列已刪班級的點名資料`);
+          }
+          if (noticeParts.length > 0) {
+            await service.appendMaintenanceNotice({
+              created_at: new Date().toISOString(),
+              title: purgeTargetYear
+                ? `補習班 ${purgeTargetYear} 年舊資料分批清理`
+                : "補習班舊資料分批清理",
+              detail: noticeParts.join("；"),
+            });
           }
         } catch (error) {
           console.error("Scheduled purge failed:", error);
@@ -1686,6 +1705,25 @@ async function handleSettings(
       }
     }
 
+    if (settingKey === "maintenance-notices" && method === "GET") {
+      if (session.permission !== "admin" && session.permission !== "super_admin") {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      return jsonResponse({
+        data: {
+          system: "tution",
+          current_year: currentTutionYear(),
+          retained_from_year: oldestRetainedTutionYear(),
+          purge_window_open: tutionPurgeWindowOpen(),
+          current_purge_target_year: currentTutionPurgeTargetYear(),
+          next_purge_start: nextTutionPurgeStartDate(),
+          attendance_purge_pending: await service.hasPendingAttendancePurge(),
+          notices: await service.getMaintenanceNotices(),
+        },
+      }, 200);
+    }
+
     return jsonResponse({ error: "Not found" }, 404);
   } catch (error) {
     console.error("Settings handler error:", error);
@@ -1880,9 +1918,9 @@ async function handleSchedules(
           400,
         );
       }
-      if (data.status !== "cancelled" && data.status !== "rescheduled") {
+      if (data.status !== "cancelled" && data.status !== "rescheduled" && data.status !== "extra") {
         return jsonResponse(
-          { error: "status must be 'cancelled' or 'rescheduled'" },
+          { error: "status must be 'cancelled', 'rescheduled' or 'extra'" },
           400,
         );
       }
@@ -1898,6 +1936,9 @@ async function handleSchedules(
           400,
         );
       }
+      if (data.status === "extra" && !String(data.extra_session_note || "").trim()) {
+        return jsonResponse({ error: "extra_session_note is required" }, 400);
+      }
 
       const tutionClass = await service.getClass(data.class_id);
       if (!tutionClass) {
@@ -1906,9 +1947,31 @@ async function handleSchedules(
       if (!canManageClass(tutionClass)) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
+      if (data.status === "extra" && session.permission !== "super_admin") {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+
+      const existing = await service.listSchedulesByClass(data.class_id);
+      if (data.status === "extra") {
+        const targetDate = data.scheduled_date as string;
+        const occupiedDates = new Set(
+          generateScheduleRows({
+            dayOfWeek: tutionClass.day_of_week,
+            startDate: tutionClass.start_date,
+            endDate: tutionClass.end_date,
+            exceptions: existing,
+            today: new Date(`${targetDate}T00:00:00Z`),
+            horizonDays: 365,
+          })
+            .filter((row) => row.status !== "cancelled")
+            .map((row) => row.actual_date),
+        );
+        if (occupiedDates.has(targetDate)) {
+          return jsonResponse({ error: "DATE_ALREADY_HAS_SESSION" }, 409);
+        }
+      }
 
       // 同一課程同一天只能有一筆例外記錄：若已存在則直接更新，避免重複
-      const existing = await service.listSchedulesByClass(data.class_id);
       const duplicate = existing.find((s) => s.scheduled_date === data.scheduled_date);
       if (duplicate) {
         const updated = await service.updateSchedule(duplicate.schedule_id, data);
@@ -1940,8 +2003,8 @@ async function handleSchedules(
         return jsonResponse({ error: "FIELDS_NOT_EDITABLE", fields: rejectedFields }, 400);
       }
       const updates = body as Partial<TutionSchedule>;
-      if (updates.status && updates.status !== "cancelled" && updates.status !== "rescheduled") {
-        return jsonResponse({ error: "status must be 'cancelled' or 'rescheduled'" }, 400);
+      if (updates.status && updates.status !== "cancelled" && updates.status !== "rescheduled" && updates.status !== "extra") {
+        return jsonResponse({ error: "status must be 'cancelled', 'rescheduled' or 'extra'" }, 400);
       }
       if (updates.scheduled_date !== undefined && !isValidDateString(updates.scheduled_date)) {
         return jsonResponse({ error: "INVALID_SCHEDULED_DATE" }, 400);
@@ -1960,6 +2023,9 @@ async function handleSchedules(
       if (!canManageClass(tutionClass) && !isClassroomManagerVenueAssignment) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
+      if ((existing.status === "extra" || updates.status === "extra") && session.permission !== "super_admin") {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
 
       if (updates.status === "cancelled" && !updates.cancellation_reason && !existing.cancellation_reason) {
         return jsonResponse({ error: "cancellation_reason is required" }, 400);
@@ -1969,6 +2035,12 @@ async function handleSchedules(
         !(updates.rescheduled_to || existing.rescheduled_to)
       ) {
         return jsonResponse({ error: "rescheduled_to is required" }, 400);
+      }
+      if (
+        (updates.status === "extra" || existing.status === "extra") &&
+        !String(updates.extra_session_note || existing.extra_session_note || "").trim()
+      ) {
+        return jsonResponse({ error: "extra_session_note is required" }, 400);
       }
 
       const updated = await service.updateSchedule(scheduleId, updates);
@@ -1984,6 +2056,9 @@ async function handleSchedules(
 
       const tutionClass = await service.getClass(existing.class_id);
       if (!tutionClass || !canManageClass(tutionClass)) {
+        return jsonResponse({ error: "Forbidden" }, 403);
+      }
+      if (existing.status === "extra" && session.permission !== "super_admin") {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 

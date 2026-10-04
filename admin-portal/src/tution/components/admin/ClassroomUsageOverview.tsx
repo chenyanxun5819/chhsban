@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { ClassroomRecord, TutionClass, TutionSchedule } from "@/tution/types";
 import { scheduleService } from "@/tution/services/scheduleService";
 import { formatDate, getDayOfWeekFromDate } from "@/tution/utils/validators";
-import { getSemesterInfo } from "@/tution/utils/semester";
 
 interface ClassroomUsageOverviewProps {
   classes: TutionClass[];
@@ -62,9 +61,8 @@ function generateMonthWeekdays(yearMonth: string): string[] {
 // 避免課程沒設結束日期就被當成無限期每週重複，一路排到很久以後的月份
 function getEffectiveEndDate(cls: TutionClass, lastTeachingDate?: string): string {
   if (cls.end_date) return cls.end_date;
-  if (lastTeachingDate) return lastTeachingDate;
-  const { year, half } = getSemesterInfo(cls.start_date);
-  return half === "h1" ? `${year}-05-31` : `${year}-12-31`;
+  if (lastTeachingDate && lastTeachingDate >= cls.start_date) return lastTeachingDate;
+  return `${cls.start_date.slice(0, 4)}-12-31`;
 }
 
 // 課程是否仍在有效上課區間內
@@ -88,7 +86,7 @@ interface CellEntry {
   subject: string;
   form: string;
   teacher_name_cn: string;
-  kind: "regular" | "rescheduled-in";
+  kind: "regular" | "rescheduled-in" | "extra";
 }
 
 interface FadedEntry {
@@ -240,7 +238,21 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
         }
       }
 
-      // 2. 調課調入：rescheduled_to 命中這一天
+      // 2. 額外加課：直接佔用原教室
+      for (const schedule of schedules) {
+        if (schedule.status !== "extra" || schedule.scheduled_date !== date) continue;
+        const cls = classById.get(schedule.class_id);
+        if (!cls || !OCCUPYING_STATUSES.includes(cls.approval_status) || !cls.venue) continue;
+        occupancy[date][cls.venue] = {
+          class_id: cls.class_id,
+          subject: cls.subject,
+          form: cls.form,
+          teacher_name_cn: cls.teacher_name_cn,
+          kind: "extra",
+        };
+      }
+
+      // 3. 調課調入：rescheduled_to 命中這一天
       for (const schedule of schedules) {
         if (schedule.status !== "rescheduled" || schedule.rescheduled_to !== date) continue;
         const cls = classById.get(schedule.class_id);

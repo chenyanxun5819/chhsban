@@ -18,6 +18,7 @@ export interface OptionalCourse {
   teacher_id?: string;
   teacher_name_cn?: string;
   subject: string;
+  weekly_days?: Weekday[];
   day_of_week?: Weekday;
   time_start?: string;
   time_end?: string;
@@ -128,6 +129,7 @@ export interface CourseSession {
 
 export interface CourseSessionsInfo {
   calendar_ready: boolean;
+  weekly_days: Weekday[];
   day_of_week: Weekday | null;
   today: string;
   sessions: CourseSession[];
@@ -139,6 +141,7 @@ export interface CourseAttendanceSummary {
   subject: string;
   teacher_id?: string;
   teacher_name_cn?: string;
+  weekly_days: Weekday[];
   day_of_week: Weekday | null;
   window_status: CourseWindowStatus;
   total_sessions: number;
@@ -162,6 +165,7 @@ export interface CourseReportRow {
   teacher_name_cn?: string;
   subject: string;
   window_status: CourseWindowStatus;
+  weekly_days: Weekday[];
   day_of_week: Weekday | null;
   expected_count: number;
   actual_held_count: number;

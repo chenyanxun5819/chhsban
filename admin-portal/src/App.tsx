@@ -6,6 +6,7 @@ import { HOME_BY_PERMISSION, canAccess } from "@/shared/access";
 import Login from "@/shared/pages/Login";
 import Approvals from "@/tution/pages/Approvals";
 import Courses from "@/tution/pages/Courses";
+import ExtraSessions from "@/tution/pages/ExtraSessions";
 import CourseRoster from "@/tution/pages/CourseRoster";
 import CourseScheduleStatus from "@/tution/pages/CourseScheduleStatus";
 import CourseClassAttendance from "@/tution/pages/CourseClassAttendance";
@@ -26,6 +27,7 @@ import Classrooms from "@/settings/pages/Classrooms";
 import StudentSync from "@/data/pages/StudentSync";
 import StudentExport from "@/data/pages/StudentExport";
 import OfficialRoster from "@/data/pages/OfficialRoster";
+import MaintenanceNotices from "@/data/pages/MaintenanceNotices";
 import LegacyCleanup from "@/data/pages/LegacyCleanup";
 import YearArchive from "@/data/pages/YearArchive";
 
@@ -101,6 +103,7 @@ const AppRoutes = () => (
     {/* 補習班（tution-system Worker） */}
     <Route path="/tution/approvals" element={page(<Approvals />)} />
     <Route path="/tution/courses" element={page(<Courses />)} />
+    <Route path="/tution/extra-sessions" element={page(<ExtraSessions />)} />
     <Route path="/tution/courses/:id/roster" element={page(<CourseRoster />, "/tution/courses")} />
     <Route path="/tution/courses/:id/schedule" element={page(<CourseScheduleStatus />, "/tution/courses")} />
     <Route path="/tution/courses/:id/attendance" element={page(<CourseClassAttendance />, "/tution/courses")} />
@@ -124,6 +127,7 @@ const AppRoutes = () => (
     <Route path="/settings/classrooms" element={page(<Classrooms />)} />
 
     {/* 一次性工具：舊學生資料清理（清完即可移除，見 LegacyCleanup.tsx 的提示語） */}
+    <Route path="/maintenance/notices" element={page(<MaintenanceNotices />)} />
     <Route path="/maintenance/legacy-cleanup" element={page(<LegacyCleanup />)} />
 
     <Route path="*" element={<Navigate to="/" replace />} />

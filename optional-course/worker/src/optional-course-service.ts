@@ -25,7 +25,7 @@ import {
   CourseWindowStatus,
   SchoolCalendar,
 } from "./types";
-import { emptyCalendar } from "./calendar";
+import { emptyCalendar, normalizeCourseWeekdays } from "./calendar";
 import { oldestRetainedYear, yearFromCourseId } from "./year";
 
 function randomSuffix(): string {
@@ -42,6 +42,14 @@ const calendarKey = (year: number) => `calendar:${year}`;
 const attendancePrefix = (courseId: string) => `attendance:${courseId}:`;
 const attendanceKey = (courseId: string, classDate: string) => `${attendancePrefix(courseId)}${classDate}`;
 const attendanceStatsKey = (courseId: string) => `stats:${courseId}`;
+const maintenanceNoticeKey = "maintenance:notices";
+
+export interface MaintenanceNotice {
+  notice_id: string;
+  created_at: string;
+  title: string;
+  detail: string;
+}
 
 export interface DayAttendanceCounts {
   present: number;
@@ -93,6 +101,15 @@ export class OptionalCourseService {
 
   // ===== 課程主表 =====
 
+  private normalizeCourse(course: OptionalCourse): OptionalCourse {
+    const weeklyDays = normalizeCourseWeekdays(course.weekly_days, course.day_of_week);
+    return {
+      ...course,
+      weekly_days: weeklyDays.length > 0 ? weeklyDays : undefined,
+      day_of_week: weeklyDays[0],
+    };
+  }
+
   async createCourse(
     data: Omit<
       OptionalCourse,
@@ -102,8 +119,11 @@ export class OptionalCourseService {
   ): Promise<OptionalCourse> {
     const seq = await this.nextCourseNoSeq(year);
     const now = Date.now();
+    const weeklyDays = normalizeCourseWeekdays(data.weekly_days, data.day_of_week);
     const course: OptionalCourse = {
       ...data,
+      weekly_days: weeklyDays.length > 0 ? weeklyDays : undefined,
+      day_of_week: weeklyDays[0],
       course_id: `course_${year}_${now}_${randomSuffix()}`,
       course_no: `optional-${String(year).slice(-2)}-${String(seq).padStart(2, "0")}`,
       year,
@@ -112,7 +132,7 @@ export class OptionalCourseService {
       updated_at: now,
     };
     await this.courseKV.put(course.course_id, JSON.stringify(course));
-    return course;
+    return this.normalizeCourse(course);
   }
 
   /**
@@ -137,7 +157,8 @@ export class OptionalCourseService {
   }
 
   async getCourse(courseId: string): Promise<OptionalCourse | null> {
-    return getJson<OptionalCourse>(this.courseKV, courseId);
+    const course = await getJson<OptionalCourse>(this.courseKV, courseId);
+    return course ? this.normalizeCourse(course) : null;
   }
 
   async updateCourse(
@@ -147,11 +168,18 @@ export class OptionalCourseService {
     const existing = await this.getCourse(courseId);
     if (!existing) throw new Error(`Course ${courseId} not found`);
 
-    const updated: OptionalCourse = {
+    const normalizedDays = normalizeCourseWeekdays(
+      "weekly_days" in updates || "day_of_week" in updates ? updates.weekly_days : existing.weekly_days,
+      "weekly_days" in updates || "day_of_week" in updates ? updates.day_of_week : existing.day_of_week,
+    );
+
+    const updated = this.normalizeCourse({
       ...existing,
       ...updates,
+      weekly_days: normalizedDays.length > 0 ? normalizedDays : undefined,
+      day_of_week: normalizedDays[0],
       updated_at: Date.now(),
-    };
+    });
     await this.courseKV.put(courseId, JSON.stringify(updated));
     return updated;
   }
@@ -368,6 +396,18 @@ export class OptionalCourseService {
       .filter((year) => Number.isInteger(year) && year < minYear);
     await Promise.all(expired.map((year) => this.scheduleKV.delete(calendarKey(year))));
     return expired;
+  }
+
+  async getMaintenanceNotices(): Promise<MaintenanceNotice[]> {
+    return (await getJson<MaintenanceNotice[]>(this.courseKV, maintenanceNoticeKey)) || [];
+  }
+
+  async appendMaintenanceNotice(notice: Omit<MaintenanceNotice, "notice_id">): Promise<void> {
+    const current = await this.getMaintenanceNotices();
+    await this.courseKV.put(
+      maintenanceNoticeKey,
+      JSON.stringify([{ notice_id: generateId("notice"), ...notice }, ...current].slice(0, 30)),
+    );
   }
 }
 

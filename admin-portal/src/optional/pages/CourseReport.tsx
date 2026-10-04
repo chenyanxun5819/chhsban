@@ -87,7 +87,7 @@ const CourseReport: React.FC = () => {
     [summary],
   );
   const calendarMissing = !!summary && !summary.calendar_ready && rows.length > 0;
-  const noWeekday = rows.filter((r) => !r.day_of_week);
+  const noWeekday = rows.filter((r) => r.weekly_days.length === 0);
 
   return (
     <TutionPage title="選修課開課報表" error={error}>

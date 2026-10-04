@@ -13,6 +13,7 @@
 import type { TeacherKVManager } from "@chhsban/kv-utils";
 import type { TutionClass, TutionSchedule } from "@chhsban/kv-utils";
 import type { TutionService } from "./tution-service";
+import { defaultTutionEndDate, effectiveTutionEndDate } from "./retention";
 
 const DAY_NAME_TO_INDEX: Record<string, number> = {
   sunday: 0,
@@ -27,7 +28,8 @@ const DAY_NAME_TO_INDEX: Record<string, number> = {
 export interface GeneratedScheduleRow {
   scheduled_date: string;
   actual_date: string;
-  status: "held" | "cancelled" | "rescheduled";
+  status: "held" | "cancelled" | "rescheduled" | "extra";
+  extra_session_note?: string;
 }
 
 function parseYMD(dateStr: string): { y: number; m: number; d: number } {
@@ -70,8 +72,9 @@ export function generateScheduleRows(params: {
   const horizonLimit = new Date(todayUTC);
   horizonLimit.setUTCDate(horizonLimit.getUTCDate() + horizonDays);
 
-  const upperBound = endDate
-    ? new Date(Math.min(toUTCDate(endDate).getTime(), horizonLimit.getTime()))
+  const effectiveEndDate = endDate || defaultTutionEndDate(startDate);
+  const upperBound = effectiveEndDate
+    ? new Date(Math.min(toUTCDate(effectiveEndDate).getTime(), horizonLimit.getTime()))
     : horizonLimit;
 
   const start = toUTCDate(startDate);
@@ -84,7 +87,17 @@ export function generateScheduleRows(params: {
   firstOccurrence.setUTCDate(firstOccurrence.getUTCDate() + diff);
 
   const exceptionsByDate = new Map<string, TutionSchedule>();
+  const extraRows: GeneratedScheduleRow[] = [];
   for (const exception of exceptions) {
+    if (exception.status === "extra") {
+      extraRows.push({
+        scheduled_date: exception.scheduled_date,
+        actual_date: exception.scheduled_date,
+        status: "extra",
+        extra_session_note: exception.extra_session_note,
+      });
+      continue;
+    }
     exceptionsByDate.set(exception.scheduled_date, exception);
   }
 
@@ -107,7 +120,9 @@ export function generateScheduleRows(params: {
     cursor.setUTCDate(cursor.getUTCDate() + 7);
   }
 
-  return rows;
+  return [...rows, ...extraRows].sort((a, b) =>
+    a.scheduled_date === b.scheduled_date ? a.actual_date.localeCompare(b.actual_date) : a.scheduled_date.localeCompare(b.scheduled_date),
+  );
 }
 
 /** 排課表格上方的彙總統計（見 scheduleGenerator.ts 的 summarizeSchedule）。 */
@@ -183,6 +198,7 @@ export async function computeCourseReport(
   service: TutionService,
   teacherManager: TeacherKVManager,
 ): Promise<CourseReportSummary> {
+  const lastTeachingDate = await service.getLastTeachingDate();
   const [allClasses, allSchedules, allRoster, attendanceCounts, allTeachers] = await Promise.all([
     service.listAllClasses(),
     service.listAllSchedules(),
@@ -208,7 +224,7 @@ export async function computeCourseReport(
       const scheduleRows = generateScheduleRows({
         dayOfWeek: cls.day_of_week,
         startDate: cls.start_date,
-        endDate: cls.end_date,
+        endDate: effectiveTutionEndDate(cls.start_date, cls.end_date, lastTeachingDate),
         exceptions,
         today,
       });

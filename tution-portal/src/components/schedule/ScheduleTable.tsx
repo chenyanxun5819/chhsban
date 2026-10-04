@@ -51,6 +51,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
     held: t("schedule.statusHeld"),
     cancelled: t("schedule.statusCancelled"),
     rescheduled: t("schedule.statusRescheduled"),
+    extra: t("schedule.statusExtra"),
   };
 
   if (loading) {
@@ -72,7 +73,7 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
         const isLocked = row.status !== "held" || attended;
 
         // 「有開課」原始日期的點名情況：調課後原日期不適用，改在調課明細顯示新日期的點名情況
-        const showOriginalAttendance = row.status === "held" && hasHappened;
+        const showOriginalAttendance = (row.status === "held" || row.status === "extra") && hasHappened;
 
         return (
           <div key={row.scheduled_date} className={`schedule-row status-${row.status}`}>
@@ -98,7 +99,9 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
                 </span>
               )}
 
-              {row.status === "held" && <span className="schedule-row-reason">—</span>}
+              {(row.status === "held" || row.status === "extra") && (
+                <span className="schedule-row-reason">{row.status === "extra" ? row.extra_session_note || "—" : "—"}</span>
+              )}
 
               {!isLocked && !readOnly && (
                 <span className="schedule-row-actions">

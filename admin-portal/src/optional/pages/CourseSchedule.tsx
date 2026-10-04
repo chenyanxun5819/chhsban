@@ -6,7 +6,7 @@ import { getCourse } from "@/optional/services/courseService";
 import { listSchedules, createSchedule, deleteSchedule } from "@/optional/services/scheduleService";
 import { getCourseSessions } from "@/optional/services/calendarService";
 import type { CourseScheduleStatus, CourseSessionsInfo, OptionalCourse, OptionalCourseSchedule } from "@/optional/types";
-import { WEEKDAY_LABEL, formatDate } from "@/optional/utils/calendar";
+import { formatDate, weekdayListLabel } from "@/optional/utils/calendar";
 
 const ERROR_LABEL: Record<string, string> = {
   NOT_A_SESSION_DATE: "原訂日期不是這門課依行事曆的上課日",
@@ -116,12 +116,12 @@ const CourseSchedule: React.FC = () => {
               <p style={{ color: "#b45309" }}>
                 選修課行事曆尚未建立，暫時無法推算上課日期。請先到 <Link to="/optional/calendar">選修課行事曆</Link> 設定。
               </p>
-            ) : !info.day_of_week ? (
+            ) : info.weekly_days.length === 0 ? (
               <p style={{ color: "#b45309" }}>這門課尚未設定上課星期，請到選修課總覽設定。</p>
             ) : (
               <>
                 <p style={{ color: "#666", marginTop: 0 }}>
-                  每{WEEKDAY_LABEL[info.day_of_week]}上課，依行事曆全年共 {info.sessions.length} 堂
+                  每{weekdayListLabel(info.weekly_days)}上課，依行事曆全年共 {info.sessions.length} 堂
                   （已扣除假期；補課日按指定課表加入）。
                 </p>
                 <table className="table">
@@ -166,7 +166,7 @@ const CourseSchedule: React.FC = () => {
               <form onSubmit={handleSubmit}>
                 <div className="form-row">
                   <label>原訂日期</label>
-                  {info.calendar_ready && info.day_of_week ? (
+                  {info.calendar_ready && info.weekly_days.length > 0 ? (
                     <select value={date} onChange={(e) => setDate(e.target.value)} required>
                       <option value="">選擇上課日...</option>
                       {regularDates.map((s) => (

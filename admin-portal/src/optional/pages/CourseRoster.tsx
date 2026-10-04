@@ -7,7 +7,7 @@ import type { ClassRosterEntry } from "@/tution/types";
 import { getCourse } from "@/optional/services/courseService";
 import { listRoster } from "@/optional/services/attendanceService";
 import type { OptionalCourse, OptionalCourseRoster } from "@/optional/types";
-import { WEEKDAY_LABEL } from "@/optional/utils/calendar";
+import { courseWeekdays, weekdayListLabel } from "@/optional/utils/calendar";
 
 /** 選修課名冊轉成補習班學生總覽元件的欄位 */
 const toRosterEntry = (r: OptionalCourseRoster): ClassRosterEntry => ({
@@ -61,8 +61,8 @@ const CourseRoster: React.FC = () => {
     ? [
         `課程編號: ${course.course_no}`,
         course.teacher_name_cn && `授課老師: ${course.teacher_name_cn}`,
-        course.day_of_week &&
-          `每${WEEKDAY_LABEL[course.day_of_week]}${
+        courseWeekdays(course).length > 0 &&
+          `每${weekdayListLabel(courseWeekdays(course))}${
             course.time_start ? ` ${course.time_start}${course.time_end ? `-${course.time_end}` : ""}` : ""
           }`,
         course.venue || "-",

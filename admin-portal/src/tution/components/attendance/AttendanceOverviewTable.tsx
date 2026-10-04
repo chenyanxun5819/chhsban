@@ -114,6 +114,9 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
     if (row.status === "cancelled") return t("attendanceSheet.scheduleCancelled", { date: row.scheduled_date });
     if (row.status === "rescheduled")
       return t("attendanceSheet.scheduleRescheduled", { date: row.scheduled_date, newDate: row.rescheduled_to });
+    if (row.status === "extra") {
+      return t("attendanceSheet.scheduleExtra", { date: row.scheduled_date, note: row.extra_session_note || "—" });
+    }
     return t("attendanceSheet.scheduleHeld", { date: row.scheduled_date });
   };
   const isMobile = useIsMobile();
@@ -167,7 +170,7 @@ export const AttendanceOverview: React.FC<AttendanceOverviewProps> = ({
     });
     allRows.forEach((row) => {
       const d = row.scheduled_date;
-      if (row.status === "held" || d > today || actualDates.has(d)) return;
+      if (row.status === "held" || row.status === "extra" || d > today || actualDates.has(d)) return;
       if (row.status === "cancelled" && !showCancelled) return;
       if (row.status === "rescheduled" && !showRescheduled) return;
       const special: SpecialColumn =

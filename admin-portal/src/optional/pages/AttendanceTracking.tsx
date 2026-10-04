@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { Layout } from "@/shared/components/Layout";
 import { getAttendanceSummary } from "@/optional/services/calendarService";
 import type { AttendanceSummary, CourseAttendanceSummary } from "@/optional/types";
-import { WEEKDAY_LABEL, formatDate } from "@/optional/utils/calendar";
+import { courseWeekdays, formatDate, weekdayListLabel } from "@/optional/utils/calendar";
 import { currentYear, selectableYears } from "@/shared/utils/year";
 
 type ViewMode = "course" | "date";
@@ -26,7 +26,7 @@ const AttendanceTracking: React.FC = () => {
   }, [year]);
 
   const courses = summary?.courses ?? [];
-  const noWeekday = courses.filter((c) => !c.day_of_week);
+  const noWeekday = courses.filter((c) => courseWeekdays(c).length === 0);
   const totalMissing = courses.reduce((n, c) => n + c.missing_dates.length, 0);
 
   // 依日期分組（新到舊），方便逐日追問老師
@@ -111,7 +111,7 @@ const AttendanceTracking: React.FC = () => {
                             <Link to={`/optional/courses/${c.course_id}/attendance`}>{c.subject}</Link>
                           </td>
                           <td>{c.teacher_name_cn || "-"}</td>
-                          <td>{c.day_of_week ? WEEKDAY_LABEL[c.day_of_week] : <em style={{ color: "#b45309" }}>未設定</em>}</td>
+                          <td>{courseWeekdays(c).length > 0 ? weekdayListLabel(courseWeekdays(c)) : <em style={{ color: "#b45309" }}>未設定</em>}</td>
                           <td>
                             {c.recorded_count} / {c.due_count}
                           </td>

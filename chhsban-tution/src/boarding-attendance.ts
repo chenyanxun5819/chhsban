@@ -179,6 +179,9 @@ function sessionOnDate(
   // 當天實際上課（正常或調課進來）優先；同一天同時有「調離」與「調入」時以有課為準
   const heldRow = rows.find((r) => r.actual_date === date && r.status !== "cancelled");
   if (heldRow) {
+    if (heldRow.status === "extra") {
+      return { session: "held", reason: heldRow.extra_session_note };
+    }
     if (heldRow.status === "rescheduled" && heldRow.scheduled_date !== date) {
       const exception = exceptions.find((e) => e.scheduled_date === heldRow.scheduled_date);
       return {
@@ -298,7 +301,7 @@ export interface StudentSessionRow {
   date: string;
   /** 原本排定的上課日 */
   scheduled_date: string;
-  session: "held" | "rescheduled" | "cancelled";
+  session: "held" | "rescheduled" | "cancelled" | "extra";
   status: TutionAttendance["status"] | null;
   absence_reason?: string;
   /** 當天是否已過（未來的課不算「未點名」） */

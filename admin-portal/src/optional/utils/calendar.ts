@@ -49,6 +49,19 @@ export const formatDate = (date: string): string => {
   return `${m}/${d}（${WEEKDAY_LABEL[weekdayOf(date)].slice(-1)}）`;
 };
 
+export interface CourseWeekdayInfo {
+  weekly_days?: Weekday[] | null;
+  day_of_week?: Weekday | null;
+}
+
+export const courseWeekdays = (course: CourseWeekdayInfo): Weekday[] => {
+  const picked = Array.isArray(course.weekly_days) ? course.weekly_days : [];
+  const days = picked.length > 0 ? picked : course.day_of_week ? [course.day_of_week] : [];
+  return SCHOOL_WEEKDAYS.filter((day) => days.includes(day));
+};
+
+export const weekdayListLabel = (days: Weekday[]): string => days.map((day) => WEEKDAY_LABEL[day]).join("、");
+
 export type DayKind = "out_of_term" | "makeup" | "holiday" | "sunday" | "saturday" | "normal";
 
 export interface DayResolution {

@@ -7,7 +7,7 @@ import { listMyCourses } from "@/services/courseService";
 import { getCourseSessions } from "@/services/calendarService";
 import type { OptionalCourse } from "@/types";
 import { currentYear, selectableYears } from "@/utils/year";
-import { weekdayLabel } from "@/utils/calendar";
+import { courseWeekdays, weekdayListLabel } from "@/utils/calendar";
 
 const TeacherDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -74,9 +74,9 @@ const TeacherDashboard: React.FC = () => {
                 {t(`windowStatus.${course.window_status}`)}
               </span>
             </div>
-            {course.day_of_week && (
+            {courseWeekdays(course).length > 0 && (
               <p style={{ color: "#666", margin: "8px 0" }}>
-                {t("dashboard.everyDayClass", { day: weekdayLabel(course.day_of_week) })}
+                {t("dashboard.everyDayClass", { day: weekdayListLabel(courseWeekdays(course)) })}
                 {course.time_start && `　${course.time_start}${course.time_end ? `–${course.time_end}` : ""}`}
                 {course.venue && `　${course.venue}`}
               </p>

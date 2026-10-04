@@ -39,7 +39,7 @@ export type TutionStatus =
   | "rejected"
   | "active"
   | "ended";
-export type ScheduleStatus = "held" | "cancelled" | "rescheduled";
+export type ScheduleStatus = "held" | "cancelled" | "rescheduled" | "extra";
 export type AttendanceStatus = "present" | "absent" | "late";
 export type RosterStatus = "initial" | "active" | "dropped";
 
@@ -140,11 +140,12 @@ export interface TutionSchedule {
   schedule_id: string;
   class_id: string;
   scheduled_date: string; // YYYY-MM-DD，這堂課「原本」該上課的日期
-  status: "cancelled" | "rescheduled";
+  status: "cancelled" | "rescheduled" | "extra";
   cancellation_reason?: string;
   rescheduled_to?: string;
   rescheduled_venue?: string;
   reschedule_reason?: string;
+  extra_session_note?: string;
   created_at: number;
   updated_at: number;
 }

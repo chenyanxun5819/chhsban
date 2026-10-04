@@ -29,6 +29,7 @@ export interface OptionalCourse {
   teacher_id?: string;
   teacher_name_cn?: string;
   subject: string;
+  weekly_days?: Weekday[];
   form?: "F1" | "F2" | "F3" | "F4" | "F5" | "F6";
   day_of_week?:
     | "Monday"
@@ -130,6 +131,7 @@ export interface CourseSession {
 
 export interface CourseSessionsInfo {
   calendar_ready: boolean;
+  weekly_days: Weekday[];
   day_of_week: Weekday | null;
   today: string;
   sessions: CourseSession[];

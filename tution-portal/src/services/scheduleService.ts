@@ -10,10 +10,11 @@ import type { TutionSchedule } from "@/types/index";
 export interface ScheduleExceptionPayload {
   class_id: string;
   scheduled_date: string; // YYYY-MM-DD
-  status: "cancelled" | "rescheduled";
+  status: "cancelled" | "rescheduled" | "extra";
   cancellation_reason?: string;
   rescheduled_to?: string;
   reschedule_reason?: string;
+  extra_session_note?: string;
 }
 
 export const scheduleService = {

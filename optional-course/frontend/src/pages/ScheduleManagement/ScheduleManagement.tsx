@@ -6,7 +6,7 @@ import { getCourse } from "@/services/courseService";
 import { listSchedules } from "@/services/scheduleService";
 import { getCourseSessions } from "@/services/calendarService";
 import type { CourseSessionsInfo, OptionalCourse, OptionalCourseSchedule } from "@/types";
-import { weekdayLabel, courseSubtitle, formatDate } from "@/utils/calendar";
+import { weekdayListLabel, courseSubtitle, formatDate } from "@/utils/calendar";
 
 /**
  * 上課日期表（老師端唯讀）：應點名日期由學校行事曆＋課程上課星期推算。
@@ -53,12 +53,12 @@ const ScheduleManagement: React.FC = () => {
             <h3 style={{ marginTop: 0 }}>{t("schedule.tableTitle")}</h3>
             {!info.calendar_ready ? (
               <p style={{ color: "#b45309" }}>{t("schedule.calendarNotReady")}</p>
-            ) : !info.day_of_week ? (
+            ) : info.weekly_days.length === 0 ? (
               <p style={{ color: "#b45309" }}>{t("schedule.noWeekday")}</p>
             ) : (
               <>
                 <p style={{ color: "#666", marginTop: 0 }}>
-                  {t("schedule.summary", { day: weekdayLabel(info.day_of_week), count: info.sessions.length })}
+                  {t("schedule.summary", { day: weekdayListLabel(info.weekly_days), count: info.sessions.length })}
                 </p>
                 <table className="table">
                   <thead>

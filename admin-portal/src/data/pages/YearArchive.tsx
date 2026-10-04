@@ -10,7 +10,7 @@ import { getCourseSessions } from "@/optional/services/calendarService";
 import { listAttendance, listRoster } from "@/optional/services/attendanceService";
 import { listSchedules } from "@/optional/services/scheduleService";
 import { ATTENDANCE_STATUS_META as OPTIONAL_STATUS_META } from "@/optional/components/AttendanceOverview";
-import { WEEKDAY_LABEL, todayMYT } from "@/optional/utils/calendar";
+import { WEEKDAY_LABEL, courseWeekdays, todayMYT, weekdayListLabel } from "@/optional/utils/calendar";
 import type { OptionalCourse, OptionalCourseSchedule, Weekday } from "@/optional/types";
 import { currentYear, selectableYears } from "@/shared/utils/year";
 import {
@@ -49,8 +49,17 @@ const toStatuses = (meta: Record<string, { code: string; label: string }>): Arch
 
 const weekdayLabel = (day?: string): string => (day && WEEKDAY_LABEL[day as Weekday]) || day || "";
 
-function timeText(day: string | undefined, start?: string, end?: string, from?: string, to?: string): string {
-  const slot = [weekdayLabel(day) && `每${weekdayLabel(day)}`, start && `${start}${end ? `-${end}` : ""}`]
+function timeText(
+  dayOrDays: string | undefined | Weekday[],
+  start?: string,
+  end?: string,
+  from?: string,
+  to?: string,
+): string {
+  const dayText = Array.isArray(dayOrDays)
+    ? (dayOrDays.length > 0 ? weekdayListLabel(dayOrDays) : "")
+    : weekdayLabel(dayOrDays);
+  const slot = [dayText && `每${dayText}`, start && `${start}${end ? `-${end}` : ""}`]
     .filter(Boolean)
     .join(" ");
   const period = from ? `（${from} ~ ${to || "未定"}）` : "";
@@ -167,7 +176,7 @@ async function buildOptionalCourses(year: number, onProgress: (text: string) => 
       sheetName: `${course.course_no.replace(/^optional-/, "")} ${course.subject}`,
       title: `${course.subject} ${course.course_no}`,
       teacher: teacherText(course.teacher_name_cn, course.teacher_id),
-      time: timeText(course.day_of_week, course.time_start, course.time_end, sorted[0], sorted[sorted.length - 1]),
+      time: timeText(courseWeekdays(course), course.time_start, course.time_end, sorted[0], sorted[sorted.length - 1]),
       venue: course.venue || "",
       students,
       dates: sorted,
@@ -180,10 +189,10 @@ async function buildOptionalCourses(year: number, onProgress: (text: string) => 
 
 type Kind = "tution" | "optional";
 
-/** 距離 1/1 學年重置還有幾天（馬來西亞時間） */
-function daysUntilReset(): number {
+/** 距離下一次 12/1 舊資料清理還有幾天（馬來西亞時間） */
+function daysUntilPurge(): number {
   const today = todayMYT();
-  const next = `${Number(today.slice(0, 4)) + 1}-01-01`;
+  const next = `${Number(today.slice(0, 4)) + 1}-12-01`;
   return Math.round((Date.parse(`${next}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / 86400000);
 }
 
@@ -236,9 +245,9 @@ const YearArchive: React.FC = () => {
           <p className="ss-muted">
             補習班以「開課日期」所在年份歸年；選修課以建課時的年份歸年。學生班級是加入名單當時的班級。
           </p>
-          <p className={daysUntilReset() <= 31 ? "error-text" : "ss-muted"}>
-            ⚠️ 學年重置：{currentYear() + 1}/1/1 凌晨起，{currentYear()} 年的補習班、選修課資料（課程、名單、點名）會自動刪除，
-            無法復原。請在 12/31 前下載兩份封存檔（還有 {daysUntilReset()} 天）。老師、教室與學生名單不受影響。
+          <p className={daysUntilPurge() <= 31 ? "error-text" : "ss-muted"}>
+            ⚠️ 舊資料清理：{currentYear() + 1}/12/1 起，{currentYear()} 年的補習班、選修課資料（課程、名單、點名）會開始分批刪除，
+            無法復原。請在 {currentYear() + 1}/11/30 前下載兩份封存檔（還有 {daysUntilPurge()} 天）。老師、教室與學生名單不受影響。
           </p>
           <div className="ss-actions" style={{ flexWrap: "wrap", gap: 8 }}>
             <label>

@@ -24,6 +24,14 @@ const LAST_TEACHING_DATE_KEY = "last_teaching_date";
 const COURSE_REPORT_SUMMARY_KEY = "course_report_summary";
 // 學年重置後還有點名待分天清除（見 purgeOrphanAttendance）
 const ATTENDANCE_PURGE_PENDING_KEY = "attendance_purge_pending";
+const MAINTENANCE_NOTICE_KEY = "maintenance_notices";
+
+export interface MaintenanceNotice {
+  notice_id: string;
+  created_at: string;
+  title: string;
+  detail: string;
+}
 
 function randomSuffix(): string {
   return Math.random().toString(36).substring(2, 8);
@@ -259,6 +267,22 @@ export class TutionService {
 
   async setCourseReportSummary(summary: unknown): Promise<void> {
     await this.setSetting(COURSE_REPORT_SUMMARY_KEY, JSON.stringify(summary));
+  }
+
+  async getMaintenanceNotices(): Promise<MaintenanceNotice[]> {
+    const value = await this.getSetting(MAINTENANCE_NOTICE_KEY);
+    return value ? JSON.parse(value) as MaintenanceNotice[] : [];
+  }
+
+  async appendMaintenanceNotice(notice: Omit<MaintenanceNotice, "notice_id">): Promise<void> {
+    const current = await this.getMaintenanceNotices();
+    await this.setSetting(
+      MAINTENANCE_NOTICE_KEY,
+      JSON.stringify([
+        { notice_id: `notice_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, ...notice },
+        ...current,
+      ].slice(0, 30)),
+    );
   }
 
   // ===== 學生名單 =====
@@ -617,6 +641,10 @@ export class TutionService {
       await this.db.prepare(`DELETE FROM tution_settings WHERE key = ?`).bind(ATTENDANCE_PURGE_PENDING_KEY).run();
     }
     return deleted;
+  }
+
+  async hasPendingAttendancePurge(): Promise<boolean> {
+    return (await this.getSetting(ATTENDANCE_PURGE_PENDING_KEY)) !== null;
   }
 
   /** 「最後上課日期」若是上一學年的就清掉（否則新學年沒設結束日期的課會被當成已結束） */

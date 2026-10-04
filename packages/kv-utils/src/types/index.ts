@@ -232,6 +232,7 @@ export enum ScheduleStatus {
   HELD = "held",                                         // 有開課（預設值，不會實際寫入 KV）
   CANCELLED = "cancelled",                               // 無開課（停課）
   RESCHEDULED = "rescheduled",                           // 調課
+  EXTRA = "extra",                                       // 額外加課（由 super_admin 核准加入）
 }
 
 /**
@@ -244,11 +245,12 @@ export interface TutionSchedule {
   schedule_id: string;                                   // 系統自動生成
   class_id: string;                                      // FK -> TutionClass
   scheduled_date: string;                                // YYYY-MM-DD，這堂課「原本」該上課的日期
-  status: ScheduleStatus.CANCELLED | ScheduleStatus.RESCHEDULED; // 例外記錄只會是 cancelled 或 rescheduled
+  status: ScheduleStatus.CANCELLED | ScheduleStatus.RESCHEDULED | ScheduleStatus.EXTRA;
   cancellation_reason?: string;                          // status=cancelled 時必填
   rescheduled_to?: string;                               // YYYY-MM-DD，status=rescheduled 時必填：新日期
   rescheduled_venue?: string;                             // status=rescheduled 時必填：新地點
   reschedule_reason?: string;                            // status=rescheduled 時必填：調課原因
+  extra_session_note?: string;                           // status=extra 時必填：加課說明
   created_at: number;                                    // Unix 時間戳（毫秒）
   updated_at: number;                                    // Unix 時間戳（毫秒）
 }

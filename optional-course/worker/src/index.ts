@@ -32,19 +32,33 @@ import {
   type Weekday,
 } from "./types";
 import { findStudentByNo, getStudentClass, isLeftSchool, studentStatus } from "./student-lookup";
-import { currentYear, isQueryableYear } from "./year";
 import {
+  SCHOOL_WEEKDAYS,
+  courseWeekdays,
   dueRange,
   isCalendarReady,
   isValidDate,
   listCourseSessions,
+  normalizeCourseWeekdays,
   todayMYT,
   weekdayOf,
 } from "./calendar";
-
-// 選修課的上課星期（星期日一律休息，不能排課）
-const SCHOOL_WEEKDAYS: Weekday[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+import {
+  currentPurgeTargetYear,
+  currentYear,
+  isQueryableYear,
+  nextPurgeStartDate,
+  oldestRetainedYear,
+  purgeWindowOpen,
+} from "./year";
 const HOLIDAY_TYPES: HolidayType[] = ["public", "school_break", "event"];
+
+function parseWeeklyDaysField(value: unknown): Weekday[] | null {
+  if (value === undefined) return [];
+  if (!Array.isArray(value)) return null;
+  if (value.some((day) => !SCHOOL_WEEKDAYS.includes(day as Weekday))) return null;
+  return normalizeCourseWeekdays(value as Weekday[]);
+}
 
 interface Env {
   STUDENT_KV: KVNamespace;
@@ -217,6 +231,33 @@ async function handleTeacherList(
   return jsonResponse({ success: true, data });
 }
 
+/** GET /api/admin/maintenance-notices - 舊資料分批刪除的系統通報（admin / super_admin） */
+async function handleMaintenanceNotices(
+  request: Request,
+  env: Env,
+  session: AuthSessionData,
+): Promise<Response> {
+  if (request.method !== "GET") {
+    return jsonResponse({ error: "Method not allowed" }, 405);
+  }
+  if (!canViewAllCourses(session)) {
+    return jsonResponse({ error: "Forbidden" }, 403);
+  }
+
+  return jsonResponse({
+    success: true,
+    data: {
+      system: "optional-course",
+      current_year: currentYear(),
+      retained_from_year: oldestRetainedYear(),
+      purge_window_open: purgeWindowOpen(),
+      current_purge_target_year: currentPurgeTargetYear(),
+      next_purge_start: nextPurgeStartDate(),
+      notices: await buildService(env).getMaintenanceNotices(),
+    },
+  });
+}
+
 /** ?year=YYYY，未帶時為今年；超出保留範圍回傳 null */
 function parseYearParam(url: URL): number | null {
   const raw = url.searchParams.get("year");
@@ -245,6 +286,7 @@ async function handleCourses(
       const body = (await request.json()) as {
         subject?: string;
         form?: any;
+        weekly_days?: any;
         day_of_week?: any;
         time_start?: string;
         time_end?: string;
@@ -254,6 +296,10 @@ async function handleCourses(
       };
       if (!body.subject) {
         return jsonResponse({ error: "Missing subject field" }, 400);
+      }
+      const weeklyDays = parseWeeklyDaysField(body.weekly_days);
+      if (weeklyDays === null) {
+        return jsonResponse({ error: "INVALID_WEEKLY_DAYS" }, 400);
       }
       if (body.day_of_week && !SCHOOL_WEEKDAYS.includes(body.day_of_week)) {
         return jsonResponse({ error: "INVALID_DAY_OF_WEEK" }, 400);
@@ -267,6 +313,7 @@ async function handleCourses(
       const course = await service.createCourse({
         subject: body.subject,
         form: body.form,
+        weekly_days: weeklyDays && weeklyDays.length > 0 ? weeklyDays : undefined,
         day_of_week: body.day_of_week || undefined,
         time_start: body.time_start,
         time_end: body.time_end,
@@ -320,6 +367,13 @@ async function handleCourses(
       }
       const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
       const updates: Partial<OptionalCourse> = {};
+      if ("weekly_days" in body) {
+        const weeklyDays = parseWeeklyDaysField(body.weekly_days);
+        if (weeklyDays === null) {
+          return jsonResponse({ error: "INVALID_WEEKLY_DAYS" }, 400);
+        }
+        updates.weekly_days = weeklyDays.length > 0 ? weeklyDays : undefined;
+      }
       if ("day_of_week" in body) {
         if (body.day_of_week !== null && body.day_of_week !== "" && !SCHOOL_WEEKDAYS.includes(body.day_of_week as Weekday)) {
           return jsonResponse({ error: "INVALID_DAY_OF_WEEK" }, 400);
@@ -812,7 +866,7 @@ async function handleAttendance(
       service.getCalendar(course.year),
       service.listSchedulesByCourse(course.course_id),
     ]);
-    if (isCalendarReady(calendar) && course.day_of_week) {
+    if (isCalendarReady(calendar) && courseWeekdays(course).length > 0) {
       const sessions = listCourseSessions(calendar, course, schedules);
       if (!sessions.some((s) => s.date === body.class_date)) {
         return jsonResponse({ error: "NOT_A_SESSION_DATE" }, 409);
@@ -870,6 +924,7 @@ async function handleCourseSessions(
     success: true,
     data: {
       calendar_ready: isCalendarReady(calendar),
+      weekly_days: courseWeekdays(course),
       day_of_week: course.day_of_week || null,
       today: todayMYT(),
       sessions,
@@ -950,6 +1005,7 @@ async function handleCourseReport(
         teacher_name_cn: course.teacher_name_cn,
         subject: course.subject,
         window_status: course.window_status,
+        weekly_days: courseWeekdays(course),
         day_of_week: course.day_of_week || null,
         expected_count: regularDates.length,
         actual_held_count: regularDates.length - cancelledCount,
@@ -1061,7 +1117,7 @@ async function findCalendarConflicts(
   oldCalendar: SchoolCalendar,
   newCalendar: SchoolCalendar,
 ): Promise<CalendarConflict[]> {
-  const courses = (await service.listCoursesByYear(newCalendar.year)).filter((c) => c.day_of_week);
+  const courses = (await service.listCoursesByYear(newCalendar.year)).filter((c) => courseWeekdays(c).length > 0);
   const oldReady = isCalendarReady(oldCalendar);
   const perCourse = await Promise.all(
     courses.map(async (course) => {
@@ -1195,6 +1251,7 @@ async function handleAttendanceSummary(
         subject: course.subject,
         teacher_id: course.teacher_id,
         teacher_name_cn: course.teacher_name_cn,
+        weekly_days: courseWeekdays(course),
         day_of_week: course.day_of_week || null,
         window_status: course.window_status,
         total_sessions: sessions.length,
@@ -1268,6 +1325,10 @@ export default {
         return await handleCourses(request, env, session);
       }
 
+      if (pathname === "/api/admin/maintenance-notices") {
+        return await handleMaintenanceNotices(request, env, session);
+      }
+
       if (pathname === "/api/v1/calendar" || pathname.startsWith("/api/v1/calendar/")) {
         return await handleCalendar(request, env, session);
       }
@@ -1290,18 +1351,30 @@ export default {
   /** 每日排程（學年重置）：刪除上一年以前的課程及其名冊／排課／點名；每天最多 PURGE_COURSES_PER_RUN 門，課多時跨年後幾天內清完 */
   async scheduled(_event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     ctx.waitUntil(
-      buildService(env)
-        .purgeExpiredCourses(PURGE_COURSES_PER_RUN)
-        .then((ids) => {
-          if (ids.length > 0) console.log(`Purged ${ids.length} expired courses:`, ids.join(", "));
-        }),
-    );
-    ctx.waitUntil(
-      buildService(env)
-        .purgeExpiredCalendars()
-        .then((years) => {
-          if (years.length > 0) console.log(`Purged expired calendars:`, years.join(", "));
-        }),
+      (async () => {
+        const service = buildService(env);
+        const [ids, years] = await Promise.all([
+          service.purgeExpiredCourses(PURGE_COURSES_PER_RUN),
+          service.purgeExpiredCalendars(),
+        ]);
+        if (ids.length > 0) console.log(`Purged ${ids.length} expired courses:`, ids.join(", "));
+        if (years.length > 0) console.log(`Purged expired calendars:`, years.join(", "));
+        if (ids.length > 0 || years.length > 0) {
+          const targetYear = currentPurgeTargetYear();
+          const title = targetYear
+            ? `選修課 ${targetYear} 年舊資料分批清理`
+            : "選修課舊資料分批清理";
+          const parts = [
+            ids.length > 0 ? `本次刪除 ${ids.length} 門課程` : "",
+            years.length > 0 ? `同步清除行事曆年份：${years.join("、")}` : "",
+          ].filter(Boolean);
+          await service.appendMaintenanceNotice({
+            created_at: new Date().toISOString(),
+            title,
+            detail: parts.join("；"),
+          });
+        }
+      })(),
     );
   },
 };

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { CourseAttendanceStatus, CourseSessionsInfo, OptionalCourseAttendance, OptionalCourseRoster, Weekday } from "@/types";
-import { formatDate, weekdayOf } from "@/utils/calendar";
+import { courseWeekdays, formatDate, weekdayOf } from "@/utils/calendar";
 
 // 版面沿用 tution-portal 的 AttendanceOverviewTable（學生 × 日期矩陣，手機依月份分頁）
 
@@ -53,6 +53,7 @@ export interface OverviewCalendar {
 }
 
 export interface OverviewCourse {
+  weekly_days?: Weekday[];
   day_of_week?: Weekday;
   start_date?: string;
   end_date?: string;
@@ -64,13 +65,14 @@ export interface OverviewCourse {
  */
 function listHolidaySessions(calendar: OverviewCalendar, course: OverviewCourse, today: string): Map<string, string> {
   const result = new Map<string, string>();
-  if (!calendar.term_start || !calendar.term_end || !course.day_of_week) return result;
+  const weekdays = courseWeekdays(course);
+  if (!calendar.term_start || !calendar.term_end || weekdays.length === 0) return result;
   const from = course.start_date && course.start_date > calendar.term_start ? course.start_date : calendar.term_start;
   let to = course.end_date && course.end_date < calendar.term_end ? course.end_date : calendar.term_end;
   if (today < to) to = today;
   const makeup = new Set(calendar.makeup_days.map((m) => m.date));
   for (let d = from; d <= to; d = addDays(d, 1)) {
-    if (weekdayOf(d) !== course.day_of_week || makeup.has(d)) continue;
+    if (!weekdays.includes(weekdayOf(d)) || makeup.has(d)) continue;
     const holiday = calendar.holidays.find((h) => d >= h.start_date && d <= h.end_date);
     if (holiday) result.set(d, holiday.name);
   }

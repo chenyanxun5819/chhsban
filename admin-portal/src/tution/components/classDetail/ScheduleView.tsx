@@ -69,6 +69,7 @@ export const ScheduleTable: React.FC<{ rows: GeneratedScheduleRow[]; attendedDat
     held: t("schedule.statusHeld"),
     cancelled: t("schedule.statusCancelled"),
     rescheduled: t("schedule.statusRescheduled"),
+    extra: t("schedule.statusExtra"),
   };
 
   if (rows.length === 0) {
@@ -81,7 +82,7 @@ export const ScheduleTable: React.FC<{ rows: GeneratedScheduleRow[]; attendedDat
         const hasHappened = row.actual_date <= today;
         const attended = attendedDates.has(row.actual_date);
         // 「有開課」原始日期的點名情況：調課後原日期不適用，改在調課明細顯示新日期的點名情況
-        const showOriginalAttendance = row.status === "held" && hasHappened;
+        const showOriginalAttendance = (row.status === "held" || row.status === "extra") && hasHappened;
 
         return (
           <div key={row.scheduled_date} className={`schedule-row status-${row.status}`}>
@@ -101,7 +102,9 @@ export const ScheduleTable: React.FC<{ rows: GeneratedScheduleRow[]; attendedDat
                   {hasHappened ? <AttendanceBadge attended={attended} /> : "—"}
                 </span>
               )}
-              {row.status === "held" && <span className="schedule-row-reason">—</span>}
+              {(row.status === "held" || row.status === "extra") && (
+                <span className="schedule-row-reason">{row.status === "extra" ? row.extra_session_note || "—" : "—"}</span>
+              )}
             </div>
 
             {(row.status === "cancelled" || row.status === "rescheduled") && (

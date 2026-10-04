@@ -14,7 +14,7 @@ import type {
   OptionalCourseSchedule,
   SchoolCalendar,
 } from "@/optional/types";
-import { WEEKDAY_LABEL } from "@/optional/utils/calendar";
+import { courseWeekdays, weekdayListLabel } from "@/optional/utils/calendar";
 
 /** 單一選修課的點名總覽（學生 × 上課日），唯讀；點名由老師在 optional-course.pages.dev 操作 */
 const CourseAttendance: React.FC = () => {
@@ -51,8 +51,8 @@ const CourseAttendance: React.FC = () => {
   const subtitle = course
     ? [
         course.teacher_name_cn && `授課老師：${course.teacher_name_cn}`,
-        course.day_of_week &&
-          `每${WEEKDAY_LABEL[course.day_of_week]}${
+        courseWeekdays(course).length > 0 &&
+          `每${weekdayListLabel(courseWeekdays(course))}${
             course.time_start ? ` ${course.time_start}${course.time_end ? `-${course.time_end}` : ""}` : ""
           }`,
         course.venue,

@@ -10,10 +10,11 @@ import type { TutionSchedule } from "@/tution/types";
 export interface ScheduleExceptionPayload {
   class_id: string;
   scheduled_date: string; // YYYY-MM-DD
-  status: "cancelled" | "rescheduled";
+  status: "cancelled" | "rescheduled" | "extra";
   cancellation_reason?: string;
   rescheduled_to?: string;
   reschedule_reason?: string;
+  extra_session_note?: string;
 }
 
 export const scheduleService = {
@@ -82,6 +83,19 @@ export const scheduleService = {
     });
   },
 
+  async createExtraSession(
+    classId: string,
+    scheduledDate: string,
+    note: string,
+  ): Promise<TutionSchedule> {
+    return this.createException({
+      class_id: classId,
+      scheduled_date: scheduledDate,
+      status: "extra",
+      extra_session_note: note,
+    });
+  },
+
   /**
    * 取得全系統所有排課例外記錄（僅 admin/super_admin），供每日教室使用總覽使用
    */
@@ -107,6 +121,15 @@ export const scheduleService = {
       return response.data.data;
     } catch (error) {
       console.error("Failed to assign reschedule venue:", error);
+      throw error;
+    }
+  },
+
+  async deleteSchedule(scheduleId: string): Promise<void> {
+    try {
+      await apiClient.delete(`/v1/schedules/${scheduleId}`);
+    } catch (error) {
+      console.error("Failed to delete schedule:", error);
       throw error;
     }
   },

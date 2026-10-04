@@ -27,6 +27,8 @@ export const WEEKDAYS: Weekday[] = [
   "Saturday",
 ];
 
+export const SCHOOL_WEEKDAYS: Weekday[] = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 export function isValidDate(value: unknown): value is string {
@@ -46,6 +48,29 @@ export function dateOfTimestampMYT(ts: number): string {
 
 export function weekdayOf(date: string): Weekday {
   return WEEKDAYS[new Date(`${date}T00:00:00Z`).getUTCDay()];
+}
+
+export function normalizeCourseWeekdays(
+  weeklyDays?: Weekday[] | null,
+  fallbackDay?: Weekday,
+): Weekday[] {
+  const seen = new Set<Weekday>();
+  const ordered: Weekday[] = [];
+  for (const day of weeklyDays || []) {
+    if (!SCHOOL_WEEKDAYS.includes(day) || seen.has(day)) continue;
+    seen.add(day);
+    ordered.push(day);
+  }
+  if (ordered.length === 0 && fallbackDay && SCHOOL_WEEKDAYS.includes(fallbackDay)) {
+    ordered.push(fallbackDay);
+  }
+  return ordered.sort((a, b) => SCHOOL_WEEKDAYS.indexOf(a) - SCHOOL_WEEKDAYS.indexOf(b));
+}
+
+export function courseWeekdays(
+  course: Pick<OptionalCourse, "weekly_days" | "day_of_week">,
+): Weekday[] {
+  return normalizeCourseWeekdays(course.weekly_days, course.day_of_week);
 }
 
 function addDays(date: string, days: number): string {
@@ -102,16 +127,17 @@ export interface CourseSession {
 
 /**
  * 某門課的應點名日期（由舊到新）：
- * 行事曆中按 course.day_of_week 上課的日子，限縮在課程自訂起訖（有設定時）內，
+ * 行事曆中按 course.weekly_days / day_of_week 上課的日子，限縮在課程自訂起訖（有設定時）內，
  * 扣掉課程級停課、把調課的原訂日期換成調至日期。
  * 行事曆尚未建立或課程沒有設定上課星期時，回傳空陣列。
  */
 export function listCourseSessions(
   calendar: SchoolCalendar,
-  course: Pick<OptionalCourse, "day_of_week" | "start_date" | "end_date">,
+  course: Pick<OptionalCourse, "weekly_days" | "day_of_week" | "start_date" | "end_date">,
   schedules: OptionalCourseSchedule[],
 ): CourseSession[] {
-  if (!isCalendarReady(calendar) || !course.day_of_week) return [];
+  const weekdays = courseWeekdays(course);
+  if (!isCalendarReady(calendar) || weekdays.length === 0) return [];
 
   const from = course.start_date && course.start_date > calendar.term_start! ? course.start_date : calendar.term_start!;
   const to = course.end_date && course.end_date < calendar.term_end! ? course.end_date : calendar.term_end!;
@@ -121,7 +147,7 @@ export function listCourseSessions(
 
   for (let date = from; date <= to; date = addDays(date, 1)) {
     const day = resolveDay(calendar, date);
-    if (!day.is_school_day || day.follows_weekday !== course.day_of_week) continue;
+    if (!day.is_school_day || !day.follows_weekday || !weekdays.includes(day.follows_weekday)) continue;
 
     const exception = exceptionByDate.get(date);
     if (!exception) {

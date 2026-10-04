@@ -9,6 +9,19 @@ const WEEKDAYS: Weekday[] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursd
 /** 星期幾依目前語言顯示（星期一／Monday）；呼叫端元件需透過 useTranslation 訂閱語言切換 */
 export const weekdayLabel = (day: Weekday): string => i18n.t(`weekday.${day}`);
 
+export interface CourseWeekdayInfo {
+  weekly_days?: Weekday[] | null;
+  day_of_week?: Weekday | null;
+}
+
+export const courseWeekdays = (course: CourseWeekdayInfo): Weekday[] => {
+  const picked = Array.isArray(course.weekly_days) ? course.weekly_days : [];
+  const days = picked.length > 0 ? picked : course.day_of_week ? [course.day_of_week] : [];
+  return WEEKDAYS.filter((day) => day !== "Sunday" && days.includes(day));
+};
+
+export const weekdayListLabel = (days: Weekday[]): string => days.map((day) => weekdayLabel(day)).join(" / ");
+
 /** 馬來西亞時間（UTC+8）的今天 */
 export const todayMYT = (): string => new Date(Date.now() + MYT_OFFSET_MS).toISOString().slice(0, 10);
 
@@ -24,6 +37,7 @@ export const formatDate = (date: string): string => {
 export const courseSubtitle = (course: {
   course_no?: string;
   teacher_name_cn?: string;
+  weekly_days?: Weekday[];
   day_of_week?: Weekday;
   time_start?: string;
   time_end?: string;
@@ -32,8 +46,8 @@ export const courseSubtitle = (course: {
   [
     course.course_no,
     course.teacher_name_cn && i18n.t("calendar.teacher", { name: course.teacher_name_cn }),
-    course.day_of_week &&
-      `${i18n.t("calendar.everyDay", { day: weekdayLabel(course.day_of_week) })}${
+    courseWeekdays(course).length > 0 &&
+      `${i18n.t("calendar.everyDay", { day: weekdayListLabel(courseWeekdays(course)) })}${
         course.time_start ? ` ${course.time_start}${course.time_end ? `-${course.time_end}` : ""}` : ""
       }`,
     course.venue,

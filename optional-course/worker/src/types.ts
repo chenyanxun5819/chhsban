@@ -29,6 +29,7 @@ export interface OptionalCourse {
   teacher_name_cn?: string;
   subject: string; // 選修課名稱
   form?: "F1" | "F2" | "F3" | "F4" | "F5" | "F6";
+  weekly_days?: Weekday[]; // 一門課可有多個固定上課星期（依 SCHOOL_WEEKDAYS 排序、去重）
   day_of_week?:
     | "Monday"
     | "Tuesday"

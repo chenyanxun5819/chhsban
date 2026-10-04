@@ -16,7 +16,7 @@ export const getCourse = async (courseId: string): Promise<OptionalCourse> => {
 export const createCourse = async (data: {
   subject: string;
   year: number;
-  day_of_week?: Weekday;
+  weekly_days?: Weekday[];
   time_start?: string;
   time_end?: string;
   venue?: string;
@@ -25,9 +25,9 @@ export const createCourse = async (data: {
   return res.data.data;
 };
 
-/** 設定上課星期（空字串代表清除）；上課星期決定這門課的應點名日期 */
-export const updateCourseWeekday = async (courseId: string, dayOfWeek: Weekday | ""): Promise<OptionalCourse> => {
-  const res = await optionalApi.put<ApiResponse<OptionalCourse>>(`/v1/courses/${courseId}`, { day_of_week: dayOfWeek });
+/** 設定每週上課日（可複選）；空陣列代表清除 */
+export const updateCourseWeekdays = async (courseId: string, weekdays: Weekday[]): Promise<OptionalCourse> => {
+  const res = await optionalApi.put<ApiResponse<OptionalCourse>>(`/v1/courses/${courseId}`, { weekly_days: weekdays });
   return res.data.data;
 };
 
