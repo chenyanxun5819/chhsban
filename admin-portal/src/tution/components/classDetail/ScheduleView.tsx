@@ -103,7 +103,11 @@ export const ScheduleTable: React.FC<{ rows: GeneratedScheduleRow[]; attendedDat
                 </span>
               )}
               {(row.status === "held" || row.status === "extra") && (
-                <span className="schedule-row-reason">{row.status === "extra" ? row.extra_session_note || "—" : "—"}</span>
+                <span className="schedule-row-reason">
+                  {row.status === "extra"
+                    ? `${row.extra_session_venue ? `【${row.extra_session_venue}】 ` : ""}${row.extra_session_note || "—"}`
+                    : "—"}
+                </span>
               )}
             </div>
 

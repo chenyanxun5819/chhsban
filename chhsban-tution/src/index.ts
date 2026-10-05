@@ -9,7 +9,7 @@
  * - D1 免費版單次請求最多 50 次查詢：列表類端點一律批次查詢，不要逐筆查。
  */
 
-import { createAuthKVManager, createTeacherKVManager, createStudentDirectory, isLeftSchool, studentStatus, createClassroomKVManager, TutionClassStatus, AttendanceStatus, verifyGoogleIdToken, type TutionClass, type TutionSchedule } from "@chhsban/kv-utils";
+import { createAuthKVManager, createTeacherKVManager, createStudentDirectory, isLeftSchool, studentStatus, createClassroomKVManager, TutionClassStatus, AttendanceStatus, ScheduleStatus, verifyGoogleIdToken, type TutionClass, type TutionSchedule as SharedTutionSchedule } from "@chhsban/kv-utils";
 import { TutionService } from "./tution-service";
 import { generatePDFResponse } from "./pdf-generator";
 import { buildSignedFormKey, getSignedFormResponse, isAllowedContentType } from "./signed-form";
@@ -59,6 +59,12 @@ interface IncomingRosterSnapshot {
   gender_boarding?: string;
 }
 
+type TutionSchedule = Omit<SharedTutionSchedule, "status"> & {
+  status: SharedTutionSchedule["status"];
+  extra_session_note?: string;
+  extra_session_venue?: string;
+};
+
 const FIXED_TIME_START = "19:00";
 const FIXED_TIME_END = "21:00";
 const MAX_STUDENTS_PER_CLASS = 30;
@@ -82,7 +88,16 @@ const SCHEDULE_EDITABLE_FIELDS = [
   "rescheduled_venue",
   "reschedule_reason",
   "extra_session_note",
+  "extra_session_venue",
 ];
+
+const CLASSROOM_OCCUPYING_STATUSES = new Set<string>([
+  TutionClassStatus.REVIEWING,
+  TutionClassStatus.APPROVED,
+  TutionClassStatus.ACTIVE,
+]);
+
+const UTC_WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 // 申請表內容欄位：建立申請時可填、待審批階段可修改
 const CLASS_FORM_FIELDS = ["form", "subject", "day_of_week", "start_date", "fees", "venue"];
@@ -93,6 +108,80 @@ function pickFields(body: Record<string, any>, fields: string[]): Record<string,
     if (field in body) picked[field] = body[field];
   }
   return picked;
+}
+
+function toUTCDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+function defaultClassEndDate(startDate: string): string {
+  return `${startDate.slice(0, 4)}-12-31`;
+}
+
+function effectiveClassEndDate(tutionClass: TutionClass, lastTeachingDate: string | null): string {
+  if (tutionClass.end_date) return tutionClass.end_date;
+  if (lastTeachingDate && lastTeachingDate >= tutionClass.start_date) return lastTeachingDate;
+  return defaultClassEndDate(tutionClass.start_date);
+}
+
+function isDateWithinClassRange(tutionClass: TutionClass, date: string, lastTeachingDate: string | null): boolean {
+  if (date < tutionClass.start_date) return false;
+  return date <= effectiveClassEndDate(tutionClass, lastTeachingDate);
+}
+
+function occupiedVenuesOnDate(params: {
+  date: string;
+  classes: TutionClass[];
+  schedules: TutionSchedule[];
+  lastTeachingDate: string | null;
+  skipScheduleId?: string;
+}): Set<string> {
+  const { date, classes, schedules, lastTeachingDate, skipScheduleId } = params;
+  const occupied = new Set<string>();
+  const classById = new Map(classes.map((item) => [item.class_id, item]));
+  const dayName = UTC_WEEKDAY_NAMES[toUTCDate(date).getUTCDay()];
+
+  for (const tutionClass of classes) {
+    if (!CLASSROOM_OCCUPYING_STATUSES.has(tutionClass.approval_status)) continue;
+    if (!tutionClass.venue) continue;
+    if (tutionClass.day_of_week !== dayName) continue;
+    if (!isDateWithinClassRange(tutionClass, date, lastTeachingDate)) continue;
+
+    const exception = schedules.find(
+      (schedule) =>
+        schedule.schedule_id !== skipScheduleId &&
+        schedule.class_id === tutionClass.class_id &&
+        schedule.scheduled_date === date,
+    );
+    if (!exception) {
+      occupied.add(tutionClass.venue);
+      continue;
+    }
+    if (exception.status === ScheduleStatus.EXTRA) {
+      const venue = String(exception.extra_session_venue || tutionClass.venue || "").trim();
+      if (venue) occupied.add(venue);
+    }
+  }
+
+  for (const schedule of schedules) {
+    if (schedule.schedule_id === skipScheduleId) continue;
+
+    const tutionClass = classById.get(schedule.class_id);
+    if (!tutionClass || !CLASSROOM_OCCUPYING_STATUSES.has(tutionClass.approval_status)) continue;
+
+    if (schedule.status === ScheduleStatus.EXTRA && schedule.scheduled_date === date) {
+      const venue = String(schedule.extra_session_venue || tutionClass.venue || "").trim();
+      if (venue) occupied.add(venue);
+      continue;
+    }
+
+    if (schedule.status === ScheduleStatus.RESCHEDULED && schedule.rescheduled_to === date && schedule.rescheduled_venue) {
+      occupied.add(schedule.rescheduled_venue);
+    }
+  }
+
+  return occupied;
 }
 
 /** 名單學生必須在學生名錄裡、未離校、不重複；有問題回傳錯誤 Response，沒問題回傳 null */
@@ -1918,17 +2007,17 @@ async function handleSchedules(
           400,
         );
       }
-      if (data.status !== "cancelled" && data.status !== "rescheduled" && data.status !== "extra") {
+      if (data.status !== ScheduleStatus.CANCELLED && data.status !== ScheduleStatus.RESCHEDULED && data.status !== ScheduleStatus.EXTRA) {
         return jsonResponse(
           { error: "status must be 'cancelled', 'rescheduled' or 'extra'" },
           400,
         );
       }
-      if (data.status === "cancelled" && !data.cancellation_reason) {
+      if (data.status === ScheduleStatus.CANCELLED && !data.cancellation_reason) {
         return jsonResponse({ error: "cancellation_reason is required" }, 400);
       }
       if (
-        data.status === "rescheduled" &&
+        data.status === ScheduleStatus.RESCHEDULED &&
         (!isValidDateString(data.rescheduled_to ?? null) || !data.reschedule_reason)
       ) {
         return jsonResponse(
@@ -1936,8 +2025,11 @@ async function handleSchedules(
           400,
         );
       }
-      if (data.status === "extra" && !String(data.extra_session_note || "").trim()) {
+      if (data.status === ScheduleStatus.EXTRA && !String(data.extra_session_note || "").trim()) {
         return jsonResponse({ error: "extra_session_note is required" }, 400);
+      }
+      if (data.status === ScheduleStatus.EXTRA && !String(data.extra_session_venue || "").trim()) {
+        return jsonResponse({ error: "extra_session_venue is required" }, 400);
       }
 
       const tutionClass = await service.getClass(data.class_id);
@@ -1947,13 +2039,15 @@ async function handleSchedules(
       if (!canManageClass(tutionClass)) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
-      if (data.status === "extra" && session.permission !== "super_admin") {
+      if (data.status === ScheduleStatus.EXTRA && session.permission !== "super_admin") {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
       const existing = await service.listSchedulesByClass(data.class_id);
-      if (data.status === "extra") {
+      const duplicate = existing.find((s) => s.scheduled_date === data.scheduled_date);
+      if (data.status === ScheduleStatus.EXTRA) {
         const targetDate = data.scheduled_date as string;
+        const targetVenue = String(data.extra_session_venue || "").trim();
         const occupiedDates = new Set(
           generateScheduleRows({
             dayOfWeek: tutionClass.day_of_week,
@@ -1969,10 +2063,33 @@ async function handleSchedules(
         if (occupiedDates.has(targetDate)) {
           return jsonResponse({ error: "DATE_ALREADY_HAS_SESSION" }, 409);
         }
+
+        const classroomManager = createClassroomKVManager(env.CLASSROOM_KV);
+        const classroom = await classroomManager.getClassroom(targetVenue);
+        if (!classroom || !classroom.available_for_tution) {
+          return jsonResponse({ error: "INVALID_EXTRA_SESSION_VENUE" }, 400);
+        }
+
+        const [allClasses, allSchedules, lastTeachingDate] = await Promise.all([
+          service.listAllClasses(),
+          service.listAllSchedules(),
+          service.getLastTeachingDate(),
+        ]);
+        const occupiedVenues = occupiedVenuesOnDate({
+          date: targetDate,
+          classes: allClasses,
+          schedules: allSchedules,
+          lastTeachingDate,
+          skipScheduleId: duplicate?.schedule_id,
+        });
+        if (occupiedVenues.has(targetVenue)) {
+          return jsonResponse({ error: "EXTRA_SESSION_VENUE_OCCUPIED" }, 409);
+        }
+
+        data.extra_session_venue = targetVenue;
       }
 
       // 同一課程同一天只能有一筆例外記錄：若已存在則直接更新，避免重複
-      const duplicate = existing.find((s) => s.scheduled_date === data.scheduled_date);
       if (duplicate) {
         const updated = await service.updateSchedule(duplicate.schedule_id, data);
         return jsonResponse({ data: updated }, 200);
@@ -2003,7 +2120,12 @@ async function handleSchedules(
         return jsonResponse({ error: "FIELDS_NOT_EDITABLE", fields: rejectedFields }, 400);
       }
       const updates = body as Partial<TutionSchedule>;
-      if (updates.status && updates.status !== "cancelled" && updates.status !== "rescheduled" && updates.status !== "extra") {
+      if (
+        updates.status &&
+        updates.status !== ScheduleStatus.CANCELLED &&
+        updates.status !== ScheduleStatus.RESCHEDULED &&
+        updates.status !== ScheduleStatus.EXTRA
+      ) {
         return jsonResponse({ error: "status must be 'cancelled', 'rescheduled' or 'extra'" }, 400);
       }
       if (updates.scheduled_date !== undefined && !isValidDateString(updates.scheduled_date)) {
@@ -2017,30 +2139,64 @@ async function handleSchedules(
       // 不能像 admin/super_admin 一樣改動其他欄位（狀態、原因、調課日期等）。
       const isClassroomManagerVenueAssignment =
         session.permission === "classroom_manager" &&
-        existing.status === "rescheduled" &&
+        existing.status === ScheduleStatus.RESCHEDULED &&
         Object.keys(updates).every((key) => key === "rescheduled_venue");
 
       if (!canManageClass(tutionClass) && !isClassroomManagerVenueAssignment) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
-      if ((existing.status === "extra" || updates.status === "extra") && session.permission !== "super_admin") {
+      if ((existing.status === ScheduleStatus.EXTRA || updates.status === ScheduleStatus.EXTRA) && session.permission !== "super_admin") {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 
-      if (updates.status === "cancelled" && !updates.cancellation_reason && !existing.cancellation_reason) {
+      if (updates.status === ScheduleStatus.CANCELLED && !updates.cancellation_reason && !existing.cancellation_reason) {
         return jsonResponse({ error: "cancellation_reason is required" }, 400);
       }
       if (
-        updates.status === "rescheduled" &&
+        updates.status === ScheduleStatus.RESCHEDULED &&
         !(updates.rescheduled_to || existing.rescheduled_to)
       ) {
         return jsonResponse({ error: "rescheduled_to is required" }, 400);
       }
       if (
-        (updates.status === "extra" || existing.status === "extra") &&
+        (updates.status === ScheduleStatus.EXTRA || existing.status === ScheduleStatus.EXTRA) &&
         !String(updates.extra_session_note || existing.extra_session_note || "").trim()
       ) {
         return jsonResponse({ error: "extra_session_note is required" }, 400);
+      }
+      if (
+        (updates.status === ScheduleStatus.EXTRA || existing.status === ScheduleStatus.EXTRA) &&
+        !String(updates.extra_session_venue || existing.extra_session_venue || "").trim()
+      ) {
+        return jsonResponse({ error: "extra_session_venue is required" }, 400);
+      }
+
+      if (updates.status === ScheduleStatus.EXTRA || existing.status === ScheduleStatus.EXTRA) {
+        const targetDate = updates.scheduled_date || existing.scheduled_date;
+        const targetVenue = String(updates.extra_session_venue || existing.extra_session_venue || "").trim();
+        const classroomManager = createClassroomKVManager(env.CLASSROOM_KV);
+        const classroom = await classroomManager.getClassroom(targetVenue);
+        if (!classroom || !classroom.available_for_tution) {
+          return jsonResponse({ error: "INVALID_EXTRA_SESSION_VENUE" }, 400);
+        }
+
+        const [allClasses, allSchedules, lastTeachingDate] = await Promise.all([
+          service.listAllClasses(),
+          service.listAllSchedules(),
+          service.getLastTeachingDate(),
+        ]);
+        const occupiedVenues = occupiedVenuesOnDate({
+          date: targetDate,
+          classes: allClasses,
+          schedules: allSchedules,
+          lastTeachingDate,
+          skipScheduleId: scheduleId,
+        });
+        if (occupiedVenues.has(targetVenue)) {
+          return jsonResponse({ error: "EXTRA_SESSION_VENUE_OCCUPIED" }, 409);
+        }
+
+        updates.extra_session_venue = targetVenue;
       }
 
       const updated = await service.updateSchedule(scheduleId, updates);
@@ -2058,7 +2214,7 @@ async function handleSchedules(
       if (!tutionClass || !canManageClass(tutionClass)) {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
-      if (existing.status === "extra" && session.permission !== "super_admin") {
+      if (existing.status === ScheduleStatus.EXTRA && session.permission !== "super_admin") {
         return jsonResponse({ error: "Forbidden" }, 403);
       }
 

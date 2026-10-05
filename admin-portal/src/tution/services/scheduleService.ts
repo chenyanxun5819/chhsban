@@ -15,6 +15,7 @@ export interface ScheduleExceptionPayload {
   rescheduled_to?: string;
   reschedule_reason?: string;
   extra_session_note?: string;
+  extra_session_venue?: string;
 }
 
 export const scheduleService = {
@@ -87,12 +88,14 @@ export const scheduleService = {
     classId: string,
     scheduledDate: string,
     note: string,
+    venue: string,
   ): Promise<TutionSchedule> {
     return this.createException({
       class_id: classId,
       scheduled_date: scheduledDate,
       status: "extra",
       extra_session_note: note,
+      extra_session_venue: venue,
     });
   },
 

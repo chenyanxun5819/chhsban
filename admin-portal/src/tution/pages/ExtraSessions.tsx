@@ -8,14 +8,82 @@ function courseLabel(course: TutionClass): string {
   return `${course.application_no || course.class_id}｜${course.teacher_name_cn}｜${course.subject}（${course.form}）`;
 }
 
+const OCCUPYING_STATUSES = new Set(["reviewing", "approved", "active"]);
+const UTC_WEEKDAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+function toUTCDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+function dayNameFromDate(dateStr: string): string {
+  return UTC_WEEKDAY_NAMES[toUTCDate(dateStr).getUTCDay()];
+}
+
+function effectiveEndDate(course: TutionClass, lastTeachingDate?: string): string {
+  if (course.end_date) return course.end_date;
+  if (lastTeachingDate && lastTeachingDate >= course.start_date) return lastTeachingDate;
+  return `${course.start_date.slice(0, 4)}-12-31`;
+}
+
+function isDateWithinCourseRange(course: TutionClass, date: string, lastTeachingDate?: string): boolean {
+  if (date < course.start_date) return false;
+  return date <= effectiveEndDate(course, lastTeachingDate);
+}
+
+function occupiedClassroomsOnDate(params: {
+  date: string;
+  classes: TutionClass[];
+  schedules: TutionSchedule[];
+  lastTeachingDate?: string;
+}): Set<string> {
+  const { date, classes, schedules, lastTeachingDate } = params;
+  const occupied = new Set<string>();
+  const classById = new Map(classes.map((course) => [course.class_id, course]));
+  const dayName = dayNameFromDate(date);
+
+  for (const course of classes) {
+    if (!OCCUPYING_STATUSES.has(course.approval_status)) continue;
+    if (!course.venue) continue;
+    if (course.day_of_week !== dayName) continue;
+    if (!isDateWithinCourseRange(course, date, lastTeachingDate)) continue;
+
+    const exception = schedules.find((schedule) => schedule.class_id === course.class_id && schedule.scheduled_date === date);
+    if (!exception) {
+      occupied.add(course.venue);
+      continue;
+    }
+    if (exception.status === "extra") {
+      occupied.add(exception.extra_session_venue || course.venue);
+    }
+  }
+
+  for (const schedule of schedules) {
+    const course = classById.get(schedule.class_id);
+    if (!course || !OCCUPYING_STATUSES.has(course.approval_status)) continue;
+
+    if (schedule.status === "extra" && schedule.scheduled_date === date) {
+      const venue = schedule.extra_session_venue || course.venue;
+      if (venue) occupied.add(venue);
+      continue;
+    }
+    if (schedule.status === "rescheduled" && schedule.rescheduled_to === date && schedule.rescheduled_venue) {
+      occupied.add(schedule.rescheduled_venue);
+    }
+  }
+
+  return occupied;
+}
+
 const ExtraSessions: React.FC = () => {
-  const { allClasses, classesLoading, error, setError } = useTutionAdminData();
+  const { allClasses, classrooms, classesLoading, lastTeachingDate, error, setError } = useTutionAdminData();
   const [selectedClassId, setSelectedClassId] = useState("");
   const [scheduledDate, setScheduledDate] = useState("");
+  const [selectedVenue, setSelectedVenue] = useState("");
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [loadingList, setLoadingList] = useState(true);
-  const [extraSessions, setExtraSessions] = useState<TutionSchedule[]>([]);
+  const [allSchedules, setAllSchedules] = useState<TutionSchedule[]>([]);
 
   const courses = useMemo(
     () =>
@@ -25,16 +93,31 @@ const ExtraSessions: React.FC = () => {
     [allClasses],
   );
   const courseById = useMemo(() => new Map(courses.map((course) => [course.class_id, course])), [courses]);
+  const extraSessions = useMemo(
+    () =>
+      allSchedules
+        .filter((item) => item.status === "extra")
+        .sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date) || b.updated_at - a.updated_at),
+    [allSchedules],
+  );
+  const availableClassrooms = useMemo(() => {
+    if (!scheduledDate) return classrooms;
+    const occupied = occupiedClassroomsOnDate({
+      date: scheduledDate,
+      classes: allClasses,
+      schedules: allSchedules,
+      lastTeachingDate,
+    });
+    return [...classrooms]
+      .filter((classroom) => !occupied.has(classroom.classroom_id))
+      .sort((a, b) => a.classroom_id.localeCompare(b.classroom_id));
+  }, [scheduledDate, classrooms, allClasses, allSchedules, lastTeachingDate]);
 
   const loadExtraSessions = async () => {
     try {
       setLoadingList(true);
       const all = await scheduleService.listAllSchedules();
-      setExtraSessions(
-        all
-          .filter((item) => item.status === "extra")
-          .sort((a, b) => b.scheduled_date.localeCompare(a.scheduled_date) || b.updated_at - a.updated_at),
-      );
+      setAllSchedules(all);
     } catch (err) {
       setError(err instanceof Error ? err.message : "載入額外加課失敗");
     } finally {
@@ -46,17 +129,24 @@ const ExtraSessions: React.FC = () => {
     loadExtraSessions();
   }, []);
 
+  useEffect(() => {
+    if (!selectedVenue) return;
+    if (availableClassrooms.some((classroom) => classroom.classroom_id === selectedVenue)) return;
+    setSelectedVenue("");
+  }, [availableClassrooms, selectedVenue]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedClassId || !scheduledDate || !note.trim()) {
-      setError("請先選擇課程、日期並填寫備註說明");
+    if (!selectedClassId || !scheduledDate || !selectedVenue || !note.trim()) {
+      setError("請先選擇課程、日期、教室並填寫備註說明");
       return;
     }
     setSaving(true);
     setError(null);
     try {
-      await scheduleService.createExtraSession(selectedClassId, scheduledDate, note.trim());
+      await scheduleService.createExtraSession(selectedClassId, scheduledDate, note.trim(), selectedVenue);
       setScheduledDate("");
+      setSelectedVenue("");
       setNote("");
       await loadExtraSessions();
       alert("✅ 額外加課已加入，老師現在會在排課／點名頁看到這堂課。");
@@ -64,6 +154,10 @@ const ExtraSessions: React.FC = () => {
       const code = err?.response?.data?.error;
       if (code === "DATE_ALREADY_HAS_SESSION") {
         setError("該日期已有原定課、調課或其他加課，不能重複新增");
+      } else if (code === "INVALID_EXTRA_SESSION_VENUE") {
+        setError("所選教室已不適用於補習，請重新選擇");
+      } else if (code === "EXTRA_SESSION_VENUE_OCCUPIED") {
+        setError("所選教室當天已被其他課程使用，請重新選擇");
       } else {
         setError(code || err?.message || "新增額外加課失敗");
       }
@@ -93,7 +187,11 @@ const ExtraSessions: React.FC = () => {
         <form onSubmit={handleSubmit} style={{ display: "grid", gap: 12, maxWidth: 720 }}>
           <label>
             <div>選擇課程</div>
-            <select value={selectedClassId} onChange={(e) => setSelectedClassId(e.target.value)} disabled={classesLoading || saving}>
+            <select
+              value={selectedClassId}
+              onChange={(e) => setSelectedClassId(e.target.value)}
+              disabled={classesLoading || loadingList || saving}
+            >
               <option value="">請選擇課程...</option>
               {courses.map((course) => (
                 <option key={course.class_id} value={course.class_id}>
@@ -104,7 +202,28 @@ const ExtraSessions: React.FC = () => {
           </label>
           <label>
             <div>加課日期</div>
-            <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} disabled={saving} />
+            <input type="date" value={scheduledDate} onChange={(e) => setScheduledDate(e.target.value)} disabled={loadingList || saving} />
+          </label>
+          <label>
+            <div>選教室</div>
+            <select
+              value={selectedVenue}
+              onChange={(e) => setSelectedVenue(e.target.value)}
+              disabled={loadingList || saving || !scheduledDate || availableClassrooms.length === 0}
+            >
+              <option value="">
+                {!scheduledDate
+                  ? "請先選擇日期..."
+                  : availableClassrooms.length === 0
+                    ? "當天沒有可用教室"
+                    : "請選擇教室..."}
+              </option>
+              {availableClassrooms.map((classroom) => (
+                <option key={classroom.classroom_id} value={classroom.classroom_id}>
+                  {classroom.classroom_id}｜{classroom.classroom_name}
+                </option>
+              ))}
+            </select>
           </label>
           <label>
             <div>備註說明</div>
@@ -113,11 +232,11 @@ const ExtraSessions: React.FC = () => {
               onChange={(e) => setNote(e.target.value)}
               rows={3}
               placeholder="例如：考前加強、假期補課、特別練習"
-              disabled={saving}
+              disabled={loadingList || saving}
             />
           </label>
           <div>
-            <button type="submit" className="btn btn-primary" disabled={saving || classesLoading}>
+            <button type="submit" className="btn btn-primary" disabled={saving || classesLoading || loadingList}>
               {saving ? "送出中..." : "送出確認"}
             </button>
           </div>
@@ -136,6 +255,7 @@ const ExtraSessions: React.FC = () => {
               <tr>
                 <th>日期</th>
                 <th>課程</th>
+                <th>教室</th>
                 <th>備註</th>
                 <th>操作</th>
               </tr>
@@ -147,6 +267,7 @@ const ExtraSessions: React.FC = () => {
                   <tr key={session.schedule_id}>
                     <td style={{ whiteSpace: "nowrap" }}>{session.scheduled_date}</td>
                     <td>{course ? courseLabel(course) : session.class_id}</td>
+                    <td>{session.extra_session_venue || course?.venue || "—"}</td>
                     <td>{session.extra_session_note || "—"}</td>
                     <td>
                       <button className="btn btn-small btn-danger" onClick={() => handleDelete(session)}>

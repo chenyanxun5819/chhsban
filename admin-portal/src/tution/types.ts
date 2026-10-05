@@ -146,6 +146,7 @@ export interface TutionSchedule {
   rescheduled_venue?: string;
   reschedule_reason?: string;
   extra_session_note?: string;
+  extra_session_venue?: string;
   created_at: number;
   updated_at: number;
 }

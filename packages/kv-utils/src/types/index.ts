@@ -251,6 +251,7 @@ export interface TutionSchedule {
   rescheduled_venue?: string;                             // status=rescheduled 時必填：新地點
   reschedule_reason?: string;                            // status=rescheduled 時必填：調課原因
   extra_session_note?: string;                           // status=extra 時必填：加課說明
+  extra_session_venue?: string;                          // status=extra 時必填：額外加課教室
   created_at: number;                                    // Unix 時間戳（毫秒）
   updated_at: number;                                    // Unix 時間戳（毫秒）
 }

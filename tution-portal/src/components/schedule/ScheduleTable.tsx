@@ -100,7 +100,11 @@ const ScheduleTable: React.FC<ScheduleTableProps> = ({
               )}
 
               {(row.status === "held" || row.status === "extra") && (
-                <span className="schedule-row-reason">{row.status === "extra" ? row.extra_session_note || "—" : "—"}</span>
+                <span className="schedule-row-reason">
+                  {row.status === "extra"
+                    ? `${row.extra_session_venue ? `【${row.extra_session_venue}】 ` : ""}${row.extra_session_note || "—"}`
+                    : "—"}
+                </span>
               )}
 
               {!isLocked && !readOnly && (

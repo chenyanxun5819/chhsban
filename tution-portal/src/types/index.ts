@@ -134,11 +134,12 @@ export interface TutionRoster {
   updated_at: number;
 }
 
-// 排課例外記錄：統一從 @chhsban/kv-utils 引入，避免前後端各自維護一份不一致的定義
-// （schedule_id / class_id / scheduled_date / status(cancelled|rescheduled) /
-//   cancellation_reason / rescheduled_to / rescheduled_venue / reschedule_reason /
-//   created_at / updated_at）
-export type TutionSchedule = TutionScheduleKV;
+// 排課例外記錄：沿用共用套件的基本欄位，並保留額外加課需要的欄位。
+export type TutionSchedule = Omit<TutionScheduleKV, "status"> & {
+  status: "cancelled" | "rescheduled" | "extra";
+  extra_session_note?: string;
+  extra_session_venue?: string;
+};
 
 export interface TutionAttendance {
   attendance_id: string;

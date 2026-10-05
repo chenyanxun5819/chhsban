@@ -238,12 +238,13 @@ export const ClassroomUsageOverview: React.FC<ClassroomUsageOverviewProps> = ({
         }
       }
 
-      // 2. 額外加課：直接佔用原教室
+      // 2. 額外加課：優先佔用指定教室；舊資料若還沒指定則沿用原教室
       for (const schedule of schedules) {
         if (schedule.status !== "extra" || schedule.scheduled_date !== date) continue;
         const cls = classById.get(schedule.class_id);
         if (!cls || !OCCUPYING_STATUSES.includes(cls.approval_status) || !cls.venue) continue;
-        occupancy[date][cls.venue] = {
+        const venue = schedule.extra_session_venue || cls.venue;
+        occupancy[date][venue] = {
           class_id: cls.class_id,
           subject: cls.subject,
           form: cls.form,

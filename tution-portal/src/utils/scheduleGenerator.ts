@@ -21,6 +21,7 @@ export interface GeneratedScheduleRow {
   rescheduled_venue?: string;
   reschedule_reason?: string;
   extra_session_note?: string;
+  extra_session_venue?: string;
   /** 若為例外記錄（無開課/調課），帶出其 KV id，供更新/刪除操作使用；「有開課」的預設列沒有 id */
   schedule_id?: string;
 }
@@ -103,6 +104,7 @@ export function generateScheduleRows(
         actual_date: exception.scheduled_date,
         status: "extra",
         extra_session_note: exception.extra_session_note,
+        extra_session_venue: exception.extra_session_venue,
         schedule_id: exception.schedule_id,
       });
       continue;

@@ -11,9 +11,15 @@
  */
 
 import type { TeacherKVManager } from "@chhsban/kv-utils";
-import type { TutionClass, TutionSchedule } from "@chhsban/kv-utils";
+import { ScheduleStatus, type TutionClass, type TutionSchedule as SharedTutionSchedule } from "@chhsban/kv-utils";
 import type { TutionService } from "./tution-service";
 import { defaultTutionEndDate, effectiveTutionEndDate } from "./retention";
+
+type TutionSchedule = Omit<SharedTutionSchedule, "status"> & {
+  status: SharedTutionSchedule["status"];
+  extra_session_note?: string;
+  extra_session_venue?: string;
+};
 
 const DAY_NAME_TO_INDEX: Record<string, number> = {
   sunday: 0,
@@ -89,7 +95,7 @@ export function generateScheduleRows(params: {
   const exceptionsByDate = new Map<string, TutionSchedule>();
   const extraRows: GeneratedScheduleRow[] = [];
   for (const exception of exceptions) {
-    if (exception.status === "extra") {
+    if (exception.status === ScheduleStatus.EXTRA) {
       extraRows.push({
         scheduled_date: exception.scheduled_date,
         actual_date: exception.scheduled_date,
@@ -110,7 +116,7 @@ export function generateScheduleRows(params: {
     if (exception) {
       rows.push({
         scheduled_date: dateStr,
-        actual_date: exception.status === "rescheduled" ? exception.rescheduled_to || dateStr : dateStr,
+        actual_date: exception.status === ScheduleStatus.RESCHEDULED ? exception.rescheduled_to || dateStr : dateStr,
         status: exception.status,
       });
     } else {

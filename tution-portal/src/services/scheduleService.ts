@@ -15,6 +15,7 @@ export interface ScheduleExceptionPayload {
   rescheduled_to?: string;
   reschedule_reason?: string;
   extra_session_note?: string;
+  extra_session_venue?: string;
 }
 
 export const scheduleService = {
