@@ -85,11 +85,19 @@ def load_config(config_path: Path | None = None) -> AppConfig:
         teachers=teachers,
         seat_blocks=seat_blocks,
         group_order=tuple(sort_settings.get("group_order", ["L", "R", "C"])),
+        text_only_mode=bool(ocr_settings.get("text_only_mode", False)),
         ocr_zoom=float(ocr_settings.get("zoom", 2.0)),
         confidence_threshold=float(ocr_settings.get("confidence_threshold", 0.55)),
+        label_anchor=str(render_settings.get("label_anchor", "bottom_left")).strip() or "bottom_left",
+        label_x=float(render_settings.get("label_x", render_settings.get("label_margin", 18.0))),
+        label_y=float(render_settings.get("label_y", render_settings.get("label_margin", 18.0))),
         label_margin=float(render_settings.get("label_margin", 18.0)),
         label_height=float(render_settings.get("label_height", 28.0)),
         label_font_size=float(render_settings.get("label_font_size", 14.0)),
+        label_gap=float(render_settings.get("label_gap", 20.0)),
+        star_scale=float(render_settings.get("star_scale", 4.95)),
+        star_gap=float(render_settings.get("star_gap", 3.0)),
+        star_y_offset=float(render_settings.get("star_y_offset", 0.0)),
         label_columns=tuple(float(item) for item in render_settings.get("label_columns", [24.0, 120.0, 320.0])),
         highlight_padding=float(render_settings.get("highlight_padding", 3.0)),
         highlight_fill_rgb=tuple(float(item) for item in render_settings.get("highlight_fill_rgb", [1.0, 0.95, 0.3])),
@@ -119,3 +127,18 @@ def restore_default_config() -> Path:
         raise FileNotFoundError("找不到内建的 default_config.json。")
     return save_config_payload(json.loads(default_path.read_text(encoding="utf-8")))
 
+
+def update_render_settings(render_settings: dict[str, float | str | list[float]]) -> Path:
+    config_path = ensure_user_config()
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    payload.setdefault("render_settings", {})
+    payload["render_settings"].update(render_settings)
+    return save_config_payload(payload, config_path)
+
+
+def update_ocr_settings(ocr_settings: dict[str, float | bool]) -> Path:
+    config_path = ensure_user_config()
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    payload.setdefault("ocr_settings", {})
+    payload["ocr_settings"].update(ocr_settings)
+    return save_config_payload(payload, config_path)

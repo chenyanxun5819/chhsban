@@ -12,12 +12,20 @@
   },
   "ocr_settings": {
     "zoom": 2.0,
-    "confidence_threshold": 0.55
+    "confidence_threshold": 0.55,
+    "text_only_mode": false
   },
   "render_settings": {
+    "label_anchor": "bottom_left",
+    "label_x": 18.0,
+    "label_y": 18.0,
     "label_margin": 18.0,
     "label_height": 28.0,
     "label_font_size": 14.0,
+    "label_gap": 20.0,
+    "star_scale": 4.95,
+    "star_gap": 3.0,
+    "star_y_offset": 0.0,
     "label_columns": [
       24.0,
       120.0,

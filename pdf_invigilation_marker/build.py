@@ -38,6 +38,7 @@ def build_executable():
             "--noconfirm",
             "--clean",
             "--onefile",
+            "--windowed",
             "--name=PDF监考名单标记工具",
             f"--distpath={dist_dir}",
             f"--workpath={build_dir}",

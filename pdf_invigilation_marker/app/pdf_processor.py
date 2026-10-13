@@ -8,7 +8,6 @@ from pathlib import Path
 import numpy as np
 import pymupdf
 from openpyxl import load_workbook
-from rapidocr_onnxruntime import RapidOCR
 
 from .models import AppConfig, MatchOccurrence, ProcessResult, TeacherMatch, TeacherRecord
 from .utils import normalize_seat_no
@@ -24,6 +23,18 @@ TILE_ROWS = 4
 TILE_COLS = 4
 TILE_OVERLAP = 40
 TILE_ZOOM_MULTIPLIER = 2.75
+CODE_NORMALIZATION_MAP = {
+    "粱": "梁",
+}
+EXCLUDED_SCHEDULE_TOKENS = {
+    "FORM", "CLASS", "VENUE", "PAX",
+    "MPH", "HOSTELHALL", "HOSTEL", "HALL",
+    "B201", "B202", "B203", "B204",
+    "A", "B", "C", "D", "E", "F", "G", "H", "I", "J",
+    "A3", "B3", "C3", "J3", "S3", "S1", "S2", "J1", "J2",
+    "MON", "TUE", "WED", "THU", "FRI", "SAT", "SUN",
+    "OF", "THE", "UEC",
+}
 
 
 def process_pdf(
@@ -35,14 +46,15 @@ def process_pdf(
     if not input_pdf.exists():
         raise FileNotFoundError(f"找不到 PDF：{input_pdf}")
 
-    teacher_map = {normalize_initial(item.initial): item for item in config.teachers}
-    output_teachers = resolve_output_teachers(input_pdf.parent, config.teachers, progress_callback)
-    output_teacher_codes = tuple(normalize_initial(item.initial) for item in output_teachers)
+    output_teachers = resolve_output_teachers(input_pdf, config.teachers, config, progress_callback)
+    unresolved_teachers = tuple(teacher for teacher in output_teachers if teacher.unresolved)
+    teacher_map = build_teacher_lookup(config.teachers + unresolved_teachers)
     seat_map = {normalize_seat_no(item.seat_no): item.block for item in config.seat_blocks}
     font_path = resolve_font_path(config.label_font_path)
-    ocr_engine = RapidOCR()
+    ocr_engine: object | None = None
     occurrences_by_teacher: dict[str, list[MatchOccurrence]] = defaultdict(list)
     warnings: list[str] = []
+    text_detected_codes: set[str] = set()
 
     with pymupdf.open(input_pdf) as source_doc:
         total_pages = source_doc.page_count
@@ -50,9 +62,29 @@ def process_pdf(
             if progress_callback:
                 progress_callback(f"识别第 {page_index + 1}/{total_pages} 页...")
             page = source_doc[page_index]
-            matches = detect_page_matches(page, ocr_engine, config, teacher_map, output_teacher_codes)
+            matches, used_text_layer, used_ocr = detect_page_matches(page, ocr_engine, config, teacher_map)
+            if used_ocr and config.text_only_mode:
+                if progress_callback:
+                    progress_callback("仅文字层模式已开启：本页跳过 OCR 回退。")
+                matches = {}
+                used_ocr = False
+            if used_ocr and ocr_engine is None:
+                ocr_engine = create_ocr_engine()
+                matches, used_text_layer, _ = detect_page_matches(page, ocr_engine, config, teacher_map)
+                if progress_callback:
+                    progress_callback("本页没有足够文字层，已回退使用 OCR 定位。")
             for teacher_code, item in matches.items():
                 occurrences_by_teacher[teacher_code].extend(item)
+                if used_text_layer:
+                    text_detected_codes.add(teacher_code)
+
+        output_teachers = resolve_final_output_teachers(
+            output_teachers,
+            teacher_map,
+            text_detected_codes,
+        )
+        if text_detected_codes and progress_callback:
+            progress_callback(f"PDF 文字层已直接命中 {len(text_detected_codes)} 位老师，优先采用文字座标定位。")
 
         matched_items = build_teacher_matches(
             output_teachers,
@@ -79,32 +111,62 @@ def process_pdf(
     unmatched_codes = tuple(
         item.initial for item in output_teachers if normalize_initial(item.initial) not in occurrences_by_teacher
     )
+    unresolved_codes = tuple(item.initial for item in output_teachers if item.unresolved)
     return ProcessResult(
         output_path=output_pdf,
         matched_teachers=tuple(matched_items),
         unmatched_teacher_codes=unmatched_codes,
+        unresolved_teacher_codes=unresolved_codes,
         warnings=tuple(warnings),
     )
 
 
-def resolve_output_teachers(folder: Path, teachers: tuple[TeacherRecord, ...], progress_callback=None) -> tuple[TeacherRecord, ...]:
-    schedule_codes = load_schedule_teacher_codes(folder, teachers)
+def resolve_output_teachers(
+    input_pdf: Path,
+    teachers: tuple[TeacherRecord, ...],
+    config: AppConfig,
+    progress_callback=None,
+) -> tuple[TeacherRecord, ...]:
+    pdf_codes = detect_input_pdf_codes(input_pdf, teachers, config)
+    if pdf_codes:
+        resolved = resolve_teacher_records_from_codes(pdf_codes, teachers)
+        if progress_callback:
+            progress_callback(f"已从输入 PDF 自动去重，共 {len(resolved)} 位老师，将依此输出页数。")
+        return resolved
+
+    schedule_codes = load_schedule_teacher_codes(input_pdf.parent, teachers)
     if not schedule_codes:
         return teachers
 
-    teacher_map = {normalize_initial(item.initial): item for item in teachers}
-    resolved: list[TeacherRecord] = []
-    for code in schedule_codes:
-        teacher = teacher_map.get(code)
-        if teacher is not None:
-            resolved.append(teacher)
+    resolved = resolve_teacher_records_from_codes(schedule_codes, teachers)
     if progress_callback:
         progress_callback(f"已从排班 Excel 自动去重，共 {len(resolved)} 位老师，将依此输出页数。")
     return tuple(resolved)
 
 
+def resolve_final_output_teachers(
+    schedule_teachers: tuple[TeacherRecord, ...],
+    teacher_map: dict[str, TeacherRecord],
+    text_detected_codes: set[str],
+) -> tuple[TeacherRecord, ...]:
+    if text_detected_codes:
+        ordered_teachers = [
+            teacher
+            for teacher in schedule_teachers
+            if normalize_initial(teacher.initial) in text_detected_codes
+        ]
+        ordered_codes = {normalize_initial(item.initial) for item in ordered_teachers}
+        for code in sorted(text_detected_codes):
+            if code not in ordered_codes and code in teacher_map:
+                ordered_teachers.append(teacher_map[code])
+        return tuple(ordered_teachers)
+
+    if schedule_teachers:
+        return schedule_teachers
+    return tuple(teacher_map.values())
+
+
 def load_schedule_teacher_codes(folder: Path, teachers: tuple[TeacherRecord, ...]) -> tuple[str, ...]:
-    valid_codes = {normalize_initial(item.initial) for item in teachers}
     found_codes: list[str] = []
     seen_codes: set[str] = set()
 
@@ -121,15 +183,80 @@ def load_schedule_teacher_codes(folder: Path, teachers: tuple[TeacherRecord, ...
             for row in worksheet.iter_rows(values_only=True):
                 for cell_value in row:
                     code = normalize_initial(cell_value)
-                    if code in valid_codes and code not in seen_codes:
+                    if is_candidate_schedule_code(code) and code not in seen_codes:
                         found_codes.append(code)
                         seen_codes.add(code)
     return tuple(found_codes)
 
 
+def resolve_teacher_records_from_codes(
+    codes: tuple[str, ...],
+    teachers: tuple[TeacherRecord, ...],
+) -> tuple[TeacherRecord, ...]:
+    teacher_map = build_teacher_lookup(teachers)
+    resolved: list[TeacherRecord] = []
+    seen_primary_codes: set[str] = set()
+
+    for code in codes:
+        teacher = teacher_map.get(code)
+        if teacher is None:
+            resolved.append(
+                TeacherRecord(
+                    teacher_id="",
+                    name="",
+                    initial=code,
+                    seat_no="",
+                    group="",
+                    unresolved=True,
+                )
+            )
+            seen_primary_codes.add(code)
+            continue
+
+        primary_code = normalize_initial(teacher.initial)
+        if primary_code not in seen_primary_codes:
+            resolved.append(teacher)
+            seen_primary_codes.add(primary_code)
+
+    return tuple(resolved)
+
+
+def detect_input_pdf_codes(
+    input_pdf: Path,
+    teachers: tuple[TeacherRecord, ...],
+    config: AppConfig,
+) -> tuple[str, ...]:
+    teacher_map = build_teacher_lookup(teachers)
+    found_codes: list[str] = []
+    seen_codes: set[str] = set()
+    ocr_engine: object | None = None
+
+    with pymupdf.open(input_pdf) as document:
+        for page in document:
+            page_codes = detect_pdf_invigilator_codes_from_text_layer(page, teacher_map)
+            if page_codes:
+                for code in page_codes:
+                    if code not in seen_codes:
+                        found_codes.append(code)
+                        seen_codes.add(code)
+                continue
+
+            if config.text_only_mode:
+                continue
+
+            if ocr_engine is None:
+                ocr_engine = create_ocr_engine()
+            for code in detect_pdf_invigilator_codes_from_ocr(page, ocr_engine, config, teacher_map):
+                if code not in seen_codes:
+                    found_codes.append(code)
+                    seen_codes.add(code)
+
+    return tuple(found_codes)
+
+
 def detect_page_matches(
     page,
-    ocr_engine: RapidOCR,
+    ocr_engine,
     config: AppConfig,
     teacher_map: dict[str, TeacherRecord],
     allowed_teacher_codes: tuple[str, ...] | None = None,
@@ -137,6 +264,16 @@ def detect_page_matches(
     matches: dict[str, list[MatchOccurrence]] = defaultdict(list)
     if allowed_teacher_codes:
         teacher_map = {code: teacher_map[code] for code in allowed_teacher_codes if code in teacher_map}
+    if not teacher_map:
+        return matches, False, False
+
+    text_matches = detect_text_layer_matches(page, teacher_map)
+    if text_matches:
+        return text_matches, True, False
+
+    if ocr_engine is None:
+        return matches, False, True
+
     segment_codes = build_segmentation_codes(teacher_map)
     detections = run_ocr_detections(page, ocr_engine, config)
 
@@ -151,7 +288,9 @@ def detect_page_matches(
         for teacher_code, segment_rect in split_detection_rect(rect, segments):
             if teacher_code not in teacher_map:
                 continue
-            matches[teacher_code].append(
+            canonical_teacher = teacher_map[teacher_code]
+            canonical_code = normalize_initial(canonical_teacher.initial)
+            matches[canonical_code].append(
                 MatchOccurrence(
                     page_index=page.number,
                     rect=segment_rect,
@@ -159,10 +298,300 @@ def detect_page_matches(
                     confidence=confidence,
                 )
             )
+    return matches, False, False
+
+
+def create_ocr_engine():
+    from rapidocr_onnxruntime import RapidOCR
+
+    return RapidOCR()
+
+
+def detect_text_layer_matches(page, teacher_map: dict[str, TeacherRecord]) -> dict[str, list[MatchOccurrence]]:
+    words = page.get_text("words")
+    if not words:
+        return {}
+
+    ordered_codes = build_segmentation_codes(teacher_map)
+    matches: dict[str, list[MatchOccurrence]] = defaultdict(list)
+    for word in words:
+        rect = (float(word[0]), float(word[1]), float(word[2]), float(word[3]))
+        text = str(word[4]).strip()
+        if not text:
+            continue
+        segments = segment_teacher_text(text, ordered_codes)
+        if not segments:
+            continue
+        for teacher_code, segment_rect in split_detection_rect(rect, segments):
+            if teacher_code not in teacher_map:
+                continue
+            canonical_teacher = teacher_map[teacher_code]
+            canonical_code = normalize_initial(canonical_teacher.initial)
+            matches[canonical_code].append(
+                MatchOccurrence(
+                    page_index=page.number,
+                    rect=segment_rect,
+                    recognized_text=text,
+                    confidence=1.0,
+                )
+            )
     return matches
 
 
-def run_ocr_detections(page, ocr_engine: RapidOCR, config: AppConfig) -> list[tuple[tuple[float, float, float, float], str, float]]:
+def detect_codes_from_text_layer(page, ordered_codes: tuple[str, ...]) -> tuple[str, ...]:
+    items = [
+        ((float(word[0]), float(word[1]), float(word[2]), float(word[3])), str(word[4]).strip())
+        for word in page.get_text("words")
+        if str(word[4]).strip()
+    ]
+    return collect_codes_from_row_items(items, ordered_codes)
+
+
+def detect_codes_from_ocr(page, ocr_engine, config: AppConfig, ordered_codes: tuple[str, ...]) -> tuple[str, ...]:
+    items = [
+        (rect, str(recognized_text).strip())
+        for rect, recognized_text, confidence in run_ocr_detections(page, ocr_engine, config)
+        if confidence >= config.confidence_threshold and str(recognized_text).strip()
+    ]
+    return collect_codes_from_row_items(items, ordered_codes)
+
+
+def detect_pdf_invigilator_codes_from_text_layer(
+    page,
+    teacher_map: dict[str, TeacherRecord],
+) -> tuple[str, ...]:
+    items = [
+        ((float(word[0]), float(word[1]), float(word[2]), float(word[3])), str(word[4]).strip())
+        for word in page.get_text("words")
+        if str(word[4]).strip()
+    ]
+    return collect_pdf_invigilator_codes(items, teacher_map, strict_text_layer=True)
+
+
+def detect_pdf_invigilator_codes_from_ocr(
+    page,
+    ocr_engine,
+    config: AppConfig,
+    teacher_map: dict[str, TeacherRecord],
+) -> tuple[str, ...]:
+    items = [
+        (rect, str(recognized_text).strip())
+        for rect, recognized_text, confidence in run_ocr_detections(page, ocr_engine, config)
+        if confidence >= config.confidence_threshold and str(recognized_text).strip()
+    ]
+    return collect_pdf_invigilator_codes(items, teacher_map, strict_text_layer=False)
+
+
+def extract_candidate_codes(text: str, ordered_codes: tuple[str, ...]) -> tuple[str, ...]:
+    normalized_text = normalize_initial(text)
+    if not normalized_text:
+        return ()
+
+    segmented = segment_teacher_text(normalized_text, ordered_codes)
+    if segmented:
+        return segmented
+
+    if is_candidate_schedule_code(normalized_text):
+        return (normalized_text,)
+
+    parts = re.split(r"[^A-Z\u4E00-\u9FFF]+", normalized_text)
+    found: list[str] = []
+    for part in parts:
+        if not part:
+            continue
+        segmented = segment_teacher_text(part, ordered_codes)
+        if segmented:
+            found.extend(segmented)
+        elif is_candidate_schedule_code(part):
+            found.append(part)
+    return tuple(found)
+
+
+def collect_codes_from_row_items(
+    items: list[tuple[tuple[float, float, float, float], str]],
+    ordered_codes: tuple[str, ...],
+) -> tuple[str, ...]:
+    rows = build_text_rows(items)
+    row_infos = []
+    for row in rows:
+        words = [text for _, text in row]
+        candidate_codes: list[str] = []
+        candidate_word_count = 0
+        meaningful_word_count = 0
+        for _, text in row:
+            text = text.strip()
+            if not text:
+                continue
+            meaningful_word_count += 1
+            codes = extract_candidate_codes(text, ordered_codes)
+            if codes:
+                candidate_word_count += 1
+                candidate_codes.extend(codes)
+        row_infos.append(
+            {
+                "y": row[0][0][1],
+                "candidate_codes": tuple(candidate_codes),
+                "candidate_word_count": candidate_word_count,
+                "meaningful_word_count": meaningful_word_count,
+            }
+        )
+
+    qualifying_indexes: set[int] = set()
+    for index, info in enumerate(row_infos):
+        candidate_word_count = info["candidate_word_count"]
+        meaningful_word_count = info["meaningful_word_count"]
+        if candidate_word_count >= 2 and candidate_word_count >= max(2, int(meaningful_word_count * 0.5)):
+            qualifying_indexes.add(index)
+
+    for index, info in enumerate(row_infos):
+        if index in qualifying_indexes:
+            continue
+        candidate_word_count = info["candidate_word_count"]
+        meaningful_word_count = info["meaningful_word_count"]
+        if candidate_word_count == 0 or candidate_word_count != meaningful_word_count:
+            continue
+        if has_nearby_candidate_row(row_infos, index):
+            qualifying_indexes.add(index)
+
+    found: list[str] = []
+    seen: set[str] = set()
+    for index in sorted(qualifying_indexes):
+        for code in row_infos[index]["candidate_codes"]:
+            if code not in seen:
+                found.append(code)
+                seen.add(code)
+    return tuple(found)
+
+
+def collect_pdf_invigilator_codes(
+    items: list[tuple[tuple[float, float, float, float], str]],
+    teacher_map: dict[str, TeacherRecord],
+    strict_text_layer: bool,
+) -> tuple[str, ...]:
+    ordered_codes = build_segmentation_codes(teacher_map)
+    rows = build_text_rows(items)
+    row_infos = []
+
+    for row in rows:
+        candidate_codes: list[str] = []
+        candidate_word_count = 0
+        meaningful_word_count = 0
+        known_code_count = 0
+        for _, text in row:
+            text = text.strip()
+            if not text:
+                continue
+            meaningful_word_count += 1
+            codes = extract_pdf_check_candidate_codes(text, ordered_codes, strict_text_layer)
+            if not codes:
+                continue
+            candidate_word_count += 1
+            candidate_codes.extend(codes)
+            known_code_count += sum(1 for code in codes if code in teacher_map)
+        row_infos.append(
+            {
+                "y": row[0][0][1],
+                "candidate_codes": tuple(candidate_codes),
+                "candidate_word_count": candidate_word_count,
+                "meaningful_word_count": meaningful_word_count,
+                "known_code_count": known_code_count,
+            }
+        )
+
+    qualifying_indexes: set[int] = set()
+    for index, info in enumerate(row_infos):
+        known_code_count = info["known_code_count"]
+        candidate_word_count = info["candidate_word_count"]
+        meaningful_word_count = info["meaningful_word_count"]
+        if known_code_count >= 2:
+            qualifying_indexes.add(index)
+            continue
+        if known_code_count >= 1 and candidate_word_count == meaningful_word_count:
+            qualifying_indexes.add(index)
+            continue
+        if known_code_count >= 1 and candidate_word_count >= 2 and candidate_word_count >= max(2, int(meaningful_word_count * 0.5)):
+            qualifying_indexes.add(index)
+
+    for index, info in enumerate(row_infos):
+        if index in qualifying_indexes:
+            continue
+        candidate_word_count = info["candidate_word_count"]
+        meaningful_word_count = info["meaningful_word_count"]
+        if candidate_word_count == 0 or candidate_word_count != meaningful_word_count:
+            continue
+        if has_nearby_known_invigilator_row(row_infos, index):
+            qualifying_indexes.add(index)
+
+    found: list[str] = []
+    seen: set[str] = set()
+    for index in sorted(qualifying_indexes):
+        for code in row_infos[index]["candidate_codes"]:
+            if code not in seen:
+                found.append(code)
+                seen.add(code)
+    return tuple(found)
+
+
+def extract_pdf_check_candidate_codes(
+    text: str,
+    ordered_codes: tuple[str, ...],
+    strict_text_layer: bool,
+) -> tuple[str, ...]:
+    normalized_text = normalize_initial(text)
+    if not normalized_text:
+        return ()
+
+    segmented = segment_teacher_text(normalized_text, ordered_codes)
+    if segmented:
+        return segmented
+
+    if strict_text_layer:
+        if any(ch.isdigit() for ch in normalized_text):
+            return ()
+        if any(ch in normalized_text for ch in "()（）,，/:："):
+            return ()
+        if is_candidate_schedule_code(normalized_text):
+            return (normalized_text,)
+        return ()
+
+    return extract_candidate_codes(text, ordered_codes)
+
+
+def build_text_rows(
+    items: list[tuple[tuple[float, float, float, float], str]]
+) -> list[list[tuple[tuple[float, float, float, float], str]]]:
+    rows: list[list[tuple[tuple[float, float, float, float], str]]] = []
+    for item in sorted(items, key=lambda value: (value[0][1], value[0][0])):
+        if not rows or abs(item[0][1] - rows[-1][0][0][1]) > 3.0:
+            rows.append([item])
+        else:
+            rows[-1].append(item)
+    return rows
+
+
+def has_nearby_candidate_row(row_infos: list[dict], index: int) -> bool:
+    current_y = row_infos[index]["y"]
+    for other_index in (index - 1, index + 1):
+        if other_index < 0 or other_index >= len(row_infos):
+            continue
+        other = row_infos[other_index]
+        if abs(other["y"] - current_y) <= 18 and other["candidate_word_count"] >= 1:
+            return True
+    return False
+
+
+def has_nearby_known_invigilator_row(row_infos: list[dict], index: int) -> bool:
+    current_y = row_infos[index]["y"]
+    for other_index in (index - 1, index + 1):
+        if other_index < 0 or other_index >= len(row_infos):
+            continue
+        other = row_infos[other_index]
+        if abs(other["y"] - current_y) <= 18 and other["known_code_count"] >= 1:
+            return True
+    return False
+
+
+def run_ocr_detections(page, ocr_engine, config: AppConfig) -> list[tuple[tuple[float, float, float, float], str, float]]:
     detections: list[tuple[tuple[float, float, float, float], str, float]] = []
     detections.extend(run_ocr_on_rect(page, page.rect, max(config.ocr_zoom, 1.0), ocr_engine))
 
@@ -172,7 +601,7 @@ def run_ocr_detections(page, ocr_engine: RapidOCR, config: AppConfig) -> list[tu
     return detections
 
 
-def run_ocr_on_rect(page, clip_rect, zoom: float, ocr_engine: RapidOCR) -> list[tuple[tuple[float, float, float, float], str, float]]:
+def run_ocr_on_rect(page, clip_rect, zoom: float, ocr_engine) -> list[tuple[tuple[float, float, float, float], str, float]]:
     pixmap = page.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom), clip=clip_rect, alpha=False)
     image = np.frombuffer(pixmap.samples, dtype=np.uint8).reshape(pixmap.height, pixmap.width, pixmap.n)
     result, _ = ocr_engine(image)
@@ -278,10 +707,15 @@ def build_teacher_matches(
         occurrences = occurrences_by_teacher.get(teacher_code, [])
         seat_no = normalize_seat_no(teacher.seat_no)
         block = seat_map.get(seat_no, "")
-        if teacher.seat_no and not block:
+        if teacher.unresolved:
+            warnings.append(f"代码 {teacher.initial} 在老师名单中找不到，请操作人员检查。")
+        elif teacher.seat_no and not block:
             warnings.append(f"老师 {teacher.initial} {teacher.name} 的座号 {teacher.seat_no} 找不到对应区块。")
         if not occurrences:
-            warnings.append(f"老师 {teacher.initial} {teacher.name} 没有在 PDF 中识别到可标记位置。")
+            if teacher.unresolved:
+                warnings.append(f"未知代码 {teacher.initial} 没有在 PDF 中识别到可标记位置。")
+            else:
+                warnings.append(f"老师 {teacher.initial} {teacher.name} 没有在 PDF 中识别到可标记位置。")
         deduped_occurrences = tuple(
             sorted(
                 deduplicate_occurrences(occurrences),
@@ -335,7 +769,7 @@ def append_teacher_pages(output_doc, source_doc, teacher_match: TeacherMatch, co
         register_font(page, font_path)
         add_teacher_label(page, teacher_match, config, font_path)
         for occurrence in occurrences_by_page.get(page_index, []):
-            add_star_marker(page, occurrence)
+            add_star_marker(page, occurrence, config)
 
 
 def resolve_target_page_indexes(teacher_match: TeacherMatch, source_page_count: int) -> tuple[int, ...]:
@@ -354,38 +788,54 @@ def register_font(page, font_path: str):
 
 
 def add_teacher_label(page, teacher_match: TeacherMatch, config: AppConfig, font_path: str):
-    margin = config.label_margin
     label_height = config.label_height
-    columns = config.label_columns
-    page_width = page.rect.width
-    box_width = min(max(columns[-1] + 80, 320), max(page_width - margin * 2, 160))
-    label_rect = pymupdf.Rect(margin, margin, margin + box_width, margin + label_height)
-    page.draw_rect(label_rect, color=(1, 1, 1), fill=(1, 1, 1), fill_opacity=0.9, overlay=True)
-
+    font_name = "marker_font" if font_path else "helv"
+    gap = config.label_gap
+    text_values = (
+        build_label_name_value(teacher_match.teacher),
+        build_label_code_value(teacher_match.teacher),
+        build_label_seat_value(teacher_match.teacher),
+    )
+    text_widths = [
+        estimate_label_text_width(text, config.label_font_size)
+        for text in text_values
+    ]
+    box_width = max(sum(text_widths) + gap * (len(text_values) - 1) + 24, 220)
+    if config.label_anchor == "bottom_left":
+        label_left = config.label_x
+        label_top = config.label_y
+    else:
+        label_left = config.label_x
+        label_top = page.rect.y1 - config.label_y - label_height
+    label_rect = pymupdf.Rect(
+        label_left,
+        label_top,
+        label_left + box_width,
+        label_top + label_height,
+    )
     base_x = label_rect.x0
     baseline_y = label_rect.y0 + config.label_font_size + 4
-    label_values = (
-        teacher_match.teacher.name,
-        teacher_match.teacher.initial,
-        teacher_match.teacher.seat_no,
-    )
-    for offset, text in zip(columns, label_values):
+    cursor_x = base_x + 12
+    for text, width in zip(text_values, text_widths):
         page.insert_text(
-            pymupdf.Point(base_x + offset, baseline_y),
+            pymupdf.Point(cursor_x, baseline_y),
             text,
             fontsize=config.label_font_size,
-            fontname="marker_font" if font_path else "helv",
+            fontname=font_name,
             color=(0, 0, 0),
             overlay=True,
         )
+        cursor_x += width + gap
 
 
-def add_star_marker(page, occurrence: MatchOccurrence):
+def add_star_marker(page, occurrence: MatchOccurrence, config: AppConfig):
     rect = pymupdf.Rect(*occurrence.rect)
-    marker_size = max(rect.height * 2.0, 12)
+    marker_size = max(rect.height * config.star_scale, 11)
+    center_y = (rect.y0 + rect.y1) / 2
+    star_width = pymupdf.get_text_length("*", fontname="helv", fontsize=marker_size)
     marker_point = pymupdf.Point(
-        rect.x0 - marker_size * 0.45,
-        rect.y1 - marker_size * 0.2,
+        rect.x0 - star_width - config.star_gap,
+        center_y + marker_size * 0.35 + config.star_y_offset,
     )
     page.insert_text(
         marker_point,
@@ -395,6 +845,69 @@ def add_star_marker(page, occurrence: MatchOccurrence):
         color=(0.85, 0.0, 0.0),
         overlay=True,
     )
+
+
+def estimate_label_text_width(text: str, font_size: float) -> float:
+    total = 0.0
+    for char in text:
+        total += estimate_character_width(char, font_size)
+    return max(total, font_size)
+
+
+def estimate_character_width(char: str, font_size: float) -> float:
+    codepoint = ord(char)
+    if char.isspace():
+        return font_size * 0.35
+    if 0x4E00 <= codepoint <= 0x9FFF:
+        return font_size * 1.02
+    if 0x3400 <= codepoint <= 0x4DBF:
+        return font_size * 1.02
+    if char.isdigit():
+        return font_size * 0.58
+    if "A" <= char <= "Z":
+        return font_size * 0.68
+    if "a" <= char <= "z":
+        return font_size * 0.58
+    return font_size * 0.5
+
+
+def is_candidate_schedule_code(code: str) -> bool:
+    if not code:
+        return False
+    if code in EXCLUDED_SCHEDULE_TOKENS:
+        return False
+    if any(ch.isdigit() for ch in code):
+        return False
+    if len(code) == 1 and is_cjk_character(code):
+        return True
+    if 2 <= len(code) <= 3 and all("A" <= ch <= "Z" for ch in code):
+        return True
+    return False
+
+
+def is_cjk_character(char: str) -> bool:
+    if len(char) != 1:
+        return False
+    codepoint = ord(char)
+    return 0x3400 <= codepoint <= 0x9FFF
+
+
+def build_label_name_value(teacher: TeacherRecord) -> str:
+    if teacher.unresolved:
+        return ""
+    return teacher.name
+
+
+def build_label_code_value(teacher: TeacherRecord) -> str:
+    if teacher.unresolved:
+        return f"!{teacher.initial}"
+    return teacher.initial
+
+
+def build_label_seat_value(teacher: TeacherRecord) -> str:
+    if teacher.unresolved:
+        return ""
+    return teacher.seat_no
 
 
 def build_teacher_sort_key(teacher_match: TeacherMatch, group_order: tuple[str, ...]):
@@ -418,7 +931,50 @@ def build_teacher_sort_key(teacher_match: TeacherMatch, group_order: tuple[str, 
 
 
 def normalize_initial(text: object) -> str:
-    return str(text or "").strip().upper().replace(" ", "")
+    normalized = str(text or "").strip().upper().replace(" ", "")
+    for source, target in CODE_NORMALIZATION_MAP.items():
+        normalized = normalized.replace(source, target)
+    return normalized
+
+
+def build_teacher_lookup(teachers: tuple[TeacherRecord, ...]) -> dict[str, TeacherRecord]:
+    lookup: dict[str, TeacherRecord] = {}
+    alias_conflicts: set[str] = set()
+
+    for teacher in teachers:
+        lookup[normalize_initial(teacher.initial)] = teacher
+
+    for teacher in teachers:
+        for alias in generate_teacher_aliases(teacher):
+            if alias in lookup and lookup[alias] is not teacher:
+                alias_conflicts.add(alias)
+                continue
+            lookup[alias] = teacher
+
+    for alias in alias_conflicts:
+        primary_owner = next(
+            (teacher for teacher in teachers if normalize_initial(teacher.initial) == alias),
+            None,
+        )
+        if primary_owner is not None:
+            lookup[alias] = primary_owner
+        elif alias in lookup:
+            del lookup[alias]
+
+    return lookup
+
+
+def generate_teacher_aliases(teacher: TeacherRecord) -> tuple[str, ...]:
+    aliases: list[str] = []
+    primary_code = normalize_initial(teacher.initial)
+    if primary_code:
+        aliases.append(primary_code)
+
+    cjk_chars = [char for char in teacher.name.strip() if 0x3400 <= ord(char) <= 0x9FFF]
+    if cjk_chars:
+        aliases.append(normalize_initial(cjk_chars[-1]))
+
+    return tuple(dict.fromkeys(alias for alias in aliases if alias))
 
 
 def resolve_font_path(configured_path: str) -> str:

@@ -2,14 +2,14 @@
 from PyInstaller.utils.hooks import collect_data_files
 from PyInstaller.utils.hooks import collect_submodules
 
-datas = [('d:/chhsban/chhsban-acadoc/pdf_invigilation_marker/data', 'data')]
+datas = [('d:/chhsban/pdf_invigilation_marker/data', 'data')]
 hiddenimports = []
 datas += collect_data_files('rapidocr_onnxruntime')
 hiddenimports += collect_submodules('rapidocr_onnxruntime')
 
 
 a = Analysis(
-    ['d:/chhsban/chhsban-acadoc/pdf_invigilation_marker/main.py'],
+    ['d:/chhsban/pdf_invigilation_marker/main.py'],
     pathex=[],
     binaries=[],
     datas=datas,
@@ -36,7 +36,7 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,
