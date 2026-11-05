@@ -1,0 +1,24 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.py[cod]
+*.egg-info/
+
+# Evaluation artifacts
+eval/synthetic/*
+!eval/synthetic/.gitkeep
+eval/real/*
+!eval/real/.gitkeep
+eval/reports/*
+!eval/reports/.gitkeep
+
+# Synced core for Firebase functions
+functions/omr_core/
+
+# Local secrets and tooling outputs
+.env
+serviceAccount*.json
+key.json
+.firebase/
+firebase-debug.log
+*.log
