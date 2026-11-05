@@ -1,0 +1,98 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // ========== 辅助函数 ==========
+    
+    // 检查用户是否已认证
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // 检查请求者是否是文件上传者（从路径提取 uid）
+    function isFileOwner(uid) {
+      return request.auth.uid == uid;
+    }
+
+    // 检查请求的大小是否合理（<50MB）
+    function isValidSize() {
+      return request.resource.size < 50 * 1024 * 1024;
+    }
+
+    // 检查 Content-Type 是否为允许的图片或 PDF
+    function isValidContentType() {
+      return request.resource.contentType in [
+        'image/png',
+        'image/jpeg',
+        'image/jpg',
+        'application/pdf'
+      ];
+    }
+
+    // ========== 答题纸图像与结果存储 ==========
+    // 路径: jobs/{jobId}/[original-image|annotated-image|metadata.json]
+    // 
+    // Cloud Function 将上传的文件保存到:
+    //   - jobs/{jobId}/original-image.png|jpg|pdf
+    //   - jobs/{jobId}/annotated-image.png (识别后的标注图)
+    //   - jobs/{jobId}/metadata.json (识别结果)
+
+    match /jobs/{jobId}/{fileName} {
+      // 仅认证用户可读取（任何用户可下载已存在的结果）
+      // 实际上只有上传者的结果应该被读取，但 Storage Rules 无法直接
+      // 从路径中提取 uid，所以由 Cloud Function 处理权限检查
+      allow read: if isAuthenticated();
+      
+      // 仅 Cloud Function 可写（通过服务账号）
+      // 前端不能直接上传到 Storage，必须通过 Cloud Function
+      allow write: if false;
+      
+      // 删除操作仅允许管理员（Cloud Function）
+      allow delete: if false;
+    }
+
+    // ========== 临时上传路径（由前端使用） ==========
+    // 路径: temp/uploads/{uid}/{timestamp}/{fileName}
+    // 用户可以向该路径上传临时文件，Cloud Function 会处理
+
+    match /temp/uploads/{uid}/{timestamp}/{fileName} {
+      // 用户只能上传到自己的目录
+      allow write: if isAuthenticated() 
+        && request.auth.uid == uid
+        && isValidSize()
+        && isValidContentType();
+      
+      // 用户可以读取自己的临时文件
+      allow read: if isAuthenticated() && request.auth.uid == uid;
+      
+      // 用户可以删除自己的临时文件
+      allow delete: if isAuthenticated() && request.auth.uid == uid;
+    }
+
+    // ========== 生命周期管理 ==========
+    // 注意：Cloud Storage 生命周期规则需要在 firebase.json 或 Cloud Console 中配置
+    // 规则示例（gsutil 命令）:
+    // gsutil lifecycle set - <<EOF
+    // {
+    //   "lifecycle": {
+    //     "rule": [
+    //       {
+    //         "action": {"type": "Delete"},
+    //         "condition": {"age": 7, "matchesPrefix": ["jobs/"]}
+    //       },
+    //       {
+    //         "action": {"type": "Delete"},
+    //         "condition": {"age": 1, "matchesPrefix": ["temp/"]}
+    //       }
+    //     ]
+    //   }
+    // }
+    // EOF
+
+    // ========== 默认规则 ==========
+    // 其他所有路径拒绝访问
+    match /{allPaths=**} {
+      allow read, write, delete: if false;
+    }
+  }
+}

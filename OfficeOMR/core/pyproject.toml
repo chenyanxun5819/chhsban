@@ -1,0 +1,20 @@
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "officeomr-core"
+version = "0.1.0"
+description = "Core recognition pipeline for OfficeOMR"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "numpy>=2.1,<3",
+  "opencv-python-headless>=4.10,<5",
+  "pydantic>=2.9,<3",
+  "pypdfium2>=4.30,<5",
+  "PyYAML>=6.0,<7"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["omr_core"]

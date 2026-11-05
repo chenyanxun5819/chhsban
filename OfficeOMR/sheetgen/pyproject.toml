@@ -1,0 +1,17 @@
+[build-system]
+requires = ["hatchling>=1.25.0"]
+build-backend = "hatchling.build"
+
+[project]
+name = "officeomr-sheetgen"
+version = "0.1.0"
+description = "Answer sheet generator for OfficeOMR"
+readme = "README.md"
+requires-python = ">=3.12,<3.14"
+dependencies = [
+  "reportlab>=4.2,<5",
+  "pydantic>=2.9,<3"
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["sheetgen"]

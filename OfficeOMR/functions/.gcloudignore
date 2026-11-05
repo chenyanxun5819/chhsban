@@ -1,0 +1,10 @@
+@"
+venv/
+.venv/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+node_modules/
+*.log
+"@ | Set-Content functions\.gcloudignore -Encoding utf8
