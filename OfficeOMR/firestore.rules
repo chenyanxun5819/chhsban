@@ -2,6 +2,10 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ========== M6 FIRESTORE SECURITY RULES ==========
+    // 基于 Custom Claims 的多角色权限管理
+    // 参考: PLAN.md 第 3.2、9.4 节
+
     // ========== 辅助函数 ==========
     
     // 检查用户是否已认证
@@ -9,133 +13,109 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // 检查用户是否是当前资源的所有者
-    function isOwner(uid) {
-      return request.auth.uid == uid;
+    // 检查用户是否是 super_admin（无 orgId）
+    function isSuperAdmin() {
+      return isAuthenticated() 
+        && request.auth.token.role == 'super_admin';
     }
 
-    // 检查用户在白名单中（教师）
-    function isApprovedTeacher() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.approved == true;
+    // 检查用户是否是 teacher，且属于指定组织
+    function isTeacherInOrg(orgId) {
+      return isAuthenticated() 
+        && request.auth.token.role == 'teacher'
+        && request.auth.token.orgId == orgId;
     }
 
-    // 检查用户是否是管理员
-    function isAdmin() {
-      return isAuthenticated() && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    // 检查用户是否是 teacher（任意组织）
+    function isTeacher() {
+      return isAuthenticated() 
+        && request.auth.token.role == 'teacher';
     }
 
-    // 获取用户日配额
-    function getDailyLimit() {
-      return get(/databases/$(database)/documents/settings/global).data.daily_limit_per_teacher;
+    // 检查教师的 active 状态
+    // 规则要点：即使 ID token 未过期，active=false 也拒绝访问
+    // 这保证了"停用后立即失效"的要求
+    function isTeacherActive() {
+      return isTeacher() 
+        && get(/databases/$(database)/documents/allowedUsers/$(request.auth.token.email)).data.active == true;
     }
 
-    // 获取当天已使用次数
-    function getTodayUsage() {
-      let todayRef = /databases/$(database)/documents/usage/$(request.time.date())/users/$(request.auth.uid);
-      return exists(todayRef) ? get(todayRef).data.count : 0;
+    // 获取用户所属组织 ID
+    function getUserOrgId() {
+      return request.auth.token.orgId;
     }
 
-    // ========== 用户集合（White List & 权限） ==========
-    // 路径: users/{uid}
-    // 文档结构:
-    // {
-    //   email: string (Firebase Auth email)
-    //   approved: boolean
-    //   role: string ("teacher" | "admin")
-    //   department: string (optional, 部门名)
-    //   created_at: timestamp
-    //   updated_at: timestamp
-    // }
-
-    match /users/{uid} {
-      // 每个用户只能读自己的记录
-      allow read: if isOwner(uid);
-      
-      // 仅管理员可写入
-      allow create, update, delete: if isAdmin() && uid != null;
+    // 获取用户邮箱（小写）
+    function getUserEmail() {
+      return request.auth.token.email;
     }
 
-    // ========== 全局设置集合（管理员专用） ==========
+    // ========== settings/global 集合 ==========
     // 路径: settings/global
-    // 文档结构:
-    // {
-    //   daily_limit_per_teacher: number (default 100)
-    //   max_file_size_mb: number (default 10)
-    //   result_expiry_days: number (default 7)
-    //   updated_at: timestamp
-    // }
+    // 数据模型见 3.2 节
+    // 规则: super_admin 读写，teacher 只读
 
     match /settings/global {
-      // 任何认证用户可读取配置
-      allow read: if isAuthenticated();
+      // super_admin 读写
+      allow read, write: if isSuperAdmin();
       
-      // 仅管理员可修改
-      allow write: if isAdmin();
+      // teacher 只读
+      allow read: if isTeacherActive();
     }
 
-    // ========== 识别任务集合（用户的结果存储） ==========
+    // ========== orgs/{orgId} 集合 ==========
+    // 路径: orgs/{orgId}
+    // 数据模型见 3.2 节
+    // 规则: super_admin 读写，teacher 只读自己的组织
+
+    match /orgs/{orgId} {
+      // super_admin 读写
+      allow read, write: if isSuperAdmin();
+      
+      // teacher 只读自己的组织（且必须 active）
+      allow read: if isTeacherActive() && isTeacherInOrg(orgId);
+    }
+
+    // ========== allowedUsers/{email} 集合 ==========
+    // 路径: allowedUsers/{email_lowercase}
+    // 数据模型见 3.2 节
+    // 规则: 仅 super_admin 读写（客户端完全无权）
+
+    match /allowedUsers/{email} {
+      // 仅 super_admin 读写
+      allow read, write: if isSuperAdmin();
+    }
+
+    // ========== jobs/{jobId} 集合 ==========
     // 路径: jobs/{jobId}
-    // 文档结构:
-    // {
-    //   user_id: string (Firebase UID)
-    //   email: string (用户邮箱)
-    //   template: string ("T100-A4-v1" | "T060-A4-v1")
-    //   status: string ("pending" | "success" | "error")
-    //   result: {
-    //     student_id: string
-    //     answers: array
-    //     summary: { overall_accuracy, marked_count, ... }
-    //     timestamp: timestamp
-    //   }
-    //   error_message: string (optional)
-    //   created_at: timestamp
-    //   expires_at: timestamp (now + 7 days)
-    // }
+    // 数据模型见 3.2 节
+    // 规则: teacher 只读自己的（写入由 Functions 完成）
 
     match /jobs/{jobId} {
-      // 用户只能读取自己的任务结果
-      allow read: if isAuthenticated() && resource.data.user_id == request.auth.uid;
+      // teacher 只读自己的（检查 active 状态）
+      allow read: if isTeacherActive() 
+        && resource.data.uid == request.auth.uid;
       
-      // 用户创建新任务时：
-      // 1. 必须是白名单用户
-      // 2. 该用户必须未超过日配额
-      // 3. user_id 必须是当前认证用户
-      allow create: if isApprovedTeacher() 
-        && getTodayUsage() < getDailyLimit()
-        && request.resource.data.user_id == request.auth.uid
-        && request.resource.data.email == request.auth.token.email
-        && request.resource.data.status == "pending"
-        && request.resource.data.created_at == request.time;
-      
-      // 仅管理员或所有者可更新状态
-      allow update: if (isOwner(resource.data.user_id) && resource.data.status == "pending") 
-        || isAdmin();
-      
-      // 仅管理员可删除
-      allow delete: if isAdmin();
-    }
-
-    // ========== 使用统计集合（追踪用户配额） ==========
-    // 路径: usage/{date}/users/{uid}
-    // 文档结构:
-    // {
-    //   count: number (今天已使用次数)
-    //   updated_at: timestamp
-    // }
-    // 注意: {date} 格式为 YYYY-MM-DD，例如 "2026-07-04"
-
-    match /usage/{date}/users/{uid} {
-      // 用户可读取自己的配额
-      allow read: if isOwner(uid);
-      
-      // 仅 Cloud Function 通过服务账号可写
-      // （前端无直接写权限，由后端更新）
+      // 写入：仅由 Cloud Functions 完成（服务账号）
+      // 前端无直接写权限
       allow write: if false;
     }
 
-    // ========== 其他集合 ==========
+    // ========== usage/{uid}_{yyyymmdd} 集合 ==========
+    // 路径: usage/{uid}_{yyyymmdd}
+    // 例如: usage/user123_20261107
+    // 数据模型: { "sheets": 123 }
+    // 规则: super_admin 只读，Cloud Functions 写入
+
+    match /usage/{document=**} {
+      // super_admin 只读（用于管理后台统计）
+      allow read: if isSuperAdmin();
+      
+      // 写入：仅由 Cloud Functions 完成（服务账号）
+      allow write: if false;
+    }
+
+    // ========== 其他所有集合 ==========
     // 默认拒绝访问
     match /{document=**} {
       allow read, write: if false;

@@ -127,7 +127,9 @@ class AdminPage {
       let html = '<table style="width: 100%; border-collapse: collapse;"><thead><tr style="background: #f5f5f5; border-bottom: 1px solid #ddd;">';
       html += '<th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600;">组织名称</th>';
       html += '<th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600;">代号</th>';
+      html += '<th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600;">学号位数</th>';
       html += '<th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600;">状态</th>';
+      html += '<th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600;">操作</th>';
       html += '</tr></thead><tbody>';
       
       snapshot.forEach(doc => {
@@ -136,15 +138,142 @@ class AdminPage {
         html += `<tr style="border-bottom: 1px solid #eee;">`;
         html += `<td style="padding: 12px; font-size: 13px;">${data.name}</td>`;
         html += `<td style="padding: 12px; font-size: 13px;"><code>${data.code}</code></td>`;
+        html += `<td style="padding: 12px; font-size: 13px;"><strong>${data.studentIdDigits || '-'}</strong></td>`;
         html += `<td style="padding: 12px; font-size: 13px;">${status}</td>`;
-        html += `</tr>`;
+        html += `<td style="padding: 12px; text-align: center; font-size: 13px;">`;
+        html += `<button class="edit-org-btn" data-id="${doc.id}" style="padding: 4px 12px; margin-right: 4px; background: #667eea; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;">✏️ 编辑</button>`;
+        html += `<button class="delete-org-btn" data-id="${doc.id}" style="padding: 4px 12px; background: #f44336; color: white; border: none; border-radius: 3px; cursor: pointer; font-size: 12px;">❌ 删除</button>`;
+        html += `</td></tr>`;
       });
       
       html += '</tbody></table>';
       orgsList.innerHTML = html;
+      
+      // 添加编辑和删除事件监听
+      this.container.querySelectorAll('.edit-org-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => this.showEditOrgModal(e.currentTarget.dataset.id));
+      });
+      this.container.querySelectorAll('.delete-org-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => this.deleteOrg(e.currentTarget.dataset.id));
+      });
     } catch (error) {
       console.error('Failed to load orgs:', error);
       this.showError('加载组织失败: ' + error.message);
+    }
+  }
+
+  /**
+   * 显示编辑组织模态框
+   */
+  async showEditOrgModal(docId) {
+    try {
+      const doc = await this.firestore.collection('orgs').doc(docId).get();
+      if (!doc.exists) {
+        this.showError('组织不存在');
+        return;
+      }
+      
+      const org = doc.data();
+      
+      const modal = this.createModal('编辑组织', `
+        <form id="edit-org-form">
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px;">组织名称 *</label>
+            <input type="text" id="edit-org-name" value="${org.name}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" required />
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px;">代号 *</label>
+            <input type="text" id="edit-org-code" value="${org.code}" pattern="[a-zA-Z0-9]{3,10}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" required />
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px;">学号位数 *</label>
+            <input type="number" id="edit-org-digits" value="${org.studentIdDigits}" min="3" max="12" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" required />
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px;">学号前置码</label>
+            <input type="text" id="edit-org-prefix" value="${org.studentIdPrefix || ''}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" />
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px;">选项数 *</label>
+            <select id="edit-org-options" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" required>
+              <option value="4" ${org.optionsCount === 4 ? 'selected' : ''}>4 选项</option>
+              <option value="5" ${org.optionsCount === 5 ? 'selected' : ''}>5 选项</option>
+            </select>
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px;">可用版型 *</label>
+            <label style="display: flex; align-items: center; font-size: 13px; margin-bottom: 8px;">
+              <input type="checkbox" value="T100" class="template-check" style="margin-right: 5px;" ${org.templates && org.templates.includes('T100') ? 'checked' : ''} /> T100
+            </label>
+            <label style="display: flex; align-items: center; font-size: 13px;">
+              <input type="checkbox" value="T060" class="template-check" style="margin-right: 5px;" ${org.templates && org.templates.includes('T060') ? 'checked' : ''} /> T060
+            </label>
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label style="display: flex; align-items: center; font-size: 13px;">
+              <input type="checkbox" id="edit-org-active" ${org.active ? 'checked' : ''} style="margin-right: 5px;" />
+              <span>激活此组织</span>
+            </label>
+          </div>
+        </form>
+      `);
+      
+      const form = modal.querySelector('#edit-org-form');
+      modal.querySelector('.modal-submit').addEventListener('click', async () => {
+        if (!form.checkValidity()) {
+          this.showError('请填写所有必填项');
+          return;
+        }
+        
+        const templates = Array.from(modal.querySelectorAll('.template-check:checked')).map(c => c.value);
+        if (templates.length === 0) {
+          this.showError('请至少选择一个版型');
+          return;
+        }
+        
+        const orgData = {
+          name: modal.querySelector('#edit-org-name').value,
+          code: modal.querySelector('#edit-org-code').value,
+          studentIdDigits: parseInt(modal.querySelector('#edit-org-digits').value),
+          studentIdPrefix: modal.querySelector('#edit-org-prefix').value || '',
+          optionsCount: parseInt(modal.querySelector('#edit-org-options').value),
+          templates: templates,
+          active: modal.querySelector('#edit-org-active').checked
+        };
+        
+        try {
+          const btn = modal.querySelector('.modal-submit');
+          btn.disabled = true;
+          btn.textContent = '保存中...';
+          
+          await this.firestore.collection('orgs').doc(docId).update(orgData);
+          
+          this.showSuccess('组织已更新');
+          this.closeModal(modal);
+          await this.loadOrgs();
+        } catch (error) {
+          this.showError('保存组织失败: ' + error.message);
+        }
+      });
+    } catch (error) {
+      this.showError('加载组织失败: ' + error.message);
+    }
+  }
+
+  /**
+   * 删除组织
+   */
+  async deleteOrg(docId) {
+    if (!confirm('确定要删除这个组织吗？此操作不可撤销。')) {
+      return;
+    }
+    
+    try {
+      await this.firestore.collection('orgs').doc(docId).delete();
+      this.showSuccess('组织已删除');
+      await this.loadOrgs();
+    } catch (error) {
+      this.showError('删除组织失败: ' + error.message);
     }
   }
 
@@ -269,6 +398,7 @@ class AdminPage {
       html += '<th style="padding: 12px; text-align: center; font-size: 13px; font-weight: 600;">使用率</th>';
       html += '</tr></thead><tbody>';
       
+      let errorCount = 0;
       for (const doc of teachersSnapshot.docs) {
         const teacher = doc.data();
         const uid = doc.id;
@@ -295,15 +425,23 @@ class AdminPage {
           html += `</div></td></tr>`;
         } catch (err) {
           console.error(`Error loading usage for ${uid}:`, err);
+          errorCount++;
+          // 权限错误时显示 "--" 而不是 "加载失败"
+          const isPermissionError = err.code === 'permission-denied';
           html += `<tr style="border-bottom: 1px solid #eee;">`;
           html += `<td style="padding: 12px; font-size: 13px;">${teacher.email}</td>`;
           html += `<td style="padding: 12px; font-size: 13px;"><code>${teacher.orgId || '-'}</code></td>`;
-          html += `<td colspan="4" style="padding: 12px; text-align: center; color: #999;">加载失败</td></tr>`;
+          html += `<td colspan="4" style="padding: 12px; text-align: center; color: #ccc; font-style: italic;">${isPermissionError ? '权限不足' : '加载失败'}</td></tr>`;
         }
       }
       
       html += '</tbody></table>';
       usageList.innerHTML = html;
+      
+      // 如果所有教师都权限错误，显示提示
+      if (errorCount === teachersSnapshot.size) {
+        this.showError('用量统计需要更新 Firestore Rules 权限。请联系开发者。');
+      }
     } catch (error) {
       console.error('Failed to load usage:', error);
       this.showError('加载用量统计失败: ' + error.message);
