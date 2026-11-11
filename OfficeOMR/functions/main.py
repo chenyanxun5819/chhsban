@@ -10,7 +10,6 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 import cv2
-import numpy as np
 
 # Note: omr_core is imported lazily inside functions to avoid
 # issues during function discovery phase.
@@ -77,6 +76,20 @@ def error_response(error, message, status):
     return response
 
 
+def load_layout_by_template(template_name):
+    """Load layout from template preset based on request template parameter."""
+    from sheetgen.layout import TemplatePresets
+
+    template_builders = {
+        'T100-A4-v1': TemplatePresets.T100_A4_v1,
+        'T060-A4-v1': TemplatePresets.T060_A4_v1,
+    }
+    builder = template_builders.get(template_name)
+    if builder is None:
+        raise ValueError(f'Unsupported template: {template_name}')
+    return builder()
+
+
 @functions_framework.http
 def recognize_sheet(request):
     """
@@ -115,7 +128,7 @@ def recognize_sheet(request):
         import sys
         sys.path.insert(0, os.path.dirname(__file__))
         from omr_core.pipeline import recognize
-        from omr_core.layout import LayoutConfig
+        from omr_core import pdfio
     except Exception as e:
         return error_response(
             'InternalError', f'Could not load OMR modules: {str(e)}', 500)
@@ -196,37 +209,43 @@ def recognize_sheet(request):
         image_file = request.files['image']
         template_name = request.form.get('template', 'T100-A4-v1')
 
-        # Step 5: Read and decode image
+        # Step 5: Read input bytes and decode pages (PNG/JPG/PDF)
         try:
             image_bytes = image_file.read()
             if not image_bytes:
                 raise ValueError('Empty file')
-
-            # PNG/JPG only for now (PDF support in a later version)
-            nparr = np.frombuffer(image_bytes, np.uint8)
-            image = cv2.imdecode(nparr, cv2.IMREAD_GRAYSCALE)
-
-            if image is None:
-                raise ValueError('Could not decode image')
+            input_name = image_file.filename or 'upload.bin'
+            page_images = list(pdfio.read_bytes(image_bytes, filename=input_name))
+            if not page_images:
+                raise ValueError('No decodable pages found')
         except Exception as e:
             return error_response(
                 'BadRequest', f'Could not process image: {str(e)}', 400)
 
-        # Step 6: Load layout (TODO: fetch from Firestore instead of file)
+        # Step 6: Load layout from template parameter
         try:
-            layout_path = os.path.join(os.path.dirname(__file__), 'layout.json')
-            with open(layout_path, 'r', encoding='utf-8') as f:
-                layout_dict = json.load(f)
-            layout = LayoutConfig(**layout_dict)
+            layout = load_layout_by_template(template_name)
         except Exception as e:
-            print(f"Warning: Could not load layout.json: {e}")
-            layout = None
+            return error_response(
+                'BadRequest', f'Could not load template layout: {str(e)}', 400)
 
-        # Step 7: Run recognition
+        # Step 7: Run recognition for each page
         try:
-            result = recognize(image, layout, get_config())
-            if not result:
-                raise ValueError('Recognition returned empty result')
+            result_pages = []
+            for page_index in range(len(page_images)):
+                page_result = recognize(
+                    image_bytes,
+                    layout,
+                    get_config(),
+                    template_id=layout.template_id,
+                    page_index=page_index,
+                )
+                result_pages.append(page_result.model_dump(mode='json'))
+
+            if not result_pages:
+                raise ValueError('Recognition returned no page results')
+
+            result = result_pages[0]
         except Exception as e:
             return error_response(
                 'InternalError', f'Recognition failed: {str(e)}', 500)
@@ -248,7 +267,8 @@ def recognize_sheet(request):
             'expires_at': expires_at,
             'accuracy': result.get('summary', {}).get('overall_accuracy', 0),
             'student_id': result.get('student_id'),
-            'answer_count': len(result.get('answers', []))
+            'answer_count': sum(len(p.get('answers', [])) for p in result_pages),
+            'page_count': len(result_pages),
         }
 
         # Step 10: Save job to Firestore
@@ -263,12 +283,12 @@ def recognize_sheet(request):
         try:
             result_path = f'jobs/{job_id}/result.json'
             get_bucket().blob(result_path).upload_from_string(
-                json.dumps(result, indent=2, ensure_ascii=False),
+                json.dumps({'results': result_pages}, indent=2, ensure_ascii=False),
                 content_type='application/json'
             )
 
             image_path = f'jobs/{job_id}/image.png'
-            ok, image_png = cv2.imencode('.png', image)
+            ok, image_png = cv2.imencode('.png', page_images[0])
             if ok:
                 get_bucket().blob(image_path).upload_from_string(
                     image_png.tobytes(), content_type='image/png')
@@ -289,6 +309,7 @@ def recognize_sheet(request):
             'job_id': job_id,
             'status': 'completed',
             'result': result,
+            'results': result_pages,
             'annotated_image_url': annotated_image_url,
             'expires_at': expires_at.isoformat(),
             'message': 'Recognition completed successfully'

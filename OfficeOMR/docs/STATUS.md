@@ -359,6 +359,35 @@
 ✓ **审查率**: 0.0% (无样本标记审查) — 目标 ≤3% ✓  
 ✓ **学号精度**: 100.0% (100/100 正确) — 目标 ≥99% ✓  
 
+---
+
+## 2026-11-06 — M5 函数修正（仅按 Wes 指示，不新增功能）
+
+### 已完成
+- [x] 将前端函数地址改为实际部署区域 `us-central1`
+  - 文件: `web/index.html`
+- [x] 将实际部署命令写入 `scripts/deploy.ps1`
+  - 采用 `gcloud functions deploy recognize_sheet`（`us-central1`）
+- [x] `functions/main.py` 改为使用 `omr_core.pdfio.read_bytes`
+  - 同时支持 PNG/JPG/PDF
+  - PDF 多页逐页识别
+  - 回传 `results[]`，每页都带 `source_page_index`
+- [x] `functions/main.py` 改为按 `template` 参数载入对应版型
+  - 支持 `T100-A4-v1`、`T060-A4-v1`
+  - 不再固定读取单一 `layout.json`
+- [x] 更新 `docs/DECISIONS.md`
+  - 修正 D007–D016 日期：`2026-07-04` → `2026-11-04`
+  - 记录部署命令与区域修正（D017）
+  - 记录 Python runtime 与 core 版本差异（D018，待 Wes 决定）
+  - 记录 Storage 7 天保留偏离计划 24 小时（D019，待 Wes 决定）
+
+### 与计划差异（本次仅记录，不扩展）
+- Storage 保留期目前仍有 7 天实现痕迹，尚未切回计划书 24 小时。
+- Cloud Functions runtime 目前为 `python311`，与本地 `Python 3.13.x` 存在差异。
+
+### 下一步
+- 按 Wes 指示停在本阶段，等待确认后再继续。
+
 ### 测试验证
 ✓ **43/43 测试通过** (5.76 秒)
 - 所有生成、降级、评估流程通过单元测试

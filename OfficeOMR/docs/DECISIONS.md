@@ -116,7 +116,7 @@
   - 总体时间线保持一致（仅调整顺序）
 - **偏离计划**: 轻微，但符合 PLAN.md §10 的灵活执行建议
 
-## 2026-07-04 — D007: Web 前端技术栈选择 (M5 Phase 2)
+## 2026-11-04 — D007: Web 前端技术栈选择 (M5 Phase 2)
 - **决策**: 
   - 使用 **纯 HTML + inline CSS + vanilla JavaScript**（无框架）
   - Firebase Web SDK 通过 **CDN 加载**（不使用 npm）
@@ -136,7 +136,7 @@
   - `web/auth.js` (300 行): 可选模块，分离认证逻辑（用于更大项目）
   - 无 npm, 无 build 步骤，仅 `firebase deploy --only hosting`
 
-## 2026-07-04 — D008: 前端界面设计决策 (M5 Phase 2)
+## 2026-11-04 — D008: 前端界面设计决策 (M5 Phase 2)
 - **决策**: 
   - 采用 **深紫色渐变主题** (#667eea → #764ba2)
   - 实现 **完整响应式设计**（手机/平板/桌面）
@@ -157,7 +157,7 @@
   - 卡片布局 (grid-template-columns: 1fr 1fr)
   - Drag & drop 事件处理
 
-## 2026-07-04 — D009: Firebase 认证流程设计 (M5 Phase 2)
+## 2026-11-04 — D009: Firebase 认证流程设计 (M5 Phase 2)
 - **决策**: 
   - 使用 **Firebase Auth + Google OAuth** 作为唯一认证方式
   - 前端不进行权限检查，由 Cloud Function 负责 Firestore whitelist 验证
@@ -178,7 +178,7 @@
   - 403: 用户未被批准 → 显示 "请向管理员申请"
   - 其他: 显示 Cloud Function 返回的错误消息
 
-## 2026-07-04 — D010: 文件上传与格式检查 (M5 Phase 2)
+## 2026-11-04 — D010: 文件上传与格式检查 (M5 Phase 2)
 - **决策**: 
   - 前端 accept="image/*,.pdf" 限制文件类型
   - 后端 Cloud Function 执行最终验证
@@ -196,7 +196,7 @@
   - 拖拽验证：接受所有文件，后端检查
   - 错误消息: "不支持的文件格式，请上传 PNG/JPG/PDF"
 
-## 2026-07-04 — D011: 结果显示与下载 (M5 Phase 2)
+## 2026-11-04 — D011: 结果显示与下载 (M5 Phase 2)
 - **决策**: 
   - 前端显示 4 个关键指标: student_id, accuracy, answer_count, status
   - 提供 JSON 下载功能，完整结果数据存储在浏览器内存
@@ -213,7 +213,7 @@
   - 文件名: OfficeOMR-result-{timestamp}.json
   - "识别新图片" 按钮重置 currentResult
 
-## 2026-07-04 — D012: 错误消息国际化 (M5 Phase 2)
+## 2026-11-04 — D012: 错误消息国际化 (M5 Phase 2)
 - **决策**: 
   - HTTP 错误代码翻译为中文用户友好消息
   - 错误消息在 Cloud Function 响应体中返回，前端展示
@@ -231,7 +231,7 @@
   - 可在 Cloud Function 中定制化错误信息
 - **实现**: getErrorMessage(error, status) 方法处理映射
 
-## 2026-07-04 — D013: Firestore 白名单管理策略 (M5 Phase 3)
+## 2026-11-04 — D013: Firestore 白名单管理策略 (M5 Phase 3)
 - **决策**: 
   - 使用 `users/{uid}.approved` 布尔字段实现教师白名单
   - `users/{uid}.role` 字段区分角色（"teacher" | "admin"）
@@ -257,7 +257,7 @@
   }
   ```
 
-## 2026-07-04 — D014: 日配额实现方式 (M5 Phase 3)
+## 2026-11-04 — D014: 日配额实现方式 (M5 Phase 3)
 - **决策**: 
   - 使用 `usage/{YYYY-MM-DD}/users/{uid}` 集合追踪每日使用次数
   - 配额在 `settings/global.daily_limit_per_teacher` 中定义（默认 100）
@@ -284,7 +284,7 @@
 - **每日重置**: 自动，基于日期计算
 - **配额超限**: Cloud Function 返回 429，前端显示友好错误
 
-## 2026-07-04 — D015: Cloud Storage 生命周期管理 (M5 Phase 3)
+## 2026-11-04 — D015: Cloud Storage 生命周期管理 (M5 Phase 3)
 - **决策**: 
   - 使用 Cloud Storage 原生生命周期规则自动删除过期文件
   - `jobs/{jobId}/` 文件夹: 7 天后自动删除
@@ -321,7 +321,7 @@
 - **监控**: 通过 Cloud Console 查看 Storage 大小趋势
 - **恢复**: 7 天内可通过版本恢复（如启用版本控制）
 
-## 2026-07-04 — D016: Firestore 权限分层设计 (M5 Phase 3)
+## 2026-11-04 — D016: Firestore 权限分层设计 (M5 Phase 3)
 - **决策**: 
   - 三层权限: 匿名 < 教师（批准）< 管理员
   - 教师可读自己的数据，创建任务（受配额限制）
@@ -336,3 +336,48 @@
   - Cloud Function: 验证 Token，检查权限，更新 Firestore
   - Firestore Rules: 防御直接访问，强制通过后端
 - **例外**: 用户可直接读 `settings/global` 以获取公开配置
+
+## 2026-11-06 — D017: M5 部署命令与函数入口地址修正
+- **决策**:
+  - 前端函数地址改为 `https://us-central1-officeomr-fe542.cloudfunctions.net/recognize_sheet`
+  - 生产部署脚本改为 `gcloud functions deploy`，并固定为 `us-central1`
+- **实际部署命令（PowerShell）**:
+  ```powershell
+  gcloud functions deploy recognize_sheet `
+    --gen2 `
+    --project=officeomr-fe542 `
+    --region=us-central1 `
+    --runtime=python311 `
+    --source=functions `
+    --entry-point=recognize_sheet `
+    --trigger-http `
+    --allow-unauthenticated `
+    --memory=1GiB `
+    --timeout=540s `
+    --max-instances=3 `
+    --min-instances=0 `
+    --set-env-vars=STORAGE_BUCKET=officeomr-fe542.firebasestorage.app
+  ```
+- **原因**:
+  - 现网函数实际地址在 `us-central1`，前端原地址与实际不一致会导致调用失败。
+  - 将部署命令落地到脚本，避免手工部署时区域与参数漂移。
+
+## 2026-11-06 — D018: Python 版本差异记录（待 Wes 决定）
+- **现状**:
+  - 本地 core 开发环境：Python 3.13.x（见 D001）
+  - Cloud Functions 部署 runtime：`python311`
+- **风险**:
+  - 若后续代码使用 3.13 特性，可能在云端 `python311` 运行失败。
+- **结论**:
+  - 本次仅记录差异，不变更 runtime，不扩展功能。
+  - 待 Wes 决定是否统一到同一 Python 主版本。
+
+## 2026-11-06 — D019: Storage 保留期偏离计划书（待 Wes 决定）
+- **现状**:
+  - 计划书要求学生层面资料默认 24 小时保留。
+  - 当前实现与文档记录存在 7 天保留策略。
+- **影响**:
+  - 数据保留期变长，可能增加存储费用与资料暴露窗口。
+- **结论**:
+  - 本次先记录偏差，不直接改规则，避免超出「仅修 M5 函数」范围。
+  - 待 Wes 确认后再统一改为 24 小时策略（含规则与清理流程）。

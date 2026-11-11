@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OfficeOMR — 答题纸识别系统</title>
+  
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-auth.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-firestore.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-functions.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.2/firebase-storage.js"></script>
+  
+  <!-- 应用样式 -->
+  <link rel="stylesheet" href="css/styles.css" />
+  
+  <style>
+    /* 额外的临时样式 */
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    #app-container {
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <!-- 应用主容器 -->
+  <div id="app-container">
+    <div style="padding: 40px; text-align: center; color: white;">
+      <h2>加载中...</h2>
+      <p>OfficeOMR 系统初始化中，请稍候</p>
+    </div>
+  </div>
+
+  <!-- 配置脚本 -->
+  <script src="js/config.js"></script>
+  
+  <!-- 认证流程 -->
+  <script src="js/auth-flow.js"></script>
+  
+  <!-- 页面模块 -->
+  <script src="js/pages/login.js"></script>
+  <script src="js/pages/admin.js"></script>
+  <script src="js/pages/teacher.js"></script>
+  
+  <!-- 主应用 -->
+  <script src="js/app.js"></script>
+  
+  <!-- 应用初始化 -->
+  <script>
+    // 等待 DOM 加载完成后初始化应用
+    document.addEventListener('DOMContentLoaded', async () => {
+      try {
+        console.log("🔧 App initialization started...");
+        
+        // 确保 Firebase 已加载
+        if (typeof firebase === 'undefined') {
+          throw new Error('Firebase SDK not loaded');
+        }
+        
+        // 确保 firebaseConfig 已定义
+        if (typeof firebaseConfig === 'undefined') {
+          throw new Error('firebaseConfig not defined');
+        }
+        
+        console.log("✅ Firebase SDK and config ready");
+        
+        // 初始化应用
+        const app = new OfficeOMRApp(firebaseConfig);
+        await app.init();
+        
+        console.log("✅ OfficeOMR app initialized successfully");
+      } catch (error) {
+        console.error("❌ Failed to initialize app:", error);
+        document.getElementById('app-container').innerHTML = `
+          <div style="padding: 40px; text-align: center; color: #333; background: #fee; border-radius: 8px; margin: 20px;">
+            <h2>❌ 初始化失败</h2>
+            <p><strong>${error.message}</strong></p>
+            <p style="color: #666; font-size: 14px;">请刷新页面重试，或检查浏览器控制台的详细错误信息</p>
+          </div>
+        `;
+      }
+    });
+  </script>
+</body>
+</html>
