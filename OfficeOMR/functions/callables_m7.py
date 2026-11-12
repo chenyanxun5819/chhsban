@@ -1,31 +1,32 @@
 """
 M7 Cloud Functions - Teacher exam workflow (answer key + student grading)
+REWRITTEN VERSION: Using firebase_functions.https_fn callable format
 
 This module implements the M7 milestone:
 1. Exam creation and answer key management
-2. Sheet recognition and auto-grading
+2. Sheet recognition and auto-grading  
 3. Result export and cleanup
 
-Core functions:
+Core callable functions:
 - uploadAnswerKeyByImage: Scan standard answer card
 - uploadAnswerKeyManually: Manual answer input
 - getAnswerKey: Retrieve stored answer key
 - recognizeAndGradeSheet: Recognize student sheet and compare with answer key
-- batchRecognizeSheets: Batch recognition (async)
-- exportResultsCSV: Export results as CSV
-- cleanupJobStudentData: 24-hour automatic cleanup (Cloud Scheduler triggered)
+- batchRecognizeSheets: Batch recognition
+- cleanupJobStudentData: 24-hour automatic cleanup (HTTP triggered by Cloud Scheduler)
 """
 
-import functions_framework
+import firebase_functions
+from firebase_functions import https_fn, options
 import firebase_admin
 from firebase_admin import firestore, storage
-from typing import Optional, List, Dict, Union
+from typing import Optional, List, Dict, Any
 from datetime import datetime, timedelta
 from enum import Enum
 import json
 import logging
+import base64
 import io
-from dataclasses import dataclass, asdict
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -52,7 +53,7 @@ def get_storage():
 # ========== CONSTANTS & ENUMS ==========
 
 STUDENT_DATA_RETENTION_HOURS = 24
-MAX_ANSWER_KEY_SIZE = 1000  # Maximum number of questions
+MAX_ANSWER_KEY_SIZE = 1000
 
 ANSWER_CHOICES = ["A", "B", "C", "D", "E"]
 
@@ -70,83 +71,116 @@ class GradingStatus(str, Enum):
     UNANSWERED = "unanswered"
 
 
-# ========== DATA MODELS ==========
+# ========== AUTHENTICATION & AUTHORIZATION ==========
 
-@dataclass
-class AnswerKeyMetadata:
-    """Metadata for stored answer key."""
-    data: List[str]  # ["A", "C", "B", ...]
-    source: str  # "scanned" | "manual"
-    uploaded_at: datetime
-    uploaded_by: str  # teacher UID
-    frozen: bool = False  # Set to True after first student submission
-    scan_confidence: Optional[List[float]] = None  # Confidence scores if scanned
+def require_auth(req: https_fn.CallableRequest) -> tuple[str, str, Optional[str]]:
+    """
+    Verify that the request is authenticated and user has proper role.
+    
+    Returns:
+        (uid, role, org_id) tuple
+    
+    Raises:
+        https_fn.HttpsError if auth fails
+    """
+    if req.auth is None:
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.UNAUTHENTICATED,
+            "Must be signed in to call this function"
+        )
+    
+    uid = req.auth.uid
+    role = req.auth.token.get("role", "").lower()
+    org_id = req.auth.token.get("orgId")
+    
+    # Check if user has allowed role
+    if role not in ("teacher", "super_admin"):
+        logger.warning(f"Unauthorized role access attempt: {uid} with role {role}")
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.PERMISSION_DENIED,
+            f"Role '{role}' is not authorized for this operation"
+        )
+    
+    # For teachers, check if account is active
+    if role == "teacher":
+        db = get_db()
+        email = req.auth.token.get("email", "").lower()
+        
+        try:
+            user_doc = db.collection("allowedUsers").document(email).get()
+            if not user_doc.exists:
+                logger.warning(f"User document not found: {email}")
+                raise https_fn.HttpsError(
+                    https_fn.FunctionsErrorCode.PERMISSION_DENIED,
+                    "User account not found in system"
+                )
+            
+            user_data = user_doc.to_dict()
+            if not user_data.get("active", False):
+                logger.warning(f"Inactive user access attempt: {email}")
+                raise https_fn.HttpsError(
+                    https_fn.FunctionsErrorCode.PERMISSION_DENIED,
+                    "User account is inactive"
+                )
+        except Exception as e:
+            if isinstance(e, https_fn.HttpsError):
+                raise
+            logger.error(f"Error checking user status: {e}")
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.INTERNAL,
+                "Error checking user authorization status"
+            )
+    
+    return uid, role, org_id
 
 
-@dataclass
-class GradingResult:
-    """Grading result for a student sheet."""
-    student_id: str
-    correctness: List[str]  # ["correct", "wrong", "unanswered", ...]
-    correct_count: int
-    wrong_count: int
-    unanswered_count: int
-    score: float  # (correct_count / total) * 4.0
+def verify_job_ownership(db, job_id: str, uid: str, role: str) -> Dict[str, Any]:
+    """
+    Verify that user owns the job (or is super_admin).
+    
+    Returns:
+        Job document data
+    
+    Raises:
+        https_fn.HttpsError if job doesn't exist or user doesn't have permission
+    """
+    try:
+        job_doc = db.collection("jobs").document(job_id).get()
+        
+        if not job_doc.exists:
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.NOT_FOUND,
+                f"Job '{job_id}' not found"
+            )
+        
+        job_data = job_doc.to_dict()
+        job_owner_uid = job_data.get("createdBy") or job_data.get("uid")
+        
+        # Only owner or super_admin can access
+        if role != "super_admin" and job_owner_uid != uid:
+            logger.warning(f"Unauthorized job access: {uid} trying to access job created by {job_owner_uid}")
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.PERMISSION_DENIED,
+                "You do not have permission to access this job"
+            )
+        
+        return job_data
+        
+    except https_fn.HttpsError:
+        raise
+    except Exception as e:
+        logger.error(f"Error verifying job ownership: {e}")
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.INTERNAL,
+            "Error verifying job access"
+        )
 
 
 # ========== HELPER FUNCTIONS ==========
 
-def error_response(error_code: str, message: str, status_code: int = 400):
-    """Build error response for callable."""
-    return {
-        'success': False,
-        'error': error_code,
-        'message': message,
-        'status': status_code
-    }
-
-
-def success_response(data: dict = None, status_code: int = 200):
-    """Build success response for callable."""
-    return {
-        'success': True,
-        'data': data or {},
-        'status': status_code
-    }
-
-
-def validate_answer_key(answers: List[str]) -> Union[bool, str]:
+def compare_answers(student_answers: List[str], standard_answers: List[str]) -> Dict[str, Any]:
     """
-    Validate answer key format.
-    
-    Args:
-        answers: List of answers like ["A", "C", "B", ...]
-    
-    Returns:
-        True if valid, error message string otherwise
-    """
-    if not isinstance(answers, list):
-        return "answer_key must be a list"
-    
-    if len(answers) == 0:
-        return "answer_key cannot be empty"
-    
-    if len(answers) > MAX_ANSWER_KEY_SIZE:
-        return f"answer_key size exceeds {MAX_ANSWER_KEY_SIZE}"
-    
-    for i, answer in enumerate(answers):
-        if answer not in ANSWER_CHOICES + ["blank"]:
-            return f"invalid answer at index {i}: {answer} (must be A-E or 'blank')"
-    
-    return True
-
-
-def compare_with_answer_key(
-    student_answers: List[str],
-    standard_answers: List[str]
-) -> Dict[str, Union[List[str], int, float]]:
-    """
-    Compare student answers with standard answer key.
+    Compare student answers with standard answers and calculate score.
     
     Args:
         student_answers: Recognized student answers from OMR
@@ -166,10 +200,10 @@ def compare_with_answer_key(
     for i, (student_ans, standard_ans) in enumerate(
         zip(student_answers, standard_answers)
     ):
-        if student_ans == "blank":
+        if student_ans == "blank" or not student_ans:
             correctness.append(GradingStatus.UNANSWERED.value)
             unanswered_count += 1
-        elif student_ans == standard_ans:
+        elif student_ans.upper() == standard_ans.upper():
             correctness.append(GradingStatus.CORRECT.value)
             correct_count += 1
         else:
@@ -191,476 +225,588 @@ def compare_with_answer_key(
 
 # ========== M7 CALLABLE FUNCTIONS ==========
 
-@functions_framework.cloud_event
-def uploadAnswerKeyByImage(cloud_event):
+@https_fn.on_call(region="us-central1")
+def uploadAnswerKeyByImage(req: https_fn.CallableRequest) -> Dict[str, Any]:
     """
-    Callable: Upload answer key by scanning standard answer card.
+    Upload answer key by scanning standard answer card.
     
     Flow:
-    1. Teacher prints blank answer sheet
-    2. Teacher fills in correct answers
-    3. Teacher scans the sheet (PDF/JPG/PNG)
+    1. Teacher prints blank answer sheet template
+    2. Teacher fills in correct answers manually
+    3. Teacher scans the filled sheet (PDF/JPG/PNG)
     4. System calls omr_core.recognize_sheet() to extract answers
-    5. Answers stored in jobs/{jobId}.answerKey
+    5. Answers stored in jobs/{jobId}.answerKey and frozen
     
-    Args:
-        cloud_event.json = {
-            'jobId': 'job_ABC123',
-            'image': 'base64-encoded image',  # or GCS path
-            'format': 'jpg' | 'png' | 'pdf'
-        }
+    Request data:
+    {
+        'jobId': 'job_ABC123',
+        'imageData': 'base64-encoded image',
+        'template': 'T100-A4' | 'T060-A4' | 'T040-A4'
+    }
     
     Returns:
-        {
-            'success': True,
-            'data': {
-                'answerKey': ['A','C','B',...],
-                'confidence': [0.95, 0.93, ...],
-                'source': 'scanned',
-                'uploadedAt': '2026-11-11T10:30:00Z'
-            }
+    {
+        'success': True,
+        'data': {
+            'answerKey': ['A','C','B',...],
+            'source': 'scanned',
+            'uploadedAt': ISO timestamp,
+            'count': 100,
+            'frozen': False
         }
-        OR error response
+    }
     """
     try:
-        request_json = cloud_event.get_json()
+        # Verify authentication
+        uid, role, org_id = require_auth(req)
         
-        job_id = request_json.get('jobId')
-        image_data = request_json.get('image')
+        # Get request data
+        job_id = req.data.get("jobId")
+        image_data = req.data.get("imageData")
+        template = req.data.get("template", "T100-A4")
         
-        if not job_id:
-            return error_response("INVALID_JOB_ID", "jobId is required")
-        if not image_data:
-            return error_response("INVALID_IMAGE", "image is required")
+        if not job_id or not image_data:
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                "Missing required fields: jobId, imageData"
+            )
         
         db = get_db()
         
-        # Check if job exists
-        job_doc = db.collection('jobs').document(job_id).get()
-        if not job_doc.exists:
-            return error_response("JOB_NOT_FOUND", f"Job {job_id} not found")
+        # Verify job ownership
+        job_data = verify_job_ownership(db, job_id, uid, role)
         
-        # TODO: Call omr_core.recognize_sheet(image_data) to extract answers
-        # For now, placeholder
+        # Check if answer key already exists
+        if "answerKey" in job_data and job_data["answerKey"].get("frozen"):
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
+                "Answer key for this job is already frozen and cannot be modified"
+            )
+        
+        # TODO: Implement OMR recognition
+        # Call omr_core.recognize_sheet(image_data) to extract answers
         logger.warning("TODO: Implement OMR recognition for answer key scanning")
         
-        recognized_answers = []  # This would come from OMR
+        # Placeholder: return empty array
+        recognized_answers = []
         confidence_scores = []
         
-        # Validate extracted answers
-        validation = validate_answer_key(recognized_answers)
-        if validation is not True:
-            return error_response("INVALID_ANSWER_KEY", validation)
+        if not recognized_answers:
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                "Failed to recognize answers from image. Please try another image or use manual input."
+            )
         
-        # Store in Firestore
+        # Store answer key in Firestore
         now = datetime.utcnow()
-        db.collection('jobs').document(job_id).update({
-            'answerKey': {
-                'data': recognized_answers,
-                'source': AnswerKeySource.SCANNED.value,
-                'uploadedAt': now,
-                'uploadedBy': request_json.get('userId', 'unknown'),
-                'frozen': False,
-                'scanConfidence': confidence_scores
-            },
-            '_answerKeyProtected': True  # Protection flag for Firestore rules
-        })
-        
-        logger.info(f"Answer key uploaded (scanned) for job {job_id}")
-        
-        return success_response({
-            'answerKey': recognized_answers,
-            'confidence': confidence_scores,
-            'source': AnswerKeySource.SCANNED.value,
-            'uploadedAt': now.isoformat()
-        })
-        
-    except Exception as e:
-        logger.error(f"Error uploading answer key (scanned): {e}")
-        return error_response("INTERNAL_ERROR", str(e), 500)
-
-
-@functions_framework.cloud_event
-def uploadAnswerKeyManually(cloud_event):
-    """
-    Callable: Upload answer key manually via web form/JSON/CSV.
-    
-    Flow:
-    1. Teacher opens web form or provides JSON/CSV
-    2. Teacher inputs answers for each question
-    3. System validates and stores
-    
-    Args:
-        cloud_event.json = {
-            'jobId': 'job_ABC123',
-            'answerKey': ['A','C','B',...],  # Can also be CSV string or JSON string
-            'format': 'list' | 'json' | 'csv'
+        answer_key = {
+            "answers": recognized_answers,
+            "confidence": confidence_scores,
+            "source": AnswerKeySource.SCANNED.value,
+            "template": template,
+            "uploadedAt": now,
+            "frozen": False
         }
-    
-    Returns:
-        {
-            'success': True,
-            'data': {
-                'answerKey': ['A','C','B',...],
-                'source': 'manual',
-                'uploadedAt': '2026-11-11T10:45:00Z'
+        
+        db.collection("jobs").document(job_id).update({
+            "answerKey": answer_key,
+            "lastModified": now
+        })
+        
+        logger.info(f"Answer key uploaded for job {job_id} by {uid} (scanned)")
+        
+        return {
+            "success": True,
+            "data": {
+                "answerKey": recognized_answers,
+                "source": "scanned",
+                "uploadedAt": now.isoformat() + "Z",
+                "count": len(recognized_answers),
+                "frozen": False
             }
         }
-        OR error response
+        
+    except https_fn.HttpsError:
+        raise
+    except Exception as e:
+        logger.error(f"Error in uploadAnswerKeyByImage: {e}")
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.INTERNAL,
+            f"Internal error: {str(e)}"
+        )
+
+
+@https_fn.on_call(region="us-central1")
+def uploadAnswerKeyManually(req: https_fn.CallableRequest) -> Dict[str, Any]:
+    """
+    Upload answer key by manual input.
+    
+    Request data:
+    {
+        'jobId': 'job_ABC123',
+        'examName': 'Math Exam November 2026',
+        'template': 'T100-A4',
+        'answers': ['A', 'B', 'C', 'A', ...]  # Array of answer choices
+    }
+    
+    Returns:
+    {
+        'success': True,
+        'data': {
+            'answerKey': ['A','B','C',...],
+            'source': 'manual',
+            'uploadedAt': ISO timestamp,
+            'count': 100,
+            'frozen': False
+        }
+    }
     """
     try:
-        request_json = cloud_event.get_json()
+        # Verify authentication
+        uid, role, org_id = require_auth(req)
         
-        job_id = request_json.get('jobId')
-        answer_input = request_json.get('answerKey')
-        input_format = request_json.get('format', 'list')
+        # Get request data
+        job_id = req.data.get("jobId")
+        exam_name = req.data.get("examName", "Untitled")
+        template = req.data.get("template", "T100-A4")
+        answers = req.data.get("answers", [])
         
-        if not job_id:
-            return error_response("INVALID_JOB_ID", "jobId is required")
-        if not answer_input:
-            return error_response("INVALID_ANSWER_KEY", "answerKey is required")
+        if not job_id or not answers:
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                "Missing required fields: jobId, answers"
+            )
         
-        # Parse input based on format
-        if input_format == 'list':
-            parsed_answers = answer_input if isinstance(answer_input, list) else []
-        elif input_format == 'json':
-            # Assume answer_input is JSON string like '["A","C","B",...]'
-            parsed_answers = json.loads(answer_input) if isinstance(answer_input, str) else answer_input
-        elif input_format == 'csv':
-            # Parse CSV (simple version: comma-separated values)
-            csv_str = answer_input if isinstance(answer_input, str) else str(answer_input)
-            parsed_answers = [x.strip().upper() for x in csv_str.split(',')]
-        else:
-            return error_response("INVALID_FORMAT", f"Unsupported format: {input_format}")
+        # Validate answer format
+        if not isinstance(answers, list) or len(answers) == 0:
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                "Answers must be a non-empty array"
+            )
         
-        # Validate
-        validation = validate_answer_key(parsed_answers)
-        if validation is not True:
-            return error_response("INVALID_ANSWER_KEY", validation)
+        if len(answers) > MAX_ANSWER_KEY_SIZE:
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                f"Too many answers (max {MAX_ANSWER_KEY_SIZE})"
+            )
+        
+        # Validate each answer
+        for i, ans in enumerate(answers):
+            if not isinstance(ans, str) or not ans.strip():
+                raise https_fn.HttpsError(
+                    https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                    f"Answer {i} is invalid or empty"
+                )
+        
+        # Normalize answers (uppercase, trim)
+        normalized_answers = [ans.strip().upper() for ans in answers]
         
         db = get_db()
         
-        # Check if job exists
-        job_doc = db.collection('jobs').document(job_id).get()
-        if not job_doc.exists:
-            return error_response("JOB_NOT_FOUND", f"Job {job_id} not found")
+        # Verify job ownership
+        job_data = verify_job_ownership(db, job_id, uid, role)
         
-        # Store in Firestore
+        # Check if answer key already exists
+        if "answerKey" in job_data and job_data["answerKey"].get("frozen"):
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
+                "Answer key for this job is already frozen and cannot be modified"
+            )
+        
+        # Store answer key in Firestore
         now = datetime.utcnow()
-        db.collection('jobs').document(job_id).update({
-            'answerKey': {
-                'data': parsed_answers,
-                'source': AnswerKeySource.MANUAL.value,
-                'uploadedAt': now,
-                'uploadedBy': request_json.get('userId', 'unknown'),
-                'frozen': False,
-                'scanConfidence': None
-            },
-            '_answerKeyProtected': True
-        })
-        
-        logger.info(f"Answer key uploaded (manual) for job {job_id}")
-        
-        return success_response({
-            'answerKey': parsed_answers,
-            'source': AnswerKeySource.MANUAL.value,
-            'uploadedAt': now.isoformat()
-        })
-        
-    except json.JSONDecodeError as e:
-        return error_response("JSON_PARSE_ERROR", f"Failed to parse JSON: {e}")
-    except Exception as e:
-        logger.error(f"Error uploading answer key (manual): {e}")
-        return error_response("INTERNAL_ERROR", str(e), 500)
-
-
-@functions_framework.cloud_event
-def getAnswerKey(cloud_event):
-    """
-    Callable: Retrieve stored answer key for a job.
-    
-    Args:
-        request.json = {
-            'jobId': 'job_ABC123'
+        answer_key = {
+            "answers": normalized_answers,
+            "source": AnswerKeySource.MANUAL.value,
+            "examName": exam_name,
+            "template": template,
+            "uploadedAt": now,
+            "frozen": False,
+            "uploadedBy": uid
         }
-    
-    Returns:
-        {
-            'success': True,
-            'data': {
-                'answerKey': ['A','C','B',...],
-                'source': 'scanned' | 'manual',
-                'uploadedAt': '2026-11-11T10:30:00Z',
-                'frozen': False
+        
+        db.collection("jobs").document(job_id).update({
+            "answerKey": answer_key,
+            "examName": exam_name,
+            "lastModified": now
+        })
+        
+        logger.info(f"Answer key uploaded for job {job_id} by {uid} (manual)")
+        
+        return {
+            "success": True,
+            "data": {
+                "answerKey": normalized_answers,
+                "source": "manual",
+                "uploadedAt": now.isoformat() + "Z",
+                "count": len(normalized_answers),
+                "frozen": False
             }
         }
-        OR error response if not found
+        
+    except https_fn.HttpsError:
+        raise
+    except Exception as e:
+        logger.error(f"Error in uploadAnswerKeyManually: {e}")
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.INTERNAL,
+            f"Internal error: {str(e)}"
+        )
+
+
+@https_fn.on_call(region="us-central1")
+def getAnswerKey(req: https_fn.CallableRequest) -> Dict[str, Any]:
+    """
+    Retrieve the answer key for a job.
+    
+    Request data:
+    {
+        'jobId': 'job_ABC123'
+    }
+    
+    Returns:
+    {
+        'success': True,
+        'data': {
+            'answers': ['A', 'B', 'C', ...],
+            'source': 'manual' | 'scanned',
+            'uploadedAt': ISO timestamp,
+            'frozen': Boolean,
+            'template': 'T100-A4'
+        }
+    }
     """
     try:
-        request_json = cloud_event.get_json()
-        job_id = request_json.get('jobId')
+        # Verify authentication
+        uid, role, org_id = require_auth(req)
         
+        job_id = req.data.get("jobId")
         if not job_id:
-            return error_response("INVALID_JOB_ID", "jobId is required")
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                "Missing required field: jobId"
+            )
         
         db = get_db()
-        job_doc = db.collection('jobs').document(job_id).get()
         
-        if not job_doc.exists:
-            return error_response("JOB_NOT_FOUND", f"Job {job_id} not found")
+        # Verify job ownership
+        job_data = verify_job_ownership(db, job_id, uid, role)
         
-        job_data = job_doc.to_dict()
-        answer_key = job_data.get('answerKey')
-        
+        answer_key = job_data.get("answerKey")
         if not answer_key:
-            return error_response("ANSWER_KEY_NOT_FOUND", f"Answer key not uploaded for {job_id}")
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.NOT_FOUND,
+                "No answer key found for this job"
+            )
         
-        return success_response({
-            'answerKey': answer_key.get('data'),
-            'source': answer_key.get('source'),
-            'uploadedAt': answer_key.get('uploadedAt').isoformat() 
-                if isinstance(answer_key.get('uploadedAt'), datetime) 
-                else answer_key.get('uploadedAt'),
-            'frozen': answer_key.get('frozen', False)
-        })
-        
-    except Exception as e:
-        logger.error(f"Error retrieving answer key: {e}")
-        return error_response("INTERNAL_ERROR", str(e), 500)
-
-
-@functions_framework.cloud_event
-def recognizeAndGradeSheet(cloud_event):
-    """
-    Callable: Recognize student sheet and auto-grade against answer key.
-    
-    Flow:
-    1. Receive student sheet image
-    2. Call omr_core.recognize_sheet() to extract student ID + answers
-    3. Get answerKey from Firestore
-    4. Compare answers and calculate score
-    5. Store result in Firestore
-    6. Upload annotated PDF to Storage (optional)
-    7. Freeze answer key on first submission
-    
-    Args:
-        request.json = {
-            'jobId': 'job_ABC123',
-            'sheetImage': 'base64-encoded image',
-            'studentId': 'S001',
-            'sheetNumber': 1
-        }
-    
-    Returns:
-        {
-            'success': True,
-            'data': {
-                'studentId': 'S001',
-                'correctness': ['correct','wrong','correct',...],
-                'correctCount': 87,
-                'wrongCount': 10,
-                'unansweredCount': 3,
-                'score': 3.48,
-                'uploadedAt': '2026-11-11T11:00:00Z'
+        return {
+            "success": True,
+            "data": {
+                "answers": answer_key.get("answers", []),
+                "source": answer_key.get("source"),
+                "uploadedAt": answer_key.get("uploadedAt", "").isoformat() if hasattr(answer_key.get("uploadedAt"), "isoformat") else str(answer_key.get("uploadedAt")),
+                "frozen": answer_key.get("frozen", False),
+                "template": answer_key.get("template"),
+                "examName": answer_key.get("examName")
             }
         }
-        OR error response
+        
+    except https_fn.HttpsError:
+        raise
+    except Exception as e:
+        logger.error(f"Error in getAnswerKey: {e}")
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.INTERNAL,
+            f"Internal error: {str(e)}"
+        )
+
+
+@https_fn.on_call(region="us-central1")
+def recognizeAndGradeSheet(req: https_fn.CallableRequest) -> Dict[str, Any]:
+    """
+    Recognize a student answer sheet and grade it against the answer key.
+    
+    Request data:
+    {
+        'jobId': 'job_ABC123',
+        'sheetImage': 'base64-encoded image',
+        'template': 'T100-A4',
+        'studentId': 'student_123'  # optional, from OMR
+    }
+    
+    Returns:
+    {
+        'success': True,
+        'data': {
+            'studentId': 'student_123',
+            'correctCount': 87,
+            'wrongCount': 10,
+            'blankCount': 3,
+            'score': 3.48,
+            'correctness': ['correct', 'wrong', ...],
+            'uploadedAt': ISO timestamp,
+            'expiresAt': ISO timestamp (24 hours later)
+        }
+    }
     """
     try:
-        request_json = cloud_event.get_json()
+        # Verify authentication
+        uid, role, org_id = require_auth(req)
         
-        job_id = request_json.get('jobId')
-        sheet_image = request_json.get('sheetImage')
-        student_id = request_json.get('studentId')
-        sheet_number = request_json.get('sheetNumber', 1)
+        job_id = req.data.get("jobId")
+        sheet_image = req.data.get("sheetImage")
+        template = req.data.get("template", "T100-A4")
+        student_id = req.data.get("studentId", "unknown")
         
-        if not job_id:
-            return error_response("INVALID_JOB_ID", "jobId is required")
-        if not sheet_image:
-            return error_response("INVALID_IMAGE", "sheetImage is required")
+        if not job_id or not sheet_image:
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                "Missing required fields: jobId, sheetImage"
+            )
         
         db = get_db()
         
-        # Check if job exists and has answer key
-        job_doc = db.collection('jobs').document(job_id).get()
-        if not job_doc.exists:
-            return error_response("JOB_NOT_FOUND", f"Job {job_id} not found")
+        # Verify job ownership
+        job_data = verify_job_ownership(db, job_id, uid, role)
         
-        job_data = job_doc.to_dict()
-        answer_key_data = job_data.get('answerKey')
+        # Get answer key
+        answer_key = job_data.get("answerKey")
+        if not answer_key:
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
+                "Answer key not found. Please upload answer key first."
+            )
         
-        if not answer_key_data:
-            return error_response("ANSWER_KEY_NOT_FOUND", f"Answer key not uploaded for {job_id}")
+        standard_answers = answer_key.get("answers", [])
         
-        standard_answers = answer_key_data.get('data', [])
-        
-        # TODO: Call omr_core.recognize_sheet(sheet_image)
-        # For now, placeholder
+        # TODO: Call omr_core.recognize_sheet() to extract student answers
         logger.warning("TODO: Implement OMR recognition for student sheet")
-        
-        recognized_student_id = student_id  # This would come from OMR
-        student_answers = []  # This would come from OMR
+        student_answers = []
         
         if not student_answers:
-            return error_response("RECOGNITION_FAILED", "Failed to recognize student answers")
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                "Failed to recognize answers from student sheet"
+            )
         
-        # Compare with answer key
-        grading_result = compare_with_answer_key(student_answers, standard_answers)
-        
-        # Store result in Firestore
-        now = datetime.utcnow()
-        expiry_time = now + timedelta(hours=STUDENT_DATA_RETENTION_HOURS)
-        
-        # Initialize result structure if needed
-        result = job_data.get('result', {'sheets': []})
-        result['sheets'].append({
-            'studentId': recognized_student_id,
-            'correctness': grading_result['correctness'],
-            'correctCount': grading_result['correct_count'],
-            'wrongCount': grading_result['wrong_count'],
-            'unansweredCount': grading_result['unanswered_count'],
-            'score': grading_result['score'],
-            'uploadedAt': now
-        })
-        
-        db.collection('jobs').document(job_id).update({
-            'result': result,
-            'expiresAt': expiry_time,
-            'expirationReason': 'student_data_privacy'
-        })
+        # Compare answers
+        grading_result = compare_answers(student_answers, standard_answers)
         
         # Freeze answer key after first submission
-        if not answer_key_data.get('frozen', False):
-            db.collection('jobs').document(job_id).update({
-                'answerKey.frozen': True
-            })
-            logger.info(f"Answer key frozen for job {job_id} after first submission")
+        now = datetime.utcnow()
+        expires_at = now + timedelta(hours=STUDENT_DATA_RETENTION_HOURS)
         
-        logger.info(f"Sheet recognized and graded for job {job_id}, student {recognized_student_id}")
+        # Store result in Firestore
+        result_data = {
+            "studentId": student_id,
+            "correctCount": grading_result["correct_count"],
+            "wrongCount": grading_result["wrong_count"],
+            "blankCount": grading_result["unanswered_count"],
+            "score": grading_result["score"],
+            "correctness": grading_result["correctness"],
+            "uploadedAt": now,
+            "expiresAt": expires_at,
+            "recognizedAt": now
+        }
         
-        return success_response({
-            'studentId': recognized_student_id,
-            'correctness': grading_result['correctness'],
-            'correctCount': grading_result['correct_count'],
-            'wrongCount': grading_result['wrong_count'],
-            'unansweredCount': grading_result['unanswered_count'],
-            'score': grading_result['score'],
-            'uploadedAt': now.isoformat()
+        # Add to results array
+        db.collection("jobs").document(job_id).update({
+            "result": {
+                "sheets": firestore.ArrayUnion([result_data])
+            },
+            "answerKey.frozen": True,  # Freeze answer key
+            "lastModified": now
         })
         
+        logger.info(f"Sheet recognized and graded for job {job_id}: score={grading_result['score']}")
+        
+        return {
+            "success": True,
+            "data": result_data
+        }
+        
+    except https_fn.HttpsError:
+        raise
     except Exception as e:
-        logger.error(f"Error recognizing and grading sheet: {e}")
-        return error_response("INTERNAL_ERROR", str(e), 500)
+        logger.error(f"Error in recognizeAndGradeSheet: {e}")
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.INTERNAL,
+            f"Internal error: {str(e)}"
+        )
 
 
-@functions_framework.http
-def cleanupJobStudentData(request):
+@https_fn.on_call(region="us-central1")
+def batchRecognizeSheets(req: https_fn.CallableRequest) -> Dict[str, Any]:
     """
-    HTTP function: Delete student data older than 24 hours (Cloud Scheduler triggered).
+    Batch recognize multiple student sheets.
     
-    Deletion scope:
-    ✅ Delete: uploads/{jobId}/* (original images)
-    ✅ Delete: annotated/{jobId}/* (annotated PDFs)
-    ✅ Delete: jobs/{jobId}.result.sheets[*] (student results)
-    
-    ❌ Keep: jobs/{jobId}.answerKey (standard answer - PERMANENT)
-    ❌ Keep: papers/{orgId}/{uid}/* (question files - PERMANENT)
-    ❌ Keep: jobs/{jobId}.{examName, subject, grade, etc.} (exam metadata)
+    Request data:
+    {
+        'jobId': 'job_ABC123',
+        'sheetImages': ['base64_1', 'base64_2', ...],
+        'template': 'T100-A4'
+    }
     
     Returns:
-        {
-            'success': True,
-            'cleanupCount': 5,
-            'timestamp': '2026-11-12T00:00:00Z'
+    {
+        'success': True,
+        'data': {
+            'total': 10,
+            'processed': 10,
+            'failed': 0,
+            'results': [...]
         }
+    }
     """
     try:
+        # Verify authentication
+        uid, role, org_id = require_auth(req)
+        
+        job_id = req.data.get("jobId")
+        sheet_images = req.data.get("sheetImages", [])
+        template = req.data.get("template", "T100-A4")
+        
+        if not job_id or not sheet_images:
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                "Missing required fields: jobId, sheetImages"
+            )
+        
         db = get_db()
-        bucket = get_storage()
         
-        now = datetime.utcnow()
+        # Verify job ownership
+        verify_job_ownership(db, job_id, uid, role)
         
-        # Find all jobs with expiresAt <= now
-        expired_jobs = db.collection('jobs').where(
-            'expiresAt', '<=', now
-        ).where(
-            'expirationReason', '==', 'student_data_privacy'
-        ).stream()
+        logger.info(f"Batch recognition started for job {job_id}: {len(sheet_images)} sheets")
         
-        cleanup_count = 0
-        verification_failures = []
+        # TODO: Implement batch recognition
+        # For now, return placeholder
         
-        for job_doc in expired_jobs:
-            job_id = job_doc.id
-            job_data = job_doc.to_dict()
-            
-            try:
-                # Delete Storage files (uploads + annotated)
-                _delete_storage_files(bucket, job_id)
-                
-                # Clear Firestore student results
-                db.collection('jobs').document(job_id).update({
-                    'result': firestore.DELETE_FIELD,
-                    'cleanedAt': now,
-                    'status': 'data_cleaned'
-                })
-                
-                cleanup_count += 1
-                logger.info(f"✅ Cleaned job {job_id}: student data removed")
-                
-                # CRITICAL: Verify answerKey was NOT deleted
-                doc_after = db.collection('jobs').document(job_id).get()
-                if 'answerKey' not in doc_after.to_dict():
-                    verification_failures.append({
-                        'jobId': job_id,
-                        'error': 'answerKey was deleted!'
-                    })
-                    logger.error(f"🔴 DANGER: answerKey was deleted for {job_id}!")
-                else:
-                    logger.info(f"✅ VERIFIED: answerKey still exists for {job_id}")
-                    
-            except Exception as e:
-                logger.error(f"❌ Error cleaning job {job_id}: {e}")
-        
-        result = {
-            'success': len(verification_failures) == 0,
-            'cleanupCount': cleanup_count,
-            'timestamp': now.isoformat()
+        return {
+            "success": True,
+            "data": {
+                "total": len(sheet_images),
+                "processed": 0,
+                "failed": len(sheet_images),
+                "results": []
+            }
         }
         
-        if verification_failures:
-            result['verificationFailures'] = verification_failures
-            logger.error(f"🔴 Cleanup had {len(verification_failures)} verification failures!")
-        
-        return result, 200
-        
+    except https_fn.HttpsError:
+        raise
     except Exception as e:
-        logger.error(f"❌ Cleanup function failed: {e}")
-        return {'success': False, 'error': str(e)}, 500
+        logger.error(f"Error in batchRecognizeSheets: {e}")
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.INTERNAL,
+            f"Internal error: {str(e)}"
+        )
 
 
-def _delete_storage_files(bucket, job_id: str):
-    """Delete all student data files for a job from Cloud Storage."""
+@https_fn.on_call(region="us-central1")
+def cleanupJobStudentData(req: https_fn.CallableRequest) -> Dict[str, Any]:
+    """
+    Clean up old student data (results) that have expired.
     
-    # Delete uploads/{jobId}/*
-    blobs_to_delete = list(bucket.list_blobs(prefix=f"uploads/{job_id}/"))
-    for blob in blobs_to_delete:
-        blob.delete()
-        logger.debug(f"Deleted: {blob.name}")
+    Called by Cloud Scheduler every hour.
     
-    # Delete annotated/{jobId}/*
-    blobs_to_delete = list(bucket.list_blobs(prefix=f"annotated/{job_id}/"))
-    for blob in blobs_to_delete:
-        blob.delete()
-        logger.debug(f"Deleted: {blob.name}")
-
-
-# ========== CLOUD SCHEDULER TRIGGER ==========
-# Deploy as HTTP Cloud Function
-# Schedule: 0 * * * * (every hour)
-# URL: https://region-project.cloudfunctions.net/cleanupJobStudentData
-# Requires service account with permissions:
-#   - firestore.databases.get
-#   - storage.buckets.get
-#   - storage.objects.delete
-
+    Request data:
+    {
+        'dryRun': Boolean (optional, default False)
+    }
+    
+    Returns:
+    {
+        'success': True,
+        'data': {
+            'jobsCleaned': 5,
+            'sheetsDeleted': 23,
+            'timestamp': ISO timestamp
+        }
+    }
+    """
+    try:
+        # This can be called by Cloud Scheduler (service account)
+        # or manually by super_admin
+        if req.auth:
+            uid, role, org_id = require_auth(req)
+            if role != "super_admin":
+                raise https_fn.HttpsError(
+                    https_fn.FunctionsErrorCode.PERMISSION_DENIED,
+                    "Only super_admin can trigger cleanup manually"
+                )
+        
+        dry_run = req.data.get("dryRun", False)
+        
+        db = get_db()
+        now = datetime.utcnow()
+        
+        jobs_cleaned = 0
+        sheets_deleted = 0
+        
+        # Query all jobs with expired results
+        query = db.collection("jobs").where("result.sheets", "!=", None)
+        docs = query.stream()
+        
+        for doc in docs:
+            job_data = doc.to_dict()
+            sheets = job_data.get("result", {}).get("sheets", [])
+            
+            if not sheets:
+                continue
+            
+            # Filter out expired sheets
+            expired_sheets = [
+                s for s in sheets
+                if "expiresAt" in s and s["expiresAt"] < now
+            ]
+            
+            if expired_sheets:
+                sheets_deleted += len(expired_sheets)
+                
+                if not dry_run:
+                    # Keep only non-expired sheets
+                    remaining_sheets = [
+                        s for s in sheets
+                        if "expiresAt" not in s or s["expiresAt"] >= now
+                    ]
+                    
+                    if remaining_sheets:
+                        db.collection("jobs").document(doc.id).update({
+                            "result.sheets": remaining_sheets,
+                            "lastCleanup": now
+                        })
+                    else:
+                        db.collection("jobs").document(doc.id).update({
+                            "result": {},
+                            "lastCleanup": now
+                        })
+                    
+                    # Verify answer key still exists (safety check)
+                    updated_doc = db.collection("jobs").document(doc.id).get()
+                    if updated_doc.exists:
+                        updated_data = updated_doc.to_dict()
+                        if "answerKey" not in updated_data or not updated_data.get("answerKey"):
+                            logger.error(f"CRITICAL: Answer key missing after cleanup for job {doc.id}")
+                    
+                    jobs_cleaned += 1
+        
+        logger.info(f"Cleanup complete: {jobs_cleaned} jobs, {sheets_deleted} sheets deleted")
+        
+        return {
+            "success": True,
+            "data": {
+                "jobsCleaned": jobs_cleaned,
+                "sheetsDeleted": sheets_deleted,
+                "timestamp": now.isoformat() + "Z",
+                "dryRun": dry_run
+            }
+        }
+        
+    except https_fn.HttpsError:
+        raise
+    except Exception as e:
+        logger.error(f"Error in cleanupJobStudentData: {e}")
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.INTERNAL,
+            f"Internal error: {str(e)}"
+        )

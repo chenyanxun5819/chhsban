@@ -95,17 +95,14 @@ service cloud.firestore {
 
     match /jobs/{jobId} {
       // teacher 只读自己的（检查 active 状态）
+      // 由于所有写入都通过 Cloud Functions (Admin SDK)，
+      // 前端根本不需要 update/create/delete 权限
       allow read: if isTeacherActive() 
         && resource.data.uid == request.auth.uid;
       
-      // 防止 answerKey 被删除（M7 关键保护）
-      // 任何尝试删除 answerKey 字段的操作都被拒绝
-      allow update: if isTeacherActive()
-        && !('answerKey' in request.resource.data.diff(resource.data).affectedKeys());
-      
-      // 写入：仅由 Cloud Functions 完成（服务账号）
-      // 前端无直接写权限
-      allow create, write: if false;
+      // 禁止前端直接写入任何数据
+      // 所有 job 操作都必须通过 Cloud Functions (使用服务账号)
+      allow create, update, delete: if false;
     }
 
     // ========== usage/{uid}_{yyyymmdd} 集合 ==========

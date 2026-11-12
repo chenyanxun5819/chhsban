@@ -403,3 +403,20 @@ def health_check(request):
     response.headers['Content-Type'] = 'application/json; charset=utf-8'
     response.headers['Access-Control-Allow-Origin'] = '*'
     return response
+
+
+# ========== M7 CALLABLE FUNCTIONS ==========
+# Import M7 callable functions from separate module
+# These are exposed by the firebase_functions framework automatically
+try:
+    from callables_m7 import (
+        uploadAnswerKeyByImage,
+        uploadAnswerKeyManually,
+        getAnswerKey,
+        recognizeAndGradeSheet,
+        batchRecognizeSheets,
+        cleanupJobStudentData
+    )
+    print("✅ M7 callable functions imported successfully")
+except ImportError as e:
+    print(f"⚠️  Warning: Could not import M7 callable functions: {e}")
