@@ -88,17 +88,24 @@ service cloud.firestore {
 
     // ========== jobs/{jobId} 集合 ==========
     // 路径: jobs/{jobId}
-    // 数据模型见 3.2 节
+    // 数据模型见 3.2 节、M7 实现
     // 规则: teacher 只读自己的（写入由 Functions 完成）
+    //       关键：M7 answerKey 永久保存，防止删除
+    //       更新操作不能删除 answerKey 字段
 
     match /jobs/{jobId} {
       // teacher 只读自己的（检查 active 状态）
       allow read: if isTeacherActive() 
         && resource.data.uid == request.auth.uid;
       
+      // 防止 answerKey 被删除（M7 关键保护）
+      // 任何尝试删除 answerKey 字段的操作都被拒绝
+      allow update: if isTeacherActive()
+        && !('answerKey' in request.resource.data.diff(resource.data).affectedKeys());
+      
       // 写入：仅由 Cloud Functions 完成（服务账号）
       // 前端无直接写权限
-      allow write: if false;
+      allow create, write: if false;
     }
 
     // ========== usage/{uid}_{yyyymmdd} 集合 ==========
