@@ -417,6 +417,6 @@ try:
         batchRecognizeSheets,
         cleanupJobStudentData
     )
-    print("✅ M7 callable functions imported successfully")
+    print("[OK] M7 callable functions imported successfully")
 except ImportError as e:
-    print(f"⚠️  Warning: Could not import M7 callable functions: {e}")
+    print(f"[WARNING] Could not import M7 callable functions: {e}")

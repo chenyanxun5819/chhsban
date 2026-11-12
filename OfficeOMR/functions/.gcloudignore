@@ -1,4 +1,3 @@
-@"
 venv/
 .venv/
 __pycache__/
@@ -7,4 +6,9 @@ __pycache__/
 .gitignore
 node_modules/
 *.log
-"@ | Set-Content functions\.gcloudignore -Encoding utf8
+firebase-debug.log
+test_*.py
+verify_*.py
+*_old_*.py
+.pytest_cache/
+backup/
