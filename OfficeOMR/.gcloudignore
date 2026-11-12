@@ -1,0 +1,59 @@
+# Ignore node_modules
+node_modules/
+
+# Ignore Python cache and build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Ignore environment files
+.env
+.env.local
+.env.*.local
+
+# Ignore development tools
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Ignore large preview images and PDFs (keep layout.json only)
+functions/layouts/*.pdf
+functions/layouts/*.png
+
+# Ignore test outputs and cache
+.pytest_cache/
+.coverage
+htmlcov/
+.cache/
+
+# Ignore local scripts (keep only what's needed for Cloud Functions)
+scripts/
+tools/
+samples/
+docs/
+web/
+.git/
+.github/
+
+# Ignore this file itself
+.gcloudignore

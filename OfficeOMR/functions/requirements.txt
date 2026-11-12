@@ -1,21 +1,21 @@
 # Firebase Functions Framework
-functions-framework>=3.5.0
+functions-framework==3.10.2
 
 # Firebase Admin SDK (Authentication, Firestore, Storage)
-firebase-admin>=6.4.0
+firebase-admin==7.7.0
 
 # Image Processing
-opencv-python-headless>=4.8.0
-numpy>=1.24.0
-Pillow>=10.0.0
+opencv-python-headless==5.0.0.93
+numpy==2.4.6
+Pillow==13.0.0
 
 # PDF & Report Generation
-pypdfium2>=4.30.0
-reportlab>=4.0.0
+pypdfium2==5.14.0
+reportlab==5.1.0
 
 # Data Validation & Configuration
-pydantic>=2.5.0
-pyyaml>=6.0
+pydantic==2.14.3
+pyyaml==6.0.3
 
 # Utilities
 python-dotenv>=1.0.0

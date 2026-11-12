@@ -1,6 +1,6 @@
 thresholds:
   t_blank: 0.15
-  t_mark: 0.40
+  t_mark: 0.30
   t_other: 0.25
 scoring:
   inner_ratio: 0.7

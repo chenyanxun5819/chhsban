@@ -381,3 +381,146 @@
 - **结论**:
   - 本次先记录偏差，不直接改规则，避免超出「仅修 M5 函数」范围。
   - 待 Wes 确认后再统一改为 24 小时策略（含规则与清理流程）。
+
+## 2026-11-06 — D020: 答案纸布局持久化与加载策略 (M5 Cloud Function)
+- **决策**: 
+  - 从文件加载布局而非内存预设：`functions/main.py` 的 `load_layout_from_file(template_name)` 读取 `functions/layouts/{template_name}.layout.json`
+  - 实现模块级缓存：首次加载后在内存中缓存 LayoutConfig 实例，避免重复解析
+  - 差异化错误处理：未知模板返回 400（客户端错误），文件缺失返回 500（服务器错误）
+  - 反序列化支持：`LayoutConfig.from_dict()` 类方法用于从 JSON dict 重建对象
+- **原因**:
+  - 性能: 缓存避免每次请求都读文件或重新生成（Cloud Functions 内存昂贵）
+  - 部署简洁: 布局文件随 `functions/layouts/` 目录部署，无需在代码中硬编码
+  - 可维护性: 管理员可在部署前更新模板，而无需修改函数代码
+  - 错误清晰: 400 vs 500 区分让客户端知道是格式错误还是服务器故障
+- **实现**:
+  1. `functions/sheetgen/layout.py`：添加 `LayoutConfig.from_dict()` 反序列化方法
+  2. `functions/main.py`：
+     - 模块级 `_layout_cache = {}` 和 `ALLOWED_TEMPLATES = {'T100-A4-v1', 'T060-A4-v1'}`
+     - `load_layout_from_file(template_name)` 检验→加载→解析→缓存
+
+## 2026-11-06 — D021: 涂黑判定阈值校正 (M5 真实样本验证)
+- **问题背景**:
+  - 合成数据评估：t_mark=0.40 时达到 100% 准确率
+  - 真实扫描验证：两份 100 题真实扫描样本（学号 22493、23164）显示气泡填充率明显偏低
+  - 原因分析：真实纸张墨迹、打印机差异、扫描质量等导致填充率与合成样本差异
+
+- **校正决策**:
+  - 暂时将 `t_mark` 从 0.40 降低到 **0.30**（在 `core/omr_core/config.default.yaml` 中）
+  - 保持 `t_blank=0.15`、`t_other=0.25` 不变
+  - 这是**临时调整**，等待 M4（30 张真实样本）进一步确认
+
+- **真实样本观察**:
+  1. 学号 22493 的观察：
+     - Q12: 当前 ambiguous (A=0.225, B/C/D/E≈0.13)
+     - Q21: 当前 single D (D=0.42)
+     - Q22: 当前 ambiguous (A=0.27, 其他≈0.13)
+     - 关键发现：A=0.225 < t_mark(0.30)，所以即使改阈值仍为 ambiguous
+  
+  2. 学号 23164 的观察：
+     - Q12: 当前 ambiguous (A=0.40, 其他≈0.06)
+     - Q21: 当前 single E (E=0.46)
+     - Q22: 当前 single B (B=0.46)
+     - 关键发现：Q12 A=0.40 >= t_mark(0.30)，可变为 single A
+
+- **合成数据评估结果**:
+  - 用 t_mark=0.30 重新评估现有 100 个合成样本
+  - 结果：整体准确率维持 **100.00%**（10,000/10,000 题）
+  - 静默错误率：**0.00%**（无识别为 single 但错误的题目）
+  - 结论：降低阈值不会降低合成样本精度
+
+- **阈值变更理由**:
+  - 基于两份真实扫描的填充率分布统计
+  - 合成数据不足以代表真实打印/扫描的质量差异
+  - 降低 t_mark 使系统对低填充率更容忍
+  - t_mark=0.30 仍足以排除多选题（次高分通常 << 0.25 或接近 0.25）
+
+- **风险评估**:
+  - ❌ 可能增加多选题被识别为单选的风险
+  - ❌ 可能降低对轻微标记错误的检出
+  - ✅ 但合成数据评估无特异性恶化，说明阈值仍合理
+  - ⚠️ 真实场景需等 M4 的 30 样本验证
+
+- **后续确认**:
+  - 标记为「临时调整」，等待 M4 阶段的 30 张真实样本进行最终确认
+  - M4 验收标准：30 样本中 >= 95% 准确率（对应 PLAN.md §10 要求）
+  - 若 M4 结果不理想，可调回 t_mark=0.40 或调至其他值
+
+- **决策记录**:
+  - 修改时间：2026-11-06 (Wes 指示)
+  - 修改文件：`core/omr_core/config.default.yaml` (t_mark: 0.40 → 0.30)
+  - 样本基础：2 份真实扫描 (scan_1.pdf 100题, scan_2.pdf 100题)
+  - 依据文件：`regression_samples/scan_1.pdf`, `regression_samples/scan_2.pdf`
+  - 评估脚本：`step5_evaluate_synthetic.py` (无性能退化)
+     - Step 6 中捕获 ValueError（→400）和 IOError（→500）
+  3. `functions/layouts/`：T100-A4-v1.layout.json 和 T060-A4-v1.layout.json（已生成）
+  4. `.gcloudignore`：排除 *.pdf 和 *.png 预览，保留 *.layout.json
+  5. `scripts/sync_core.ps1`：记录 functions/layouts/ 需存在（由 generate_sheet.py 维护）
+- **测试覆盖** (11 通过):
+  - ✓ 加载两个模板并验证结构
+  - ✓ 无效模板抛 ValueError
+  - ✓ 缓存工作（第二次加载返回同一对象）
+  - ✓ 两个模板独立缓存
+  - ✓ 布局属性完整性（questions, id_columns, fiducials）
+  - ✓ 模板特定属性（T100 100 题 vs T060 60 题）
+  - ✓ 允许列表验证
+  - ✓ 反序列化正确性
+  - ✓ to_dict 和 from_dict 一致性
+- **限制与后续**:
+  - 当前仅支持 T100-A4-v1 和 T060-A4-v1（硬编码列表）
+  - 新模板需手动运行 `tools/generate_sheet.py` 生成 JSON 并部署
+  - 缓存不支持热重载（需重启 Cloud Function）
+- **偏离计划**: 无。PLAN.md 第 3.1 节仅要求"加载模板"，不限制实现方式
+
+## 2026-11-06 — D022: M5 收尾决策（认证、部署、版本、对比工具）
+
+### 主要决策
+
+1. **用户认证强化**: Cloud Function 在检查 users/{uid} 时添加 approved == true 判断
+   - 目的: 防止未批准用户访问识别功能
+   - 实现: main.py 第 211-213 行添加检查逻辑
+   
+2. **Cloud Functions 部署参数**:
+   - 超时时间: 120 秒（充足处理大型 500 MB 的 PDF）
+   - 移除 STORAGE_BUCKET 环保变量（由 Admin SDK 自动检测）
+   - 部署成功: 已完成
+   - 区域: us-central1（北美中部，延迟较低）
+
+3. **依赖版本锁定**: functions/requirements.txt 锁定本机测试通过的版本
+   - functions-framework==3.10.2
+   - firebase-admin==7.7.0
+   - opencv-python-headless==5.0.0.93
+   - numpy==2.4.6（兼容 Cloud Functions python311 runtime）
+   - pydantic==2.14.3, pyyaml==6.0.3 等
+   - 理由: 确保版本一致性，避免云端运行时差异
+
+4. **结果对比工具**: 新增 scripts/compare_results.ps1
+   - 功能: 同一份 PDF 在本机和云端识别，逐项比较结果（忽略 timing_ms）
+   - 用法: `./compare_results.ps1 -PdfPath "xxx.pdf" -Template "T100-A4-v1" -IdToken $token`
+   - 输出: 详细的差异列表和摘要统计
+
+### Storage 生命周期考量
+- **当前状态**: 7 天保留（原计划为 24 小时）
+- **原因**: M5 阶段时间限制，优先完成功能验证
+- **后续调整**: M7 阶段应修改为 24 小时，符合 PLAN.md 隐私保护原则
+
+### 多 DPI 识别确认
+- **缩放策略**: 统一缩放长边至 3508 px，支持 150~300 dpi 范围（见 M3）
+- **PDF 多页**: 200 dpi 样本可正常识别
+- **验证状态**: 150 dpi(最低)、200 dpi(中等)、300 dpi(最高) 都已验证通过
+
+### 实现清单
+- ✅ main.py 中添加 approved 检查
+- ✅ requirements.txt 版本锁定
+- ✅ Cloud Functions 部署成功 (revision: recognize-sheet-00007-jas)
+- ✅ 创建 scripts/compare_results.ps1 工具
+- ✅ 采用 PowerShell 编写脚本
+
+### 验收状态
+✓ 认证检查（uid + approved）已实现  
+✓ 部署参数已调整  
+✓ 依赖版本已锁定  
+✓ 对比工具已创建  
+✓ 决策已记录  
+
+---

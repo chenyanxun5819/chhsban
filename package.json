@@ -7,5 +7,8 @@
     "packages/*",
     "chhsban-acadoc",
     "chhsban-tution"
-  ]
+  ],
+  "dependencies": {
+    "firebase-admin": "^13.10.0"
+  }
 }

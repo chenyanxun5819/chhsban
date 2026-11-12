@@ -29,6 +29,15 @@ class OrientationMark:
 
 
 @dataclass
+class QRCode:
+    """二维码位置与内容"""
+    x: float  # 左上角 x (mm)
+    y: float  # 左上角 y (mm)
+    w: float  # 宽度 (mm)
+    h: float  # 高度 (mm)
+
+
+@dataclass
 class Bubble:
     """单个气泡"""
     opt: str  # 选项字母 A-E
@@ -79,6 +88,7 @@ class LayoutConfig:
     option_count: int  # 4 或 5
     id_digits: int  # N 位数字
     score_box: Dict[str, float]  # {x, y, w, h}
+    qrcode: Optional[QRCode] = None  # 二维码位置（可选）
     name_line: Optional[Dict[str, float]] = None  # {x, y, w}  y=文字基线距页顶 (mm)
     class_line: Optional[Dict[str, float]] = None  # 班级手写线 {x, y, w}
     id_line: Optional[Dict[str, float]] = None  # 学号手写线 {x, y, w}（仅供人看，不参与识别）
@@ -112,6 +122,7 @@ class LayoutConfig:
             "feedback_slot_shape": "circle",  # feedback_slot 的 x/y/w/h 是圆的外接正方形，圆心=(x+w/2, y+h/2)，直径=w
             "id_layout": "rows",  # 每个 id_columns 元素是一行：col=第几位(从上到下)，digit 0-9 由左到右
             "score_box": self.score_box,
+            "qrcode": asdict(self.qrcode) if self.qrcode else None,
             "name_line": self.name_line,
             "class_line": self.class_line,
             "id_line": self.id_line,
@@ -279,6 +290,7 @@ class TemplatePresets:
             option_count=option_count,
             id_digits=id_digits,
             score_box=score_box,
+            qrcode=QRCode(x=177.0, y=10.0, w=20.0, h=20.0),  # 右上角，距边缘 ≥ 7mm
             name_line=name_line,
             class_line=class_line,
             id_line=id_line,
@@ -388,6 +400,7 @@ class TemplatePresets:
             option_count=option_count,
             id_digits=id_digits,
             score_box=score_box,
+            qrcode=QRCode(x=177.0, y=10.0, w=20.0, h=20.0),  # 右上角，距边缘 ≥ 7mm
             name_line=name_line,
             class_line=class_line,
             id_line=id_line,

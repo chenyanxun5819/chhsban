@@ -7,6 +7,8 @@
 
 from io import BytesIO
 from typing import Tuple, Optional
+import tempfile
+import os
 from reportlab.pdfgen import canvas
 from reportlab.lib.units import mm
 from reportlab.lib.colors import black
@@ -14,6 +16,47 @@ from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.pdfbase import pdfmetrics
 
 from .layout import LayoutConfig
+
+
+def _generate_qrcode_image(data: str, size_mm: float) -> bytes:
+    """
+    生成二维码 PNG 图像
+    
+    参数：
+    - data: 二维码内容字符串
+    - size_mm: 二维码尺寸（毫米）
+    
+    返回：PNG 二进制内容
+    """
+    try:
+        import qrcode
+    except ImportError:
+        raise ImportError("qrcode library is required for QR code generation. Install with: pip install qrcode[pil]")
+    
+    # 转换尺寸：mm -> pixels（300 DPI）
+    size_pixels = int(size_mm * 300 / 25.4)  # 25.4 mm/inch
+    
+    # 生成二维码
+    qr = qrcode.QRCode(
+        version=1,  # 自动调整版本
+        error_correction=qrcode.constants.ERROR_CORRECT_L,
+        box_size=1,
+        border=2,  # 标准 4 个像素边距（scale 后自动调整）
+    )
+    qr.add_data(data)
+    qr.make(fit=True)
+    
+    # 转换为 PIL Image
+    img = qr.make_image(fill_color="black", back_color="white")
+    
+    # 重新调整到目标尺寸
+    img = img.resize((size_pixels, size_pixels))
+    
+    # 保存为 PNG
+    buffer = BytesIO()
+    img.save(buffer, format="PNG")
+    return buffer.getvalue()
+
 
 
 # 中文字体候选（按顺序尝试；.ttc 需指定 subfontIndex）
@@ -131,6 +174,31 @@ def generate_pdf(
             stroke=0,
             fill=1,
         )
+    
+    # ==================== 二维码 ====================
+    if layout.qrcode:
+        qr_data = f"{layout.template_id};d={layout.id_digits};o={layout.option_count}"
+        qr_png = _generate_qrcode_image(qr_data, layout.qrcode.w)
+        
+        # 使用临时文件，因为 reportlab drawImage 需要文件路径
+        with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as tmp:
+            tmp.write(qr_png)
+            tmp_path = tmp.name
+        
+        try:
+            c.drawImage(
+                tmp_path,
+                layout.qrcode.x * mm,
+                (page_h_mm - layout.qrcode.y - layout.qrcode.h) * mm,
+                width=layout.qrcode.w * mm,
+                height=layout.qrcode.h * mm,
+            )
+        finally:
+            # 清理临时文件
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
     
     # ==================== 选项表头 ====================
     # 在每个栏顶部显示选项字母（A, B, C, D, [E]）

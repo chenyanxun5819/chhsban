@@ -88,9 +88,12 @@ def recognize(image_bytes: bytes,
         
         gray = images[page_index]
         
-        # Validate resolution
+        # Step 1.5: Validate resolution and normalize to 3508 px (A4 height at 300 dpi)
+        # This ensures all downstream detections (fiducials, bubbles) use consistent 
+        # pixel-based thresholds regardless of input DPI
         long_side = max(gray.shape)
         min_long_side = config['io'].get('min_long_side_px', 1600)
+        
         if long_side < min_long_side:
             return schema.RecognitionResult(
                 template_id=template_id,
@@ -102,12 +105,19 @@ def recognize(image_bytes: bytes,
                 timing_ms=int((time.time() - start_time) * 1000)
             )
         
-        # Step 2: Preprocess
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        # Normalize resolution: scale to 3508 px (A4 height at 300 DPI = 297 mm)
+        # This allows fiducial/bubble detection thresholds to be resolution-independent
+        target_height_px = 3508
+        if long_side != target_height_px:
+            scale_factor = target_height_px / long_side
+            new_size = (int(gray.shape[1] * scale_factor), int(gray.shape[0] * scale_factor))
+            gray = cv2.resize(gray, new_size, interpolation=cv2.INTER_CUBIC)
+            logger.debug(f"Normalized resolution: {long_side}px → {max(gray.shape)}px (scale: {scale_factor:.3f})")
         
-        # Step 3: Detect fiducials
+        # Step 2.1: Detect fiducials on ORIGINAL (unblurred) image
+        # Gaussian blur would diminish the sharp black fiducial squares
         try:
-            fiducials = detect.detect_fiducials(blurred, layout.fiducials)
+            fiducials = detect.detect_fiducials(gray, layout.fiducials)
         except ValueError as e:
             return schema.RecognitionResult(
                 template_id=template_id,
@@ -119,16 +129,19 @@ def recognize(image_bytes: bytes,
                 timing_ms=int((time.time() - start_time) * 1000)
             )
         
-        # Step 4: Detect orientation
+        # Step 2.2: Now apply preprocessing for bubble detection
+        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+        
+        # Step 3: Detect orientation
         rotated_180, skew_deg = detect.detect_orientation_and_rotation(
             blurred, layout.orientation_mark)
         
         if rotated_180:
             gray = cv2.rotate(gray, cv2.ROTATE_180)
             blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-            # Redetect fiducials after rotation
+            # Redetect fiducials after rotation (on original, unblurred image)
             try:
-                fiducials = detect.detect_fiducials(blurred, layout.fiducials)
+                fiducials = detect.detect_fiducials(gray, layout.fiducials)
             except ValueError as e:
                 return schema.RecognitionResult(
                     template_id=template_id,

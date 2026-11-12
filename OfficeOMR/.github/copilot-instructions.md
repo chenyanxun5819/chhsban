@@ -15,3 +15,16 @@
 - 建用户、改角色/组织、重设密码等权限操作，只能在 Cloud Functions 内用 Admin SDK 完成，并先校验调用者 role；客户端不得直接写 users/orgs。rules 不得放宽，且必须有 Emulator 测试。
 - 保持简单：不要实作 PLAN.md 第 1.3 节列为「不做」的功能（目前只有 2 种角色，不要加第三种）。
 - 注释与文件说明用简体中文，变量/函数名用英文。
+- **UTF-8 编码保护**: 写入含中文的文件（docs/*.md、决策文档等）一律使用文件编辑工具（replace_string_in_file），不得用终端重定向（`>>`、`Add-Content`、`Out-File`），以防止编码破坏。
+
+
+## 部署
+- 部署方式：git push 後由 CI/CD 自動部署，不需要詢問部署方式，也不要手動執行部署指令
+- 觸發分支：<分支名，見 .github/workflows 的 yml>
+- 前端：靜態檔案，無 build 步驟，部署到 Firebase Hosting（officeomr-fe542.web.app）
+- 後端：Cloud Function recognize_sheet（Python 3.11，gen2，us-central1，project officeomr-fe542）
+- scripts\deploy.ps1 只是手動部署 functions 的備用腳本
+
+## 其他
+- 終端是 PowerShell，指令請用 PowerShell 語法
+- 改完程式碼後，提醒我 commit 並 push 即可

@@ -120,6 +120,68 @@ class LayoutConfig:
     def to_json(self) -> str:
         """转换为 JSON 字符串"""
         return json.dumps(self.to_dict(), indent=2, ensure_ascii=False)
+    
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> "LayoutConfig":
+        """从字典反序列化为 LayoutConfig 实例
+        
+        Args:
+            data: 包含 layout.json 结构的字典
+        
+        Returns:
+            LayoutConfig 实例
+        
+        Raises:
+            ValueError: 如果数据格式不正确或缺少必需字段
+        """
+        try:
+            # 重构 Fiducial 列表
+            fiducials = [Fiducial(**f) for f in data.get('fiducials', [])]
+            
+            # 重构 OrientationMark
+            om_data = data.get('orientation_mark', {})
+            orientation_mark = OrientationMark(**om_data)
+            
+            # 重构 Question 和 Bubble 列表
+            questions = []
+            for q_data in data.get('questions', []):
+                bubbles = [Bubble(**b) for b in q_data.get('bubbles', [])]
+                questions.append(Question(
+                    q=q_data['q'],
+                    bubbles=bubbles,
+                    feedback_slot=q_data.get('feedback_slot', {})
+                ))
+            
+            # 重构 IDColumn 和 IDBubble 列表
+            id_columns = []
+            for c_data in data.get('id_columns', []):
+                bubbles = [IDBubble(**b) for b in c_data.get('bubbles', [])]
+                id_columns.append(IDColumn(
+                    col=c_data['col'],
+                    bubbles=bubbles
+                ))
+            
+            # 构造 LayoutConfig
+            return cls(
+                template_id=data['template_id'],
+                version=data['version'],
+                page_mm=data['page_mm'],
+                fiducials=fiducials,
+                orientation_mark=orientation_mark,
+                canvas_dpi=data['canvas_dpi'],
+                questions=questions,
+                id_columns=id_columns,
+                option_count=data['option_count'],
+                id_digits=data['id_digits'],
+                score_box=data['score_box'],
+                name_line=data.get('name_line'),
+                class_line=data.get('class_line'),
+                id_line=data.get('id_line'),
+            )
+        except KeyError as e:
+            raise ValueError(f'Missing required field in layout data: {e}')
+        except TypeError as e:
+            raise ValueError(f'Invalid field type in layout data: {e}')
 
 
 # 证号区几何（mm）：每位数字一行，每行 0-9 由左到右

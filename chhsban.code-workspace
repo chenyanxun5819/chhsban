@@ -40,6 +40,9 @@
 		},
 		{
 			"path": "UEC_Trial_Renamer"
+		},
+		{
+			"path": "OfficeOMR"
 		}
 	],
 	"settings": {

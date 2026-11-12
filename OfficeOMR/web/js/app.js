@@ -43,6 +43,9 @@ class OfficeOMRApp {
     // 获取主容器
     this.mainContainer = document.getElementById('app-container');
     
+    // 将 app 实例暴露到全局范围，以便前端使用
+    window.app = this;
+    
     // 监听认证状态
     this.authFlow.onAuthStateChanged((authState) => this.onAuthStateChanged(authState));
     

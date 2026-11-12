@@ -76,18 +76,65 @@ def error_response(error, message, status):
     return response
 
 
-def load_layout_by_template(template_name):
-    """Load layout from template preset based on request template parameter."""
-    from sheetgen.layout import TemplatePresets
+# Layout cache: module-level dict to store parsed layouts
+_layout_cache = {}
+ALLOWED_TEMPLATES = {'T100-A4-v1', 'T060-A4-v1'}
 
-    template_builders = {
-        'T100-A4-v1': TemplatePresets.T100_A4_v1,
-        'T060-A4-v1': TemplatePresets.T060_A4_v1,
-    }
-    builder = template_builders.get(template_name)
-    if builder is None:
-        raise ValueError(f'Unsupported template: {template_name}')
-    return builder()
+
+def load_layout_from_file(template_name):
+    """
+    Load layout from JSON file with caching.
+    
+    Args:
+        template_name: Template identifier (T100-A4-v1 or T060-A4-v1)
+    
+    Returns:
+        LayoutConfig instance
+    
+    Raises:
+        ValueError: If template is not allowed (returns 400 in caller)
+        IOError: If layout file not found or cannot be parsed (returns 500 in caller)
+    """
+    # Check if already cached
+    if template_name in _layout_cache:
+        return _layout_cache[template_name]
+    
+    # Validate template name
+    if template_name not in ALLOWED_TEMPLATES:
+        raise ValueError(f'Unsupported template: {template_name}. Allowed: {ALLOWED_TEMPLATES}')
+    
+    # Build path to layout file
+    func_dir = os.path.dirname(__file__)
+    layout_file = os.path.join(func_dir, 'layouts', f'{template_name}.layout.json')
+    
+    try:
+        # Read and parse JSON
+        with open(layout_file, 'r', encoding='utf-8') as f:
+            layout_data = json.load(f)
+        
+        # Import and deserialize with from_dict()
+        from sheetgen.layout import LayoutConfig
+        layout = LayoutConfig.from_dict(layout_data)
+        
+        # Cache for future requests
+        _layout_cache[template_name] = layout
+        
+        return layout
+    
+    except FileNotFoundError as e:
+        raise IOError(
+            f'Layout file not found: {layout_file}. '
+            f'Ensure {template_name}.layout.json exists in functions/layouts/ directory.'
+        ) from e
+    except json.JSONDecodeError as e:
+        raise IOError(f'Invalid JSON in layout file {layout_file}: {str(e)}') from e
+    except ValueError as e:
+        # Re-raise ValueError from from_dict() as IOError (500 error)
+        raise IOError(f'Invalid layout format in {layout_file}: {str(e)}') from e
+    except Exception as e:
+        raise IOError(
+            f'Failed to load layout from {layout_file}: {str(e)}'
+        ) from e
 
 
 @functions_framework.http
@@ -166,6 +213,14 @@ def recognize_sheet(request):
                 403)
 
         user_data = user_doc.to_dict() or {}
+        
+        # Check if user is approved
+        if not user_data.get('approved', False):
+            return error_response(
+                'Forbidden',
+                'User account not approved. Please contact administrator.',
+                403)
+        
         org_id = user_data.get('org_id')
         if not org_id:
             return error_response(
@@ -224,10 +279,15 @@ def recognize_sheet(request):
 
         # Step 6: Load layout from template parameter
         try:
-            layout = load_layout_by_template(template_name)
-        except Exception as e:
+            layout = load_layout_from_file(template_name)
+        except ValueError as e:
+            # Template name not allowed (400 Bad Request)
             return error_response(
-                'BadRequest', f'Could not load template layout: {str(e)}', 400)
+                'BadRequest', f'Invalid template: {str(e)}', 400)
+        except IOError as e:
+            # File not found or parse error (500 Internal Server Error)
+            return error_response(
+                'InternalError', f'Could not load layout file: {str(e)}', 500)
 
         # Step 7: Run recognition for each page
         try:
