@@ -293,6 +293,9 @@ class AdminPage {
       
       let html = '<table style="width: 100%; border-collapse: collapse;"><thead><tr style="background: #f5f5f5; border-bottom: 1px solid #ddd;">';
       html += '<th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600;">邮箱</th>';
+      html += '<th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600;">姓名</th>';
+      html += '<th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600;">WhatsApp</th>';
+      html += '<th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600;">手机</th>';
       html += '<th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600;">所属组织</th>';
       html += '<th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600;">状态</th>';
       html += '<th style="padding: 12px; text-align: left; font-size: 13px; font-weight: 600;">配额</th>';
@@ -305,6 +308,9 @@ class AdminPage {
         const quota = data.dailyQuota || '-';
         html += `<tr style="border-bottom: 1px solid #eee;">`;
         html += `<td style="padding: 12px; font-size: 13px;">${data.email}</td>`;
+        html += `<td style="padding: 12px; font-size: 13px;">${data.name || '-'}</td>`;
+        html += `<td style="padding: 12px; font-size: 13px;"><code>${data.whatsapp || '-'}</code></td>`;
+        html += `<td style="padding: 12px; font-size: 13px;">${data.phone || '-'}</td>`;
         html += `<td style="padding: 12px; font-size: 13px;"><code>${data.orgId || '-'}</code></td>`;
         html += `<td style="padding: 12px; font-size: 13px;">${status}</td>`;
         html += `<td style="padding: 12px; font-size: 13px;"><strong>${quota}</strong></td>`;
@@ -554,6 +560,18 @@ class AdminPage {
           <input type="email" id="teacher-email" placeholder="例：teacher@school.com" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" required />
         </div>
         <div style="margin-bottom: 15px;">
+          <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px;">姓名 *</label>
+          <input type="text" id="teacher-name" placeholder="例：李老师" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" required />
+        </div>
+        <div style="margin-bottom: 15px;">
+          <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px;">WhatsApp 账号 *</label>
+          <input type="text" id="teacher-whatsapp" placeholder="例：+60123456789" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" required />
+        </div>
+        <div style="margin-bottom: 15px;">
+          <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px;">手机（有 WhatsApp 账号时可选）</label>
+          <input type="text" id="teacher-phone" placeholder="例：0123456789" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" />
+        </div>
+        <div style="margin-bottom: 15px;">
           <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px;">所属组织 *</label>
           <select id="teacher-org" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" required>
             <option value="">加载中...</option>
@@ -595,6 +613,9 @@ class AdminPage {
       
       const teacherData = {
         email: email.toLowerCase().trim(),
+        name: modal.querySelector('#teacher-name').value.trim(),
+        whatsapp: modal.querySelector('#teacher-whatsapp').value.trim(),
+        phone: modal.querySelector('#teacher-phone').value.trim() || null,
         uid: null,  // 由 claimAccess 在首次登录时绑定
         role: 'teacher',
         orgId: orgId,
@@ -640,6 +661,18 @@ class AdminPage {
             <input type="email" value="${teacher.email}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; background: #f5f5f5;" disabled />
           </div>
           <div style="margin-bottom: 15px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px;">姓名</label>
+            <input type="text" id="edit-teacher-name" value="${teacher.name || ''}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" required />
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px;">WhatsApp 账号</label>
+            <input type="text" id="edit-teacher-whatsapp" value="${teacher.whatsapp || ''}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" required />
+          </div>
+          <div style="margin-bottom: 15px;">
+            <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px;">手机（有 WhatsApp 账号时可选）</label>
+            <input type="text" id="edit-teacher-phone" value="${teacher.phone || ''}" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" />
+          </div>
+          <div style="margin-bottom: 15px;">
             <label style="display: block; font-size: 13px; font-weight: 600; margin-bottom: 5px;">所属组织</label>
             <select id="edit-teacher-org" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
               <option value="">加载中...</option>
@@ -671,7 +704,15 @@ class AdminPage {
       
       const form = modal.querySelector('#edit-teacher-form');
       modal.querySelector('.modal-submit').addEventListener('click', async () => {
+        if (!form.checkValidity()) {
+          this.showError('请填写所有必填项');
+          return;
+        }
+        
         const updateData = {
+          name: modal.querySelector('#edit-teacher-name').value.trim(),
+          whatsapp: modal.querySelector('#edit-teacher-whatsapp').value.trim(),
+          phone: modal.querySelector('#edit-teacher-phone').value.trim() || null,
           orgId: modal.querySelector('#edit-teacher-org').value,
           dailyQuota: modal.querySelector('#edit-teacher-quota').value ? parseInt(modal.querySelector('#edit-teacher-quota').value) : null,
           active: modal.querySelector('#edit-teacher-active').checked,
