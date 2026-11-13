@@ -52,10 +52,10 @@ service firebase.storage {
     }
 
     // ========== 临时上传路径（由前端使用） ==========
-    // 路径: temp/uploads/{uid}/{timestamp}/{fileName}
+    // 路径: temp/uploads/{uid}/{timeId}/{fileName}
     // 用户可以向该路径上传临时文件，Cloud Function 会处理
 
-    match /temp/uploads/{uid}/{timestamp}/{fileName} {
+    match /temp/uploads/{uid}/{timeId}/{fileName} {
       // 用户只能上传到自己的目录
       allow write: if isAuthenticated() 
         && request.auth.uid == uid
