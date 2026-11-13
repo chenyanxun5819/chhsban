@@ -1,22 +1,30 @@
 # Firebase Functions Framework
-functions-framework==3.10.2
-firebase-functions==0.5.0
+functions-framework>=3.5,<4
+firebase-functions>=0.5,<1
 
 # Firebase Admin SDK (Authentication, Firestore, Storage)
-firebase-admin==7.7.0
+firebase-admin>=6.5,<8
 
 # Image Processing
-opencv-python-headless==4.8.1.78
-numpy==1.24.3
-Pillow==10.0.0
+# NOTE: keep numpy/opencv in sync with core/pyproject.toml.
+# numpy>=2.1 is REQUIRED so that wheels exist for Python 3.13, which is the
+# Python used by the Firebase CLI to build the local analysis venv.
+# opencv>=4.11 is built against numpy 2.x (older 4.8 builds break on numpy 2).
+numpy>=2.1,<3
+opencv-python-headless>=4.11,<5
+Pillow>=10,<13
 
-# PDF & Report Generation
-pypdfium2==5.14.0
-reportlab==5.1.0
+# PDF rendering
+pypdfium2>=4.30,<6
+
+# Answer-sheet generation
+# (sheetgen/__init__.py imports builder.py, which imports reportlab + qrcode)
+reportlab>=4.2,<6
+qrcode[pil]>=7.4
 
 # Data Validation & Configuration
-pydantic==2.14.3
-pyyaml==6.0.3
+pydantic>=2.7,<3
+pyyaml>=6,<7
 
 # Utilities
-python-dotenv>=1.0.0
+python-dotenv>=1.0

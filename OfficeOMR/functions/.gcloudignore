@@ -12,3 +12,8 @@ verify_*.py
 *_old_*.py
 .pytest_cache/
 backup/
+
+# Never upload service account keys
+*-key.json
+serviceAccount*.json
+firebase-key.json

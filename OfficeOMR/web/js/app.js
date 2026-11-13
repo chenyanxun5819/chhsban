@@ -82,6 +82,29 @@ class OfficeOMRApp {
   }
 
   /**
+   * 依目前的 custom claims 重新路由。
+   *
+   * claimAccess 是在登入之后才设置 custom claims 的，此时 Firebase 不会再自动
+   * 触发 onAuthStateChanged，因此必须由登录页主动调用本方法，
+   * 否则已获批准的教师会一直停在登录页。
+   */
+  async refreshRouting() {
+    const user = this.auth && this.auth.currentUser;
+    if (!user) {
+      this.showLoginPage();
+      return;
+    }
+    const claims = await this.authFlow.getCurrentUserClaims();
+    await this.onAuthStateChanged({
+      user,
+      claims,
+      isAuthenticated: true,
+      isSuperAdmin: !!(claims && claims.role === "super_admin"),
+      isTeacher: !!(claims && claims.role === "teacher"),
+    });
+  }
+
+  /**
    * 显示登入页面
    */
   showLoginPage() {

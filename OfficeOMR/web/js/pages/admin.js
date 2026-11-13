@@ -378,6 +378,10 @@ class AdminPage {
    */
   async loadUsage() {
     try {
+      // 若已登出（例如 claimAccess 失败后自动登出），不要再存取 Firestore
+      if (!this.authFlow.auth.currentUser) {
+        return;
+      }
       const usageList = this.container.querySelector('#usage-list');
       const today = new Date().toISOString().split('T')[0].replace(/-/g, '');
       
@@ -527,7 +531,8 @@ class AdminPage {
         btn.disabled = true;
         btn.textContent = '保存中...';
         
-        await this.firestore.collection('orgs').add(orgData);
+        // 以组织代号（code）作为文档 ID，确保与 allowedUsers.orgId 及 Cloud Functions 一致
+        await this.firestore.collection('orgs').doc(orgData.code).set(orgData);
         
         this.showSuccess('组织已添加');
         this.closeModal(modal);
@@ -589,8 +594,8 @@ class AdminPage {
       const orgId = modal.querySelector('#teacher-org').value;
       
       const teacherData = {
-        email: email,
-        uid: email.replace(/@.*/, '').replace(/\./g, '_'),
+        email: email.toLowerCase().trim(),
+        uid: null,  // 由 claimAccess 在首次登录时绑定
         role: 'teacher',
         orgId: orgId,
         dailyQuota: modal.querySelector('#teacher-quota').value ? parseInt(modal.querySelector('#teacher-quota').value) : null,
@@ -603,7 +608,8 @@ class AdminPage {
         btn.disabled = true;
         btn.textContent = '保存中...';
         
-        await this.firestore.collection('allowedUsers').add(teacherData);
+        // 以小写邮箱作为文档 ID，claimAccess 会用 allowedUsers/{email} 查找
+        await this.firestore.collection('allowedUsers').doc(email.toLowerCase().trim()).set(teacherData);
         
         this.showSuccess('教师已添加');
         this.closeModal(modal);
@@ -768,10 +774,23 @@ class AdminPage {
   }
 
   /**
+   * 取得（必要时建立）模态框容器
+   */
+  _getModalContainer() {
+    let container = this.container.querySelector('#modal-container');
+    if (!container) {
+      container = document.createElement('div');
+      container.id = 'modal-container';
+      this.container.appendChild(container);
+    }
+    return container;
+  }
+
+  /**
    * 创建模态框
    */
   createModal(title, content) {
-    const container = this.container.querySelector('#modal-container');
+    const container = this._getModalContainer();
     const modal = document.createElement('div');
     modal.className = 'modal';
     modal.style.cssText = `
@@ -831,7 +850,7 @@ class AdminPage {
    * 显示错误信息
    */
   showError(message) {
-    const container = this.container.querySelector('#modal-container');
+    const container = this._getModalContainer();
     const msg = document.createElement('div');
     msg.style.cssText = `
       position: fixed;
@@ -857,7 +876,7 @@ class AdminPage {
    * 显示成功信息
    */
   showSuccess(message) {
-    const container = this.container.querySelector('#modal-container');
+    const container = this._getModalContainer();
     const msg = document.createElement('div');
     msg.style.cssText = `
       position: fixed;

@@ -22,3 +22,8 @@ key.json
 .firebase/
 firebase-debug.log
 *.log
+
+# Service account keys for Cloud Functions / local tooling (NEVER commit)
+functions/*-key.json
+functions/serviceAccount*.json
+functions/firebase-key.json

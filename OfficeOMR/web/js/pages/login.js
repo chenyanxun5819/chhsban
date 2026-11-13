@@ -68,6 +68,20 @@ class LoginPage {
       const accessResult = await this.authFlow.claimAccess(idToken);
       
       if (accessResult.error) {
+        // 若已具备有效角色（例如以 tools/bootstrap_admin.py 建立的 super_admin），
+        // 千万不要登出 —— 交给 app.js 依 claims 显示对应页面
+        const existingClaims = await this.authFlow.getCurrentUserClaims();
+        if (existingClaims && existingClaims.role) {
+          messageDiv.innerHTML = '<span style="color: #2e7d32;">✅ 登录成功，正在加载...</span>';
+          messageDiv.style.display = 'block';
+          btn.disabled = false;
+          btn.textContent = '使用 Google 登录';
+          if (window.app && typeof window.app.refreshRouting === 'function') {
+            await window.app.refreshRouting();
+          }
+          return;
+        }
+
         // 权限被拒
         this.showNotApprovedMessage(user.email, messageDiv);
         
@@ -78,9 +92,19 @@ class LoginPage {
           btn.textContent = '使用 Google 登录';
         }, 3000);
       } else {
-        // 权限已获准，等待路由改变
+        // 权限已获准：强制刷新 ID token，让 claimAccess 刚写入的 custom claims 生效，
+        // 然后重新路由 —— 否则 Firebase 不会再触发 onAuthStateChanged，会一直停在登录页
         messageDiv.innerHTML = '<span style="color: #2e7d32;">✅ 登录成功，正在加载...</span>';
         messageDiv.style.display = 'block';
+
+        try {
+          await user.getIdToken(true);
+        } catch (e) {
+          console.warn('ID token refresh failed:', e);
+        }
+        if (window.app && typeof window.app.refreshRouting === 'function') {
+          await window.app.refreshRouting();
+        }
       }
     } catch (error) {
       console.error("登录失败:", error);

@@ -27,6 +27,8 @@ import json
 import logging
 import base64
 import io
+import os
+import sys
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -223,7 +225,212 @@ def compare_answers(student_answers: List[str], standard_answers: List[str]) -> 
     }
 
 
+# ========== OMR RECOGNITION (omr_core integration) ==========
+
+# Friendly template name -> layout template id
+TEMPLATE_ALIASES = {
+    "T100": "T100-A4-v1",
+    "T100-A4": "T100-A4-v1",
+    "T100-A4-v1": "T100-A4-v1",
+    "T060": "T060-A4-v1",
+    "T060-A4": "T060-A4-v1",
+    "T060-A4-v1": "T060-A4-v1",
+}
+
+# Default question count per template (used when a job is created)
+TEMPLATE_QUESTION_COUNT = {
+    "T100-A4-v1": 100,
+    "T060-A4-v1": 60,
+}
+
+# Module-scope caches reused across warm invocations
+_LAYOUT_CACHE: Dict[str, Any] = {}
+_OMR_CONFIG: Optional[dict] = None
+
+
+def _functions_dir() -> str:
+    """Directory that contains this module (the deployed functions/ folder)."""
+    return os.path.dirname(os.path.abspath(__file__))
+
+
+def _ensure_import_path() -> None:
+    """Make sure functions/ is importable (provides omr_core and sheetgen)."""
+    func_dir = _functions_dir()
+    if func_dir not in sys.path:
+        sys.path.insert(0, func_dir)
+
+
+def resolve_template_id(template: Optional[str]) -> str:
+    """Map a friendly template name (T100-A4) to a layout id (T100-A4-v1)."""
+    if not template:
+        return "T100-A4-v1"
+    key = str(template).strip()
+    return TEMPLATE_ALIASES.get(key, key)
+
+
+def load_layout(template: Optional[str]):
+    """Load (and cache) the LayoutConfig for a template id."""
+    template_id = resolve_template_id(template)
+    if template_id in _LAYOUT_CACHE:
+        return _LAYOUT_CACHE[template_id]
+
+    _ensure_import_path()
+    from sheetgen.layout import LayoutConfig
+
+    layout_file = os.path.join(_functions_dir(), "layouts", f"{template_id}.layout.json")
+    if not os.path.exists(layout_file):
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+            f"Unknown template '{template}'. No layout file at {layout_file}"
+        )
+
+    with open(layout_file, "r", encoding="utf-8") as fh:
+        layout = LayoutConfig.from_dict(json.load(fh))
+
+    _LAYOUT_CACHE[template_id] = layout
+    return layout
+
+
+def get_omr_config() -> dict:
+    """Load (and cache) the omr_core configuration."""
+    global _OMR_CONFIG
+    if _OMR_CONFIG is None:
+        _ensure_import_path()
+        from omr_core.pipeline import load_config
+        _OMR_CONFIG = load_config()
+    return _OMR_CONFIG
+
+
+def decode_base64_image(image_data: str) -> bytes:
+    """Decode base64 (optionally a data: URL) into raw image/PDF bytes."""
+    if not image_data or not isinstance(image_data, str):
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+            "imageData is required and must be a base64 string"
+        )
+    payload = image_data.strip()
+    if payload.startswith("data:") and "," in payload:
+        payload = payload.split(",", 1)[1]
+    try:
+        return base64.b64decode(payload)
+    except Exception as e:
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+            f"imageData is not valid base64: {e}"
+        )
+
+
+def recognize_sheet_image(image_bytes: bytes, template: Optional[str]) -> Dict[str, Any]:
+    """Run the omr_core pipeline on raw image bytes.
+
+    Returns answers (one entry per question; 'blank' for empty/multi/ambiguous),
+    per-question confidence, the recognised student id and the pipeline status.
+    """
+    _ensure_import_path()
+    from omr_core.pipeline import recognize
+
+    layout = load_layout(template)
+    config = get_omr_config()
+
+    result = recognize(image_bytes, layout, config)
+
+    answers: List[str] = []
+    confidences: List[float] = []
+    for ans in result.answers:
+        if ans.status == "single" and ans.choices:
+            choice = ans.choices[0]
+            answers.append(choice)
+            confidences.append(round(float(ans.scores.get(choice, 0.0)), 4))
+        else:
+            # blank / multi / ambiguous are treated as unanswered
+            answers.append("blank")
+            confidences.append(0.0)
+
+    student_id = None
+    if result.student_id and result.student_id.value:
+        student_id = result.student_id.value
+
+    return {
+        "answers": answers,
+        "confidences": confidences,
+        "status": result.status,
+        "error": result.error.model_dump() if result.error else None,
+        "studentId": student_id,
+        "summary": result.summary.model_dump(),
+        "timingMs": result.timing_ms,
+    }
+
+
 # ========== M7 CALLABLE FUNCTIONS ==========
+
+@https_fn.on_call(region="us-central1")
+def createExam(req: https_fn.CallableRequest) -> Dict[str, Any]:
+    """Create a new exam (job) owned by the calling teacher.
+
+    Request data:
+    {
+        'examName': '2026 November Monthly Test',
+        'subject': 'Math',            # optional
+        'template': 'T100-A4',        # friendly name or layout id
+        'questionCount': 100          # optional, defaults per template
+    }
+    """
+    try:
+        uid, role, org_id = require_auth(req)
+        params = req.data or {}
+
+        exam_name = (params.get("examName") or "").strip()
+        if not exam_name:
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                "Missing required field: examName"
+            )
+
+        template_id = resolve_template_id(params.get("template"))
+        question_count = params.get("questionCount")
+        if not isinstance(question_count, int) or question_count <= 0:
+            question_count = TEMPLATE_QUESTION_COUNT.get(template_id, 100)
+
+        now = datetime.utcnow()
+        expires_at = now + timedelta(hours=STUDENT_DATA_RETENTION_HOURS)
+
+        job_ref = get_db().collection("jobs").document()
+        job_ref.set({
+            "uid": uid,
+            "createdBy": uid,
+            "orgId": org_id,
+            "examName": exam_name,
+            "subject": params.get("subject"),
+            "templateId": template_id,
+            "template": template_id,
+            "questionCount": question_count,
+            "status": "created",
+            "createdAt": now,
+            "expiresAt": expires_at,
+        })
+
+        logger.info(f"Created exam job {job_ref.id} for {uid} ({template_id})")
+
+        return {
+            "success": True,
+            "data": {
+                "jobId": job_ref.id,
+                "examName": exam_name,
+                "template": template_id,
+                "questionCount": question_count,
+                "orgId": org_id,
+            }
+        }
+
+    except https_fn.HttpsError:
+        raise
+    except Exception as e:
+        logger.error(f"Error in createExam: {e}")
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.INTERNAL,
+            f"Internal error: {str(e)}"
+        )
+
 
 @https_fn.on_call(region="us-central1")
 def uploadAnswerKeyByImage(req: https_fn.CallableRequest) -> Dict[str, Any]:
@@ -262,7 +469,7 @@ def uploadAnswerKeyByImage(req: https_fn.CallableRequest) -> Dict[str, Any]:
         
         # Get request data
         job_id = req.data.get("jobId")
-        image_data = req.data.get("imageData")
+        image_data = req.data.get("imageData") or req.data.get("imageBytes")
         template = req.data.get("template", "T100-A4")
         
         if not job_id or not image_data:
@@ -283,13 +490,20 @@ def uploadAnswerKeyByImage(req: https_fn.CallableRequest) -> Dict[str, Any]:
                 "Answer key for this job is already frozen and cannot be modified"
             )
         
-        # TODO: Implement OMR recognition
-        # Call omr_core.recognize_sheet(image_data) to extract answers
-        logger.warning("TODO: Implement OMR recognition for answer key scanning")
+        # Run the OMR pipeline on the scanned answer card
+        image_bytes = decode_base64_image(image_data)
+        recognized = recognize_sheet_image(image_bytes, template)
+
+        if recognized["status"] == "failed":
+            detail = recognized.get("error") or {}
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                f"Recognition failed: {detail.get('code', 'UNKNOWN')} - "
+                f"{detail.get('message', '')}"
+            )
         
-        # Placeholder: return empty array
-        recognized_answers = []
-        confidence_scores = []
+        recognized_answers = recognized["answers"]
+        confidence_scores = recognized["confidences"]
         
         if not recognized_answers:
             raise https_fn.HttpsError(
@@ -554,7 +768,7 @@ def recognizeAndGradeSheet(req: https_fn.CallableRequest) -> Dict[str, Any]:
         uid, role, org_id = require_auth(req)
         
         job_id = req.data.get("jobId")
-        sheet_image = req.data.get("sheetImage")
+        sheet_image = req.data.get("sheetImage") or req.data.get("imageData")
         template = req.data.get("template", "T100-A4")
         student_id = req.data.get("studentId", "unknown")
         
@@ -579,9 +793,31 @@ def recognizeAndGradeSheet(req: https_fn.CallableRequest) -> Dict[str, Any]:
         
         standard_answers = answer_key.get("answers", [])
         
-        # TODO: Call omr_core.recognize_sheet() to extract student answers
-        logger.warning("TODO: Implement OMR recognition for student sheet")
-        student_answers = []
+        # Run the OMR pipeline on the scanned student sheet
+        image_bytes = decode_base64_image(sheet_image)
+        recognized = recognize_sheet_image(image_bytes, template)
+
+        if recognized["status"] == "failed":
+            detail = recognized.get("error") or {}
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.INVALID_ARGUMENT,
+                f"Recognition failed: {detail.get('code', 'UNKNOWN')} - "
+                f"{detail.get('message', '')}"
+            )
+
+        student_answers = recognized["answers"]
+
+        # Prefer the student id recognised from the sheet itself
+        if recognized.get("studentId"):
+            student_id = recognized["studentId"]
+
+        # Answer key and sheet must contain the same number of questions
+        if len(student_answers) != len(standard_answers):
+            raise https_fn.HttpsError(
+                https_fn.FunctionsErrorCode.FAILED_PRECONDITION,
+                f"Question count mismatch: answer key has {len(standard_answers)} "
+                f"but the sheet has {len(student_answers)}"
+            )
         
         if not student_answers:
             raise https_fn.HttpsError(
@@ -663,7 +899,10 @@ def batchRecognizeSheets(req: https_fn.CallableRequest) -> Dict[str, Any]:
         uid, role, org_id = require_auth(req)
         
         job_id = req.data.get("jobId")
-        sheet_images = req.data.get("sheetImages", [])
+        sheet_images = (req.data.get("sheetImages")
+                        or req.data.get("imageDataList")
+                        or req.data.get("imageBytesList")
+                        or [])
         template = req.data.get("template", "T100-A4")
         
         if not job_id or not sheet_images:

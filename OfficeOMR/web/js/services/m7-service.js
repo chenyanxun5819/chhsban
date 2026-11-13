@@ -21,15 +21,42 @@ class M7Service {
   }
 
   /**
+   * 建立新的考试（job），必须先建立考试才能上传标准答案
+   *
+   * @param {string} examName - 考试名称
+   * @param {string} template - 版型（T100-A4 / T060-A4）
+   * @param {number} [questionCount] - 题数（可选，预设依版型）
+   * @returns {Promise<Object>} {success, data:{jobId, examName, template, questionCount}, error}
+   */
+  async createExam(examName, template, questionCount) {
+    try {
+      console.log('🆕 M7Service: createExam', { examName, template });
+
+      const callable = this.functions.httpsCallable('createExam');
+      const result = await callable({ examName, template, questionCount });
+
+      console.log('✅ createExam 成功:', result.data);
+      return result.data;
+
+    } catch (error) {
+      console.error('❌ createExam 失败:', error);
+      return {
+        success: false,
+        error: error.message
+      };
+    }
+  }
+
+  /**
    * 上传标准答案 - 扫描模式
    * 
    * @param {string} jobId - 工作 ID
    * @param {Blob} imageBlob - 标准答案卡图片
    * @returns {Promise<Object>} {success, answerKey, scanConfidence, error}
    */
-  async uploadAnswerKeyByImage(jobId, imageBlob) {
+  async uploadAnswerKeyByImage(jobId, imageBlob, template) {
     try {
-      console.log('📷 M7Service: uploadAnswerKeyByImage', { jobId });
+      console.log('📷 M7Service: uploadAnswerKeyByImage', { jobId, template });
       
       // 转换图片为 Base64
       const reader = new FileReader();
@@ -51,7 +78,8 @@ class M7Service {
       const callable = this.functions.httpsCallable('uploadAnswerKeyByImage');
       const result = await callable({
         jobId: jobId,
-        imageBytes: imageBase64
+        imageData: imageBase64,
+        template: template
       });
       
       console.log('✅ uploadAnswerKeyByImage 成功:', result.data);
@@ -136,9 +164,9 @@ class M7Service {
    * @param {Blob} imageBlob - 学生答案卡图片
    * @returns {Promise<Object>} {success, studentId, score, correctness, gradedAt, error}
    */
-  async recognizeAndGradeSheet(jobId, imageBlob) {
+  async recognizeAndGradeSheet(jobId, imageBlob, template) {
     try {
-      console.log('✏️  M7Service: recognizeAndGradeSheet', { jobId });
+      console.log('✏️  M7Service: recognizeAndGradeSheet', { jobId, template });
       
       // 转换图片为 Base64
       const reader = new FileReader();
@@ -160,7 +188,8 @@ class M7Service {
       const callable = this.functions.httpsCallable('recognizeAndGradeSheet');
       const result = await callable({
         jobId: jobId,
-        imageBytes: imageBase64
+        imageData: imageBase64,
+        template: template
       });
       
       console.log('✅ recognizeAndGradeSheet 成功:', {
@@ -186,7 +215,7 @@ class M7Service {
    * @param {Array<Blob>} imageBlobs - 多张答案卡图片
    * @returns {Promise<Object>} {success, results, succeeded, failed, error}
    */
-  async batchRecognizeSheets(jobId, imageBlobs) {
+  async batchRecognizeSheets(jobId, imageBlobs, template) {
     try {
       console.log('📦 M7Service: batchRecognizeSheets', { 
         jobId, 
@@ -202,7 +231,8 @@ class M7Service {
       const callable = this.functions.httpsCallable('batchRecognizeSheets');
       const result = await callable({
         jobId: jobId,
-        imageBytesList: base64Images
+        imageDataList: base64Images,
+        template: template
       });
       
       console.log('✅ batchRecognizeSheets 成功:', {

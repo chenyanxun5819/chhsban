@@ -10,7 +10,7 @@ This module contains all M6 management functions:
 - updateGlobalSettings: Update global settings
 """
 
-import functions_framework
+from firebase_functions import https_fn
 import firebase_admin
 from firebase_admin import firestore, auth
 from datetime import datetime
@@ -21,12 +21,40 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Region for all M6 callables (must match the region used by the frontend SDK).
+REGION = "us-central1"
+
 # Initialize Firebase Admin SDK
 try:
     if not firebase_admin._apps:
         firebase_admin.initialize_app()
 except Exception as e:
     logger.warning(f"Firebase initialization: {e}")
+
+
+def require_super_admin(req: https_fn.CallableRequest) -> str:
+    """Verify the caller is authenticated with role == 'super_admin'.
+
+    Returns the caller uid; raises https_fn.HttpsError otherwise.
+    """
+    if req.auth is None:
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.UNAUTHENTICATED,
+            "Must be signed in to call this function"
+        )
+    role = (req.auth.token or {}).get("role", "")
+    if role != "super_admin":
+        logger.warning(f"Non-admin access attempt: uid={req.auth.uid} role={role}")
+        raise https_fn.HttpsError(
+            https_fn.FunctionsErrorCode.PERMISSION_DENIED,
+            "Only super_admin can perform this operation"
+        )
+    return req.auth.uid
+
+
+def _params(req: https_fn.CallableRequest) -> dict:
+    """Return the callable payload as a dict (never None)."""
+    return req.data if isinstance(req.data, dict) else {}
 
 
 def get_db():
@@ -67,8 +95,8 @@ def success_response(data: dict = None, status_code: int = 200):
 
 # ========== M6 CALLABLE FUNCTIONS ==========
 
-@functions_framework.cloud_event
-def claimAccess(cloud_event):
+@https_fn.on_call(region=REGION)
+def claimAccess(req: https_fn.CallableRequest):
     """
     Callable: Handle login flow and set custom claims
     
@@ -97,21 +125,26 @@ def claimAccess(cloud_event):
         }
     """
     try:
-        request_json = cloud_event.get_json()
-        id_token = request_json.get('idToken')
-        
-        if not id_token:
+        request_json = _params(req)
+        id_token = request_json.get('idToken') or request_json.get('token')
+
+        # Preferred path: the Firebase SDK already attached the caller's ID token,
+        # so the callable request is already authenticated.
+        if req.auth is not None:
+            decoded_token = req.auth.token or {}
+            user_uid = req.auth.uid
+        elif id_token:
+            # Fallback: an explicit token was passed in the payload.
+            try:
+                decoded_token = auth.verify_id_token(id_token)
+            except Exception as e:
+                logger.error(f"Token verification failed: {e}")
+                return error_response('INVALID_TOKEN', 'Token verification failed', 401)
+            user_uid = decoded_token.get('uid')
+        else:
             return error_response('INVALID_REQUEST', 'idToken is required', 400)
-        
-        # Verify ID token
-        try:
-            decoded_token = auth.verify_id_token(id_token)
-        except Exception as e:
-            logger.error(f"Token verification failed: {e}")
-            return error_response('INVALID_TOKEN', 'Token verification failed', 401)
-        
+
         user_email = normalize_email(decoded_token.get('email', ''))
-        user_uid = decoded_token.get('uid')
         email_verified = decoded_token.get('email_verified', False)
         
         # Rule: email_verified must be true
@@ -121,6 +154,17 @@ def claimAccess(cloud_event):
                 'Email must be verified',
                 403
             )
+
+        # Super admins are provisioned by tools/bootstrap_admin.py (custom claims
+        # only, with no allowedUsers document). Recognise them here so the
+        # administrator is not rejected with NOT_APPROVED.
+        if decoded_token.get('role') == 'super_admin':
+            logger.info(f"super_admin access granted for {user_email}")
+            return success_response({
+                'role': 'super_admin',
+                'orgId': None,
+                'message': 'super_admin access granted'
+            }, 200)
         
         db = get_db()
         
@@ -191,8 +235,8 @@ def claimAccess(cloud_event):
         return error_response('INTERNAL_ERROR', str(e), 500)
 
 
-@functions_framework.cloud_event
-def approveTeacher(cloud_event):
+@https_fn.on_call(region=REGION)
+def approveTeacher(req: https_fn.CallableRequest):
     """
     Callable: Approve a teacher and add to allowedUsers
     
@@ -211,15 +255,15 @@ def approveTeacher(cloud_event):
         }
     """
     try:
-        request_json = cloud_event.get_json()
+        require_super_admin(req)
+        request_json = _params(req)
         email = normalize_email(request_json.get('email', ''))
         org_id = request_json.get('orgId', '')
         
         if not email or not org_id:
             return error_response('INVALID_REQUEST', 'email and orgId are required', 400)
         
-        # Verify caller is super_admin
-        # (In actual deployment, request.auth.token.role is checked by framework)
+        # Caller role already enforced by require_super_admin() above
         
         db = get_db()
         
@@ -257,8 +301,8 @@ def approveTeacher(cloud_event):
         return error_response('INTERNAL_ERROR', str(e), 500)
 
 
-@functions_framework.cloud_event
-def revokeTeacher(cloud_event):
+@https_fn.on_call(region=REGION)
+def revokeTeacher(req: https_fn.CallableRequest):
     """
     Callable: Revoke teacher's access completely
     
@@ -275,7 +319,8 @@ def revokeTeacher(cloud_event):
         {'success': True, 'data': {'email': str, 'message': '...'}}
     """
     try:
-        request_json = cloud_event.get_json()
+        require_super_admin(req)
+        request_json = _params(req)
         email = normalize_email(request_json.get('email', ''))
         
         if not email:
@@ -319,8 +364,8 @@ def revokeTeacher(cloud_event):
         return error_response('INTERNAL_ERROR', str(e), 500)
 
 
-@functions_framework.cloud_event
-def setUserActive(cloud_event):
+@https_fn.on_call(region=REGION)
+def setUserActive(req: https_fn.CallableRequest):
     """
     Callable: Activate or deactivate a teacher
     
@@ -336,9 +381,10 @@ def setUserActive(cloud_event):
         {'success': True, 'data': {...}}
     """
     try:
-        request_json = cloud_event.get_json()
+        require_super_admin(req)
+        request_json = _params(req)
         email = normalize_email(request_json.get('email', ''))
-        active = request_json.get('active', False)
+        active = bool(request_json.get('active', False))
         
         if not email or active is None:
             return error_response(
@@ -378,8 +424,8 @@ def setUserActive(cloud_event):
         return error_response('INTERNAL_ERROR', str(e), 500)
 
 
-@functions_framework.cloud_event
-def upsertOrg(cloud_event):
+@https_fn.on_call(region=REGION)
+def upsertOrg(req: https_fn.CallableRequest):
     """
     Callable: Create or update an organization
     
@@ -401,7 +447,8 @@ def upsertOrg(cloud_event):
         {'success': True, 'data': {'orgId': str, ...}}
     """
     try:
-        request_json = cloud_event.get_json()
+        require_super_admin(req)
+        request_json = _params(req)
         org_id = request_json.get('orgId', '')
         
         if not org_id:
@@ -439,8 +486,8 @@ def upsertOrg(cloud_event):
         return error_response('INTERNAL_ERROR', str(e), 500)
 
 
-@functions_framework.cloud_event
-def updateGlobalSettings(cloud_event):
+@https_fn.on_call(region=REGION)
+def updateGlobalSettings(req: https_fn.CallableRequest):
     """
     Callable: Update global settings (settings/global)
     
@@ -461,7 +508,8 @@ def updateGlobalSettings(cloud_event):
         {'success': True, 'data': {...settings...}}
     """
     try:
-        request_json = cloud_event.get_json()
+        require_super_admin(req)
+        request_json = _params(req)
         
         # Build update data
         settings_update = {
@@ -495,12 +543,7 @@ def updateGlobalSettings(cloud_event):
         return error_response('INTERNAL_ERROR', str(e), 500)
 
 
-# ========== EXPORT FUNCTIONS FOR DEPLOYMENT ==========
-
-# These will be called by functions_framework
-claimAccess = claimAccess
-approveTeacher = approveTeacher
-revokeTeacher = revokeTeacher
-setUserActive = setUserActive
-upsertOrg = upsertOrg
-updateGlobalSettings = updateGlobalSettings
+# ========== DEPLOYMENT NOTE ==========
+# Every function above is declared with the firebase_functions @https_fn.on_call
+# decorator, so the Firebase CLI discovers and deploys them automatically as
+# soon as this module is imported by main.py.

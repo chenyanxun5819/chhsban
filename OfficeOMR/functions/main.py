@@ -405,11 +405,29 @@ def health_check(request):
     return response
 
 
+# ========== M6 CALLABLE FUNCTIONS ==========
+# Import M6 admin/authorization callable functions from a separate module.
+# These are exposed by the firebase_functions framework automatically.
+try:
+    from callables_m6 import (
+        claimAccess,
+        approveTeacher,
+        revokeTeacher,
+        setUserActive,
+        upsertOrg,
+        updateGlobalSettings,
+    )
+    print("[OK] M6 callable functions imported successfully")
+except ImportError as e:
+    print(f"[WARNING] Could not import M6 callable functions: {e}")
+
+
 # ========== M7 CALLABLE FUNCTIONS ==========
 # Import M7 callable functions from separate module
 # These are exposed by the firebase_functions framework automatically
 try:
     from callables_m7 import (
+        createExam,
         uploadAnswerKeyByImage,
         uploadAnswerKeyManually,
         getAnswerKey,

@@ -29,6 +29,15 @@ class OrientationMark:
 
 
 @dataclass
+class QRCode:
+    """二维码位置与内容"""
+    x: float  # 左上角 x (mm)
+    y: float  # 左上角 y (mm)
+    w: float  # 宽度 (mm)
+    h: float  # 高度 (mm)
+
+
+@dataclass
 class Bubble:
     """单个气泡"""
     opt: str  # 选项字母 A-E
@@ -79,6 +88,7 @@ class LayoutConfig:
     option_count: int  # 4 或 5
     id_digits: int  # N 位数字
     score_box: Dict[str, float]  # {x, y, w, h}
+    qrcode: Optional[QRCode] = None  # 二维码位置（可选）
     name_line: Optional[Dict[str, float]] = None  # {x, y, w}  y=文字基线距页顶 (mm)
     class_line: Optional[Dict[str, float]] = None  # 班级手写线 {x, y, w}
     id_line: Optional[Dict[str, float]] = None  # 学号手写线 {x, y, w}（仅供人看，不参与识别）
@@ -112,6 +122,7 @@ class LayoutConfig:
             "feedback_slot_shape": "circle",  # feedback_slot 的 x/y/w/h 是圆的外接正方形，圆心=(x+w/2, y+h/2)，直径=w
             "id_layout": "rows",  # 每个 id_columns 元素是一行：col=第几位(从上到下)，digit 0-9 由左到右
             "score_box": self.score_box,
+            "qrcode": asdict(self.qrcode) if self.qrcode else None,
             "name_line": self.name_line,
             "class_line": self.class_line,
             "id_line": self.id_line,
@@ -120,68 +131,6 @@ class LayoutConfig:
     def to_json(self) -> str:
         """转换为 JSON 字符串"""
         return json.dumps(self.to_dict(), indent=2, ensure_ascii=False)
-    
-    @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "LayoutConfig":
-        """从字典反序列化为 LayoutConfig 实例
-        
-        Args:
-            data: 包含 layout.json 结构的字典
-        
-        Returns:
-            LayoutConfig 实例
-        
-        Raises:
-            ValueError: 如果数据格式不正确或缺少必需字段
-        """
-        try:
-            # 重构 Fiducial 列表
-            fiducials = [Fiducial(**f) for f in data.get('fiducials', [])]
-            
-            # 重构 OrientationMark
-            om_data = data.get('orientation_mark', {})
-            orientation_mark = OrientationMark(**om_data)
-            
-            # 重构 Question 和 Bubble 列表
-            questions = []
-            for q_data in data.get('questions', []):
-                bubbles = [Bubble(**b) for b in q_data.get('bubbles', [])]
-                questions.append(Question(
-                    q=q_data['q'],
-                    bubbles=bubbles,
-                    feedback_slot=q_data.get('feedback_slot', {})
-                ))
-            
-            # 重构 IDColumn 和 IDBubble 列表
-            id_columns = []
-            for c_data in data.get('id_columns', []):
-                bubbles = [IDBubble(**b) for b in c_data.get('bubbles', [])]
-                id_columns.append(IDColumn(
-                    col=c_data['col'],
-                    bubbles=bubbles
-                ))
-            
-            # 构造 LayoutConfig
-            return cls(
-                template_id=data['template_id'],
-                version=data['version'],
-                page_mm=data['page_mm'],
-                fiducials=fiducials,
-                orientation_mark=orientation_mark,
-                canvas_dpi=data['canvas_dpi'],
-                questions=questions,
-                id_columns=id_columns,
-                option_count=data['option_count'],
-                id_digits=data['id_digits'],
-                score_box=data['score_box'],
-                name_line=data.get('name_line'),
-                class_line=data.get('class_line'),
-                id_line=data.get('id_line'),
-            )
-        except KeyError as e:
-            raise ValueError(f'Missing required field in layout data: {e}')
-        except TypeError as e:
-            raise ValueError(f'Invalid field type in layout data: {e}')
 
 
 # 证号区几何（mm）：每位数字一行，每行 0-9 由左到右
@@ -341,6 +290,7 @@ class TemplatePresets:
             option_count=option_count,
             id_digits=id_digits,
             score_box=score_box,
+            qrcode=QRCode(x=177.0, y=10.0, w=20.0, h=20.0),  # 右上角，距边缘 ≥ 7mm
             name_line=name_line,
             class_line=class_line,
             id_line=id_line,
@@ -450,6 +400,7 @@ class TemplatePresets:
             option_count=option_count,
             id_digits=id_digits,
             score_box=score_box,
+            qrcode=QRCode(x=177.0, y=10.0, w=20.0, h=20.0),  # 右上角，距边缘 ≥ 7mm
             name_line=name_line,
             class_line=class_line,
             id_line=id_line,

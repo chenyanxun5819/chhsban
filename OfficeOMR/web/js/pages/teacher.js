@@ -132,11 +132,13 @@ class TeacherPage {
               </div>
               
               <div style="margin-top: 15px;">
+                <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 8px;">考试名称</label>
+                <input type="text" id="m7-exam-name-image" placeholder="如：2024年11月月考数学" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; margin-bottom: 15px;" />
+
                 <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 8px;">答题纸版型</label>
                 <select id="m7-template-select" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px;">
                   <option value="T100-A4">T100-A4 (100 题)</option>
                   <option value="T060-A4">T060-A4 (60 题)</option>
-                  <option value="T040-A4">T040-A4 (40 题)</option>
                 </select>
               </div>
               
@@ -155,7 +157,6 @@ class TeacherPage {
                 <select id="m7-template-select-manual" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; margin-bottom: 15px;">
                   <option value="T100-A4">T100-A4 (100 题)</option>
                   <option value="T060-A4">T060-A4 (60 题)</option>
-                  <option value="T040-A4">T040-A4 (40 题)</option>
                 </select>
                 
                 <label style="display: block; font-size: 13px; font-weight: 500; margin-bottom: 8px;">标准答案 (逗号分隔，如：A,B,C,A,A,...)</label>
@@ -547,6 +548,7 @@ class TeacherPage {
     const fileInput = this.container.querySelector('#m7-file-input');
     const templateSelect = this.container.querySelector('#m7-template-select');
     const statusDiv = this.container.querySelector('#m7-status');
+    const examNameInput = this.container.querySelector('#m7-exam-name-image');
     
     if (!fileInput.files || fileInput.files.length === 0) {
       alert('请选择一个文件');
@@ -555,6 +557,12 @@ class TeacherPage {
     
     const file = fileInput.files[0];
     const template = templateSelect.value;
+    const examName = (examNameInput ? examNameInput.value : '').trim();
+
+    if (!examName) {
+      alert('请输入考试名称');
+      return;
+    }
     
     try {
       statusDiv.textContent = '⏳ 上传中...';
@@ -574,7 +582,17 @@ class TeacherPage {
           throw new Error('M7Service 未初始化');
         }
         
-        const result = await m7Service.uploadAnswerKeyByImage(imageData, template);
+        // 先建立考试（job），再上传标准答案
+        const examResult = await m7Service.createExam(examName, template);
+        if (!examResult.success) {
+          throw new Error(examResult.error || '建立考试失败');
+        }
+        const jobId = examResult.data.jobId;
+
+        const result = await m7Service.uploadAnswerKeyByImage(jobId, file, template);
+        if (result && result.success === false) {
+          throw new Error(result.error || '上传失败');
+        }
         
         statusDiv.textContent = '✅ 答案纸上传成功！';
         statusDiv.style.background = '#e8f5e9';
@@ -632,11 +650,17 @@ class TeacherPage {
         throw new Error('M7Service 未初始化');
       }
       
-      const result = await m7Service.uploadAnswerKeyManually(
-        examName,
-        templateSelect.value,
-        answers
-      );
+      // 先建立考试（job），再上传标准答案
+      const examResult = await m7Service.createExam(examName, templateSelect.value);
+      if (!examResult.success) {
+        throw new Error(examResult.error || '建立考试失败');
+      }
+      const jobId = examResult.data.jobId;
+
+      const result = await m7Service.uploadAnswerKeyManually(jobId, answers, 'array');
+      if (result && result.success === false) {
+        throw new Error(result.error || '提交失败');
+      }
       
       statusDiv.textContent = '✅ 答案已保存！';
       statusDiv.style.background = '#e8f5e9';
@@ -671,9 +695,8 @@ class TeacherPage {
       // 获取当前用户的最新答案纸
       const user = this.authFlow.auth.currentUser;
       const jobsRef = this.firestore.collection('jobs')
-        .where('createdBy', '==', user.uid)
-        .orderBy('createdAt', 'desc')
-        .limit(1);
+        .where('uid', '==', user.uid)
+        .limit(20);
       
       const snapshot = await jobsRef.get();
       
@@ -683,7 +706,12 @@ class TeacherPage {
         return;
       }
       
-      const job = snapshot.docs[0].data();
+      const sortedDocs = snapshot.docs.slice().sort((a, b) => {
+        const ta = (a.data().createdAt && a.data().createdAt.toMillis) ? a.data().createdAt.toMillis() : 0;
+        const tb = (b.data().createdAt && b.data().createdAt.toMillis) ? b.data().createdAt.toMillis() : 0;
+        return tb - ta;
+      });
+      const job = sortedDocs[0].data();
       if (!job.answerKey) {
         const infoDiv = this.container.querySelector('#m7-answer-key-info');
         if (infoDiv) infoDiv.style.display = 'none';
@@ -695,9 +723,9 @@ class TeacherPage {
       if (infoDiv) {
         infoDiv.style.display = 'block';
         this.container.querySelector('#m7-current-exam').textContent = 
-          job.answerKey.examName || job.jobName || '未命名';
+          job.examName || job.answerKey.examName || '未命名';
         this.container.querySelector('#m7-current-template').textContent = 
-          job.answerKey.template || job.template || '未知';
+          job.templateId || job.template || '未知';
         this.container.querySelector('#m7-current-time').textContent = 
           new Date(job.answerKey.uploadedAt?.toDate?.() || job.answerKey.uploadedAt).toLocaleString('zh-CN');
         this.container.querySelector('#m7-current-count').textContent = 
