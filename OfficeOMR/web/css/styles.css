@@ -414,3 +414,80 @@ code {
     color: #a0a0a0;
   }
 }
+
+/* ============================================================
+   深色模式例外：教師頁 / 管理頁
+   ------------------------------------------------------------
+   這兩個頁面的內文大量使用淺色卡片（white / #f5f5f5）與灰色前景文字
+   （#666 / #999，見 web/js/pages/teacher.js、web/js/pages/admin.js）。
+   若沿用上面的深色背景（.page #1e1e1e、.content #2a2a2a），灰色文字
+   會落在深黑底上，對比低於 WCAG 建議值而看不清楚，因此在深色模式下
+   仍將此區塊保持淺色：內容區背景由深黑 #2a2a2a 調淡為淺灰 #f5f7fa。
+   ============================================================ */
+
+@media (prefers-color-scheme: dark) {
+  .page.teacher-page,
+  .page.admin-page {
+    background: #ffffff;
+    color: var(--text-primary);
+  }
+
+  .page.teacher-page .content,
+  .page.admin-page .content {
+    background: #f5f7fa;
+    color: var(--text-primary);
+  }
+
+  .page.teacher-page .tab-btn,
+  .page.admin-page .tab-btn {
+    color: var(--text-secondary);
+  }
+
+  .page.teacher-page .tab-btn:hover,
+  .page.teacher-page .tab-btn.active,
+  .page.admin-page .tab-btn:hover,
+  .page.admin-page .tab-btn.active {
+    color: var(--primary-color);
+  }
+
+  .page.teacher-page .quick-action-btn,
+  .page.admin-page .quick-action-btn {
+    background: #ffffff;
+    border-color: var(--border-color);
+    color: var(--text-primary);
+  }
+
+  .page.teacher-page .quick-action-btn:hover,
+  .page.admin-page .quick-action-btn:hover {
+    background: #f0f4ff;
+    border-color: var(--primary-color);
+  }
+
+  .page.teacher-page table,
+  .page.admin-page table {
+    background: #ffffff;
+  }
+
+  .page.teacher-page th,
+  .page.admin-page th {
+    background: #f5f5f5;
+    color: var(--text-primary);
+  }
+
+  .page.teacher-page td,
+  .page.admin-page td {
+    border-bottom-color: #eee;
+  }
+
+  .page.teacher-page tr:hover,
+  .page.admin-page tr:hover {
+    background: #f9f9f9;
+  }
+
+  .page.teacher-page code,
+  .page.admin-page code {
+    background: #f5f5f5;
+    color: var(--text-primary);
+  }
+}
+
