@@ -1034,3 +1034,73 @@ M6 是 OfficeOMR 第一阶段的关键里程碑，负责实现完整的学校/�
 ---
 
 **M6 已 100% 完成，所有验收标准通过，准备进入 M7 教师端实现。**
+
+---
+
+## 部署方式 ✓ 已配置（2026-11-13）
+
+### 项目独立化
+
+本项目原属于大 workspace `chhsban`，现已独立为单独的 GitHub 倉庫：
+- **新倉庫**: https://github.com/chenyanxun5819/Officeomr
+- **原倉庫**: https://github.com/chenyanxun5819/chhsban（保留，但 OfficeOMR 工作流已停用）
+
+### 自動部署配置
+
+**工作流文件**: `.github/workflows/deploy.yml`
+
+**觸發條件**:
+- 分支：`master` 或 `main`
+- 事件：`push` 或 `workflow_dispatch`（手動觸發）
+
+**部署內容**:
+```bash
+firebase deploy --only hosting,functions,firestore:rules,storage
+```
+
+部署項目：
+- ✅ **Hosting** (Firebase)：靜態前端（web/）
+- ✅ **Cloud Functions** (Python 3.11, gen2, us-central1)：callables_m6.py, callables_m7.py
+- ✅ **Firestore Rules**：firestore.rules
+- ✅ **Storage Rules**：storage.rules（答題紙圖像與結果存儲）
+
+### 依賴項
+
+**GitHub Secrets**:
+- `FIREBASE_SERVICE_ACCOUNT`：GCP 服務帳號金鑰（JSON 格式）
+  - 來源：GCP Console → Service Accounts
+  - 權限：Editor on Firebase project officeomr-fe542
+
+**Firebase 配置**:
+- `.firebaserc`：指定 Firebase 項目 ID（officeomr-fe542）
+- `firebase.json`：部署規則（hosting, functions, firestore, storage）
+- `firestore.rules`：訪問控制規則（已部署）
+- `storage.rules`：存儲訪問規則（已部署，修復時間戳變量命名衝突）
+
+### 部署驗證
+
+**成功部署標誌**:
+```
++  Deploy complete!
+Project Console: https://console.firebase.google.com/project/officeomr-fe542/overview
+Hosting URL: https://officeomr-fe542.web.app
+```
+
+**手動測試** (本地):
+```powershell
+cd D:\chhsban\OfficeOMR
+$env:GOOGLE_APPLICATION_CREDENTIALS = "officeomr-fe542-0cbe395f27f8.json"
+firebase deploy --project officeomr-fe542 --only hosting,functions,firestore:rules,storage
+```
+
+### 已修復的問題
+
+1. **Firebase Storage 未初始化**
+   - 症狀：`Error: Firebase Storage has not been set up`
+   - 解決：在 Firebase Console 啟用 Storage（生產模式，安全規則已配置）
+   
+2. **storage.rules 編譯錯誤**
+   - 症狀：`timestamp is a package and cannot be used as variable name`
+   - 解決：將路徑變數 `{timestamp}` 改為 `{timeId}`（保留字衝突）
+
+---
