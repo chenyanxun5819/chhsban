@@ -349,6 +349,10 @@ code {
     color: #e0e0e0;
   }
 
+  .content {
+    background: #2a2a2a;
+  }
+
   .header {
     background: linear-gradient(135deg, #2d3561 0%, #3d2555 100%);
   }
